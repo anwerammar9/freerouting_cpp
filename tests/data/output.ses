@@ -1,0 +1,6 @@
+(session freerouting_session
+  (base_design "C:\Work\freerouting\tests\BBD_Mars-64.dsn.dsn")
+  (routes
+    (resolution_clearance 10)
+  )
+)
