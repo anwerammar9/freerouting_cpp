@@ -29,6 +29,7 @@ public:
     RouterSettings();
     explicit RouterSettings(int p_layer_count);
     RouterSettings(const RouterSettings& other);
+    RouterSettings& operator=(const RouterSettings& other);
 
     void set_layer_count(int p_count);
 

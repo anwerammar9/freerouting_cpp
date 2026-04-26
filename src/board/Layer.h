@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <memory>
 
 namespace freerouting {
 namespace board {
@@ -20,15 +21,23 @@ public:
 class LayerStructure
 {
 public:
-    std::vector<Layer> arr;
-
-    LayerStructure(const std::vector<Layer>& p_layer_arr);
+    LayerStructure(const std::vector<std::shared_ptr<Layer>>& p_layers);
 
     int get_no(const std::string& p_name) const;
-    int get_no(const Layer& p_layer) const;
+    int get_no(const std::shared_ptr<Layer>& p_layer) const;
+
     int signal_layer_count() const;
-    Layer get_signal_layer(int p_no) const;
-    int layer_count() const { return static_cast<int>(arr.size()); }
+    std::shared_ptr<Layer> get_signal_layer(int p_no) const;
+    int get_signal_layer_no(const std::shared_ptr<Layer>& p_layer) const;
+    int get_layer_no(int p_signal_layer_no) const;
+
+    int layer_count() const;
+    const std::shared_ptr<Layer>& get_layer(int p_no) const;
+
+    std::string to_string() const;
+
+private:
+    std::vector<std::shared_ptr<Layer>> layers_;
 };
 
 } // namespace board

@@ -120,6 +120,7 @@ public:
     FloatPoint middle_point(const FloatPoint& p_other) const;
     double scalar_product(const FloatPoint& p_from, const FloatPoint& p_to) const;
     bool is_contained_in_box(const FloatPoint& p_a, const FloatPoint& p_b, double p_tolerance) const;
+    FloatPoint turn_90_degree(int p_factor) const;
     FloatPoint turn_90_degree(int p_factor, const FloatPoint& p_from_point) const;
 };
 

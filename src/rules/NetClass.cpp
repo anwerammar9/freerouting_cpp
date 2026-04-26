@@ -14,8 +14,8 @@ NetClass::NetClass(const std::string& p_name,
                        bool p_is_ignored_by_autorouter)
     : clearance_matrix_(p_clearance_matrix),
       board_layer_structure_(p_layer_structure),
-      trace_half_width_arr_(p_layer_structure.arr.size(), 0),
-      active_routing_layer_arr_(p_layer_structure.arr.size(), false),
+      trace_half_width_arr_(p_layer_structure.layer_count(), 0),
+      active_routing_layer_arr_(p_layer_structure.layer_count(), false),
       name_(p_name),
       via_rule_(nullptr),
       trace_clearance_class_(1),
@@ -26,9 +26,9 @@ NetClass::NetClass(const std::string& p_name,
       minimum_trace_length_(0),
       maximum_trace_length_(0)
 {
-    for (size_t i = 0; i < p_layer_structure.arr.size(); ++i)
+    for (size_t i = 0; i < p_layer_structure.layer_count(); ++i)
     {
-        active_routing_layer_arr_[i] = p_layer_structure.arr[i].is_signal;
+        active_routing_layer_arr_[i] = p_layer_structure.get_layer(i)->is_signal;
     }
 }
 

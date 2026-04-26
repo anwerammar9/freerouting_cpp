@@ -31,7 +31,7 @@ private:
     std::chrono::time_point<std::chrono::system_clock> timestamp_;
     LogEntryType type_ = LogEntryType::Info;
     std::string message_;
-    std::shared_ptr<std::exception> exception_;
+    std::shared_ptr<const std::exception> exception_;
     std::string topic_;
 };
 

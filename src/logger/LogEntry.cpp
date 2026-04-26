@@ -1,6 +1,7 @@
 #include "logger/LogEntry.h"
 
 #include <sstream>
+#include <stdexcept>
 
 namespace freerouting {
 namespace logger {
@@ -14,14 +15,14 @@ LogEntry::LogEntry(LogEntryType p_type, const std::string& p_message,
 {
     if (p_exception)
     {
-        exception_ = std::shared_ptr<std::exception>(p_exception, [](const std::exception*){});
+        exception_ = std::shared_ptr<const std::exception>(p_exception);
     }
 }
 
 std::string LogEntry::to_string() const
 {
     std::ostringstream ss;
-    ss << to_string(type_) << " " << message_;
+    ss << logger::to_string(type_) << " " << message_;
     return ss.str();
 }
 

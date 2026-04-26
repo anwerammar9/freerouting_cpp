@@ -18,7 +18,7 @@ ClearanceMatrix::ClearanceMatrix(int p_class_count,
                              const board::LayerStructure& p_layer_structure,
                              const std::vector<std::string>& p_name_arr)
     : layer_structure(p_layer_structure),
-      max_value_on_layer(p_layer_structure.arr.size(), 0),
+      max_value_on_layer(p_layer_structure.layer_count(), 0),
       class_count(std::max(p_class_count, 1)),
       default_classes(),
       default_value(0)
@@ -61,7 +61,7 @@ std::string ClearanceMatrix::get_name(int p_cl_class) const
 
 void ClearanceMatrix::set_default_value(int p_value)
 {
-    for (int i = 0; i < static_cast<int>(layer_structure.arr.size()); ++i)
+    for (int i = 0; i < static_cast<int>(layer_structure.layer_count()); ++i)
     {
         set_default_value(i, p_value);
     }
@@ -81,7 +81,7 @@ void ClearanceMatrix::set_default_value(int p_layer, int p_value)
 
 int ClearanceMatrix::get_value(int p_cl_class1, int p_cl_class2, int p_layer) const
 {
-    if (p_layer < 0 || p_layer >= static_cast<int>(layer_structure.arr.size()))
+    if (p_layer < 0 || p_layer >= static_cast<int>(layer_structure.layer_count()))
     {
         return 0;
     }
@@ -95,7 +95,7 @@ int ClearanceMatrix::get_value(int p_cl_class1, int p_cl_class2, int p_layer) co
 
 void ClearanceMatrix::set_value(int p_cl_class1, int p_cl_class2, int p_layer, int p_value)
 {
-    if (p_layer < 0 || p_layer >= static_cast<int>(layer_structure.arr.size()))
+    if (p_layer < 0 || p_layer >= static_cast<int>(layer_structure.layer_count()))
     {
         return;
     }
@@ -125,7 +125,7 @@ int ClearanceMatrix::get_value(int p_cl_class1, int p_cl_class2) const
 
 void ClearanceMatrix::set_value(int p_cl_class1, int p_cl_class2, int p_value)
 {
-    for (int i = 0; i < static_cast<int>(layer_structure.arr.size()); ++i)
+    for (int i = 0; i < static_cast<int>(layer_structure.layer_count()); ++i)
     {
         set_value(p_cl_class1, p_cl_class2, i, p_value);
     }
@@ -159,7 +159,7 @@ std::string ClearanceMatrix::to_string() const
 {
     std::ostringstream ss;
     ss << "ClearanceMatrix[class_count=" << class_count
-       << ", layer_count=" << layer_structure.arr.size() << "]";
+       << ", layer_count=" << layer_structure.layer_count() << "]";
     return ss.str();
 }
 

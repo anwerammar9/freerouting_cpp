@@ -34,6 +34,23 @@ RouterSettings::RouterSettings(const RouterSettings& other)
 {
 }
 
+RouterSettings& RouterSettings::operator=(const RouterSettings& other)
+{
+    if (this != &other) {
+        enabled_ = other.enabled_;
+        algorithm_ = other.algorithm_;
+        max_passes_ = other.max_passes_;
+        layer_active_ = other.layer_active_;
+        preferred_direction_horizontal_ = other.preferred_direction_horizontal_;
+        vias_allowed_ = other.vias_allowed_;
+        automatic_neckdown_ = other.automatic_neckdown_;
+        max_threads_ = other.max_threads_;
+        optimizer_ = std::make_unique<RouterOptimizerSettings>(*other.optimizer_);
+        scoring_ = std::make_unique<RouterScoringSettings>(*other.scoring_);
+    }
+    return *this;
+}
+
 void RouterSettings::set_layer_count(int p_count)
 {
     layer_active_.resize(p_count, true);

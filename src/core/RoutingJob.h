@@ -4,17 +4,28 @@
 #include <string>
 #include <vector>
 #include <chrono>
+#include <optional>
+
+#include "settings/RouterSettings.h"
+#include "settings/ProfileSettings.h"
+#include "core/RoutingStage.h"
 
 namespace freerouting {
+namespace board { class RoutingBoard; }
+
 namespace core {
 
 enum class RoutingJobState
 {
-    PENDING,
+    INVALID,
+    QUEUED,
+    READY_TO_START,
     RUNNING,
+    PAUSED,
     COMPLETED,
-    FAILED,
-    CANCELLED
+    TIMED_OUT,
+    CANCELLED,
+    TERMINATED
 };
 
 enum class RoutingJobPriority
@@ -55,13 +66,24 @@ public:
 
     const std::chrono::time_point<std::chrono::system_clock>& get_created_at() const { return created_at_; }
 
+    void set_input(const std::string& p_file_path);
+    bool try_to_set_output_file(const std::string& p_file_path);
+
     std::string to_string() const;
+
+    // Public fields matching Java RoutingJob
+    std::string session_id;
+    RoutingStage stage = RoutingStage::IDLE;
+    settings::RouterSettings router_settings;
+    settings::DesignRulesCheckerSettings drc_settings;
+    std::string drc_report_file;
+    board::RoutingBoard* board = nullptr;
 
 private:
     std::string name_;
     std::string input_file_;
     std::string output_file_;
-    RoutingJobState state_ = RoutingJobState::PENDING;
+    RoutingJobState state_ = RoutingJobState::INVALID;
     RoutingJobPriority priority_ = RoutingJobPriority::NORMAL;
     std::chrono::time_point<std::chrono::system_clock> created_at_;
 };

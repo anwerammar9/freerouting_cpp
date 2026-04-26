@@ -8,8 +8,11 @@ class Stoppable
 public:
     virtual ~Stoppable() = default;
 
-    virtual void request_stop() = 0;
-    virtual bool is_stop_requested() const = 0;
+    virtual void request_stop();
+    virtual bool is_stop_requested() const;
+
+protected:
+    bool stopped_ = false;
 };
 
 } // namespace datastructures

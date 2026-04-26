@@ -1,4 +1,4 @@
-#include "board/LayerStructure.h"
+#include "board/Layer.h"
 
 #include <algorithm>
 
@@ -26,7 +26,7 @@ int LayerStructure::get_no(const std::shared_ptr<Layer>& p_layer) const
 {
     for (size_t i = 0; i < layers_.size(); ++i)
     {
-        if (layers_[i] == p_layer)
+        if (layers_[i].get() == p_layer.get())
         {
             return static_cast<int>(i);
         }
@@ -49,33 +49,33 @@ int LayerStructure::signal_layer_count() const
 
 std::shared_ptr<Layer> LayerStructure::get_signal_layer(int p_no) const
 {
-    int found = 0;
+    int signal_count = 0;
     for (const auto& layer : layers_)
     {
         if (layer->is_signal)
         {
-            if (found == p_no)
+            if (signal_count == p_no)
             {
                 return layer;
             }
-            ++found;
+            ++signal_count;
         }
     }
-    return layers_.empty() ? nullptr : layers_.back();
+    return nullptr;
 }
 
 int LayerStructure::get_signal_layer_no(const std::shared_ptr<Layer>& p_layer) const
 {
-    int found = 0;
+    int signal_no = 0;
     for (const auto& layer : layers_)
     {
-        if (layer == p_layer)
-        {
-            return found;
-        }
         if (layer->is_signal)
         {
-            ++found;
+            if (layer.get() == p_layer.get())
+            {
+                return signal_no;
+            }
+            ++signal_no;
         }
     }
     return -1;
@@ -83,23 +83,36 @@ int LayerStructure::get_signal_layer_no(const std::shared_ptr<Layer>& p_layer) c
 
 int LayerStructure::get_layer_no(int p_signal_layer_no) const
 {
-    auto layer = get_signal_layer(p_signal_layer_no);
-    return layer ? get_no(layer) : -1;
+    int signal_count = 0;
+    for (size_t i = 0; i < layers_.size(); ++i)
+    {
+        if (layers_[i]->is_signal)
+        {
+            if (signal_count == p_signal_layer_no)
+            {
+                return static_cast<int>(i);
+            }
+            ++signal_count;
+        }
+    }
+    return -1;
+}
+
+int LayerStructure::layer_count() const
+{
+    return static_cast<int>(layers_.size());
 }
 
 const std::shared_ptr<Layer>& LayerStructure::get_layer(int p_no) const
 {
-    static std::shared_ptr<Layer> null;
-    if (p_no < 0 || p_no >= layer_count())
-    {
-        return null;
-    }
     return layers_[p_no];
 }
 
 std::string LayerStructure::to_string() const
 {
-    return "LayerStructure(" + std::to_string(layer_count()) + " layers)";
+    std::string result = "LayerStructure: ";
+    result += std::to_string(layers_.size()) + " layers";
+    return result;
 }
 
 } // namespace board

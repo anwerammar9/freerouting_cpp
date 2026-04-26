@@ -3,6 +3,8 @@
 
 #include <sstream>
 #include <iomanip>
+#include <fstream>
+#include <filesystem>
 
 namespace freerouting {
 namespace core {
@@ -13,16 +15,24 @@ const std::string RoutingJob::BINARY_FILE_EXTENSION = "frb";
 std::string to_string(RoutingJobState p_state)
 {
     switch (p_state) {
-        case RoutingJobState::PENDING:
-            return "PENDING";
+        case RoutingJobState::INVALID:
+            return "INVALID";
+        case RoutingJobState::QUEUED:
+            return "QUEUED";
+        case RoutingJobState::READY_TO_START:
+            return "READY_TO_START";
         case RoutingJobState::RUNNING:
             return "RUNNING";
+        case RoutingJobState::PAUSED:
+            return "PAUSED";
         case RoutingJobState::COMPLETED:
             return "COMPLETED";
-        case RoutingJobState::FAILED:
-            return "FAILED";
+        case RoutingJobState::TIMED_OUT:
+            return "TIMED_OUT";
         case RoutingJobState::CANCELLED:
             return "CANCELLED";
+        case RoutingJobState::TERMINATED:
+            return "TERMINATED";
         default:
             return "UNKNOWN";
     }
@@ -80,6 +90,31 @@ std::string RoutingJob::to_string() const
     
     oss << "}";
     return oss.str();
+}
+
+void RoutingJob::set_input(const std::string& p_file_path)
+{
+    input_file_ = p_file_path;
+    logger::FRLogger::instance().info("RoutingJob input set to: " + p_file_path);
+}
+
+bool RoutingJob::try_to_set_output_file(const std::string& p_file_path)
+{
+    namespace fs = std::filesystem;
+    std::string ext = fs::path(p_file_path).extension().string();
+
+    // Convert to lowercase for comparison
+    std::string lower_ext;
+    for (char c : ext) lower_ext += static_cast<char>(std::tolower(c));
+
+    if (lower_ext == ".dsn" || lower_ext == ".ses" || lower_ext == ".frb" || lower_ext == ".scr") {
+        output_file_ = p_file_path;
+        logger::FRLogger::instance().info("RoutingJob output set to: " + p_file_path);
+        return true;
+    }
+
+    logger::FRLogger::instance().warn("Unsupported output file format: " + ext);
+    return false;
 }
 
 } // namespace core

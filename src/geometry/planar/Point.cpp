@@ -479,9 +479,19 @@ bool FloatPoint::is_contained_in_box(const FloatPoint& p_a, const FloatPoint& p_
 
 FloatPoint FloatPoint::turn_90_degree(int p_factor, const FloatPoint& p_from_point) const
 {
-    FloatPoint v = FloatPoint(x - p_from_point.x, y - p_from_point.y);
-    v = v.turn_90_degree(p_factor);
-    return FloatPoint(p_from_point.x + v.x, p_from_point.y + v.y);
+    double vx = x - p_from_point.x;
+    double vy = y - p_from_point.y;
+    int n = p_factor;
+    while (n < 0) n += 4;
+    while (n >= 4) n -= 4;
+    double new_x = vx, new_y = vy;
+    switch (n) {
+        case 1: new_x = -vy; new_y = vx; break;
+        case 2: new_x = -vx; new_y = -vy; break;
+        case 3: new_x = vy; new_y = -vx; break;
+        default: break;
+    }
+    return FloatPoint(p_from_point.x + new_x, p_from_point.y + new_y);
 }
 
 FloatPoint FloatPoint::turn_90_degree(int p_factor) const

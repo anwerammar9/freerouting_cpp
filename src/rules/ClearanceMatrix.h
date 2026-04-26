@@ -36,7 +36,7 @@ public:
     void set_value(int p_cl_class1, int p_cl_class2, int p_value);
 
     int get_class_count() const { return class_count; }
-    int get_layer_count() const { return static_cast<int>(layer_structure.arr.size()); }
+    int get_layer_count() const { return layer_structure.layer_count(); }
     int get_max_value_on_layer(int p_layer) const;
 
     std::string to_string() const;

@@ -23,9 +23,10 @@ class DesignRulesCheckerSettings
 public:
     DesignRulesCheckerSettings() = default;
 
-    bool enabled = true;
+    bool enabled = false;
     bool check_clearances = true;
     bool check_min_trace_width = true;
+    std::string drc_report_file;
 
     std::string to_string() const;
 };
