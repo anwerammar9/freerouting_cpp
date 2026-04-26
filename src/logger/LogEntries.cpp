@@ -33,5 +33,31 @@ const LogEntry& LogEntries::get_last() const
     return entries_.back();
 }
 
+int LogEntries::get_warning_count() const
+{
+    int count = 0;
+    for (const auto& entry : entries_)
+    {
+        if (entry.get_type() == LogEntryType::Warning)
+        {
+            ++count;
+        }
+    }
+    return count;
+}
+
+int LogEntries::get_error_count() const
+{
+    int count = 0;
+    for (const auto& entry : entries_)
+    {
+        if (entry.get_type() == LogEntryType::Error)
+        {
+            ++count;
+        }
+    }
+    return count;
+}
+
 } // namespace logger
 } // namespace freerouting

@@ -25,6 +25,9 @@ public:
 
     bool empty() const { return entries_.empty(); }
 
+    int get_warning_count() const;
+    int get_error_count() const;
+
 private:
     std::vector<LogEntry> entries_;
 };
