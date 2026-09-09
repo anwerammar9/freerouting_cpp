@@ -4,7 +4,7 @@
 #include <vector>
 #include <string>
 
-#include "geometry/planar/IntPoint.h"
+#include "geometry/planar/Point.h"
 
 namespace freerouting {
 namespace designforms {

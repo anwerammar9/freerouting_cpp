@@ -1,6 +1,9 @@
 #include "Freerouting.h"
 #include "management/SessionManager.h"
 #include "board/BoardLoader.h"
+#include "board/RoutingBoard.h"
+#include "autoroute/BatchAutorouter.h"
+#include "designforms/specctra/SessionWriter.h"
 
 #include <iostream>
 #include <fstream>
@@ -251,25 +254,38 @@ bool Freerouting::InitializeCLI(settings::GlobalSettings& globalSettings)
     routingJob.drc_settings = globalSettings.get_drc_settings();
     routingJob.set_state(core::RoutingJobState::READY_TO_START);
 
-    // TODO: Submit job to RoutingJobScheduler and wait for completion
-    // For now, simulate the wait loop
-    logger::FRLogger::instance().info("Starting routing job...");
+    // Load the board from the input file.
+    if (!board::BoardLoader::load_board_if_needed(routingJob)) {
+        logger::FRLogger::instance().error("Failed to load board for routing");
+        return false;
+    }
 
-    // Mark as completed for now (actual routing not yet implemented)
+    routingJob.set_state(core::RoutingJobState::RUNNING);
+
+    // Run the autorouter over the loaded board.
+    autoroute::BatchAutorouter autorouter;
+    autorouter.set_board(routingJob.board);
+    autorouter.set_settings(routingJob.router_settings);
+
+    const int max_passes = routingJob.router_settings.get_max_passes();
+    autoroute::RouteResult route_result = autorouter.route_all(max_passes, nullptr);
+
+    logger::FRLogger::instance().info("DEBUG board items after route: " + std::to_string(routingJob.board->get_item_count()));
+
+    // Write the resulting routes into the output SES file.
+    const std::string board_name = routingJob.board->get_parsed_result().board_name;
+    designforms::specctra::SessionWriter session_writer(globalSettings.initial_output_file);
+    if (!session_writer.write_session(*routingJob.board, board_name)) {
+        logger::FRLogger::instance().error("Failed to write SES output file");
+        return false;
+    }
+
     routingJob.set_state(core::RoutingJobState::COMPLETED);
 
-    // Wait for the RoutingJobScheduler to do its work
-    while (routingJob.get_state() != core::RoutingJobState::COMPLETED &&
-           routingJob.get_state() != core::RoutingJobState::TERMINATED) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    }
-
-    // Save the output file
-    if (routingJob.get_state() == core::RoutingJobState::COMPLETED) {
-        // TODO: Write actual output data from routingJob.output
-        // For now, just log completion
-        logger::FRLogger::instance().info("Routing completed. Output file: " + globalSettings.initial_output_file);
-    }
+    logger::FRLogger::instance().info("Routing completed. Output file: " + globalSettings.initial_output_file);
+    logger::FRLogger::instance().info(
+        "  Routed: " + std::to_string(route_result.complete_count) +
+        "%  Incomplete: " + std::to_string(route_result.incomplete_count) + "%");
 
     return true;
 }

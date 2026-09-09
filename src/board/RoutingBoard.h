@@ -8,13 +8,25 @@
 #include "board/BasicBoard.h"
 #include "board/Communication.h"
 #include "board/ChangedArea.h"
+#include "board/BoardOutline.h"
+#include "board/FixedState.h"
+#include "board/SearchTreeManager.h"
 #include "geometry/planar/IntBox.h"
 #include "geometry/planar/Polyline.h"
+#include "geometry/planar/TileShape.h"
 #include "designforms/specctra/Scanner.h"
+
+namespace freerouting::geometry::planar {
+class LineSegment;
+} // namespace freerouting::geometry::planar
 
 namespace freerouting::board {
 
 class Item;
+class Padstack;
+class PolylineTrace;
+class Trace;
+class Via;
 
 class RoutingBoard : public BasicBoard
 {
@@ -45,6 +57,16 @@ public:
     void add_item(Item* p_item);
     void remove_item(Item* p_item);
 
+    // Creates a new PolylineTrace through p_points on p_layer and adds it to
+    // the board. Returns the created trace, or nullptr on failure.
+    PolylineTrace* add_polyline_trace(const std::vector<geometry::planar::IntPoint>& p_points,
+                                      int p_layer, int p_half_width,
+                                      const std::vector<int>& p_net_nos);
+
+    // Returns the name of the net with number p_net_no, or "NET<p_net_no>"
+    // if the net is unknown.
+    std::string get_net_name(int p_net_no) const;
+
     // Create a route connection between two items
     // Returns true if successful
     bool add_route_connection(Item* p_from_item, int p_from_layer, int p_from_x, int p_from_y,
@@ -67,6 +89,75 @@ public:
     int get_item_count() const { return static_cast<int>(items_.size()); }
     Item* get_item(int p_index) const;
 
+    // Search tree manager access
+    SearchTreeManager& search_tree_manager() { return *search_tree_manager_; }
+    const SearchTreeManager& search_tree_manager() const { return *search_tree_manager_; }
+
+    // Shove failure tracking
+    void set_shove_failing_obstacle(Item* p_item) { shove_failing_obstacle_ = p_item; }
+    void set_shove_failing_layer(int p_layer) { shove_failing_layer_ = p_layer; }
+
+    // Board outline
+    const BoardOutline* get_outline() const;
+
+    // Trace tail handling
+    bool contains_trace_tails(const std::vector<Item*>& p_obstacles, const std::vector<int>& p_net_no_arr) const;
+    Trace* get_trace_tail(const geometry::planar::Point& p_point, int p_layer, const std::vector<int>& p_net_no_arr);
+
+    // Changed area
+    void join_changed_area(const geometry::planar::Point& p_point, int p_layer);
+    ChangedArea* changed_area() { return changed_area_.get(); }
+    const ChangedArea* changed_area() const { return changed_area_.get(); }
+
+    /**
+     * Notifies the graphics observers of a changed box. Headless no-op until
+     * the boardgraphics observers are ported. Mirrors Java
+     * BasicBoard.join_graphics_update_box().
+     */
+    void join_graphics_update_box(const geometry::planar::IntBox& p_box);
+
+    // Item removal
+    void remove_items(const std::vector<Item*>& p_items);
+
+    // Clearance value access
+    int clearance_value(int p_class_1, int p_class_2, int p_layer) const;
+
+    /**
+     * Normalizes all PolylineTraces of net p_net_no. Returns true if something
+     * was changed. Mirrors Java BasicBoard.normalize_traces().
+     */
+    bool normalize_traces(int p_net_no);
+
+    /**
+     * Checks if a trace segment from p_from_point to p_to_point can be
+     * inserted without conflict. Returns the maximal insertable length
+     * (INT_MAX if no conflict exists). Mirrors Java
+     * RoutingBoard.check_trace_segment().
+     */
+    double check_trace_segment(const geometry::planar::Point& p_from_point,
+                               const geometry::planar::Point& p_to_point,
+                               int p_layer,
+                               const std::vector<int>& p_net_no_arr,
+                               int p_trace_half_width,
+                               int p_cl_class_no,
+                               bool p_only_not_shovable_obstacles);
+    double check_trace_segment(const geometry::planar::LineSegment& p_line_segment,
+                               int p_layer,
+                               const std::vector<int>& p_net_no_arr,
+                               int p_trace_half_width,
+                               int p_cl_class_no,
+                               bool p_only_not_shovable_obstacles);
+
+    // Inserts a via into the board. p_attach_allowed indicates, if the via may
+    // overlap with smd pins of the same net. Mirrors Java BasicBoard.insert_via
+    // (trace splitting is a TODO until split_traces is ported).
+    Via* insert_via(Padstack* p_padstack,
+                    const geometry::planar::Point& p_center,
+                    const std::vector<int>& p_net_no_arr,
+                    int p_clearance_class,
+                    FixedState p_fixed_state,
+                    bool p_attach_allowed);
+
     std::string to_string() const { return "RoutingBoard"; }
 
     const geometry::planar::IntBox& get_bounding_box() const { return bounding_box_; }
@@ -77,8 +168,9 @@ private:
     Item* shove_failing_obstacle_ = nullptr;
     int shove_failing_layer_ = -1;
     std::unique_ptr<ChangedArea> changed_area_;
+    std::unique_ptr<SearchTreeManager> search_tree_manager_;
 
-    const geometry::planar::IntBox& bounding_box_;
+    geometry::planar::IntBox bounding_box_;
     Communication* board_communication_ = nullptr;
     std::vector<Item*> items_;
     designforms::specctra::Result parsed_result_;

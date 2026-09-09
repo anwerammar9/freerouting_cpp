@@ -2,6 +2,9 @@
 
 #include <algorithm>
 
+#include "geometry/planar/Direction.h"
+#include "geometry/planar/IntOctagon.h"
+
 namespace freerouting::board {
 
 Padstack::Padstack(const std::string& p_name)
@@ -63,6 +66,44 @@ geometry::planar::IntBox Padstack::get_bounding_box() const
         return geometry::planar::IntBox::EMPTY;
     }
     return geometry::planar::IntBox(min_x, min_y, max_x, max_y);
+}
+
+std::vector<std::unique_ptr<geometry::planar::Direction>> Padstack::get_trace_exit_directions(
+    int p_layer, double p_factor) const
+{
+    using namespace geometry::planar;
+    std::vector<std::unique_ptr<Direction>> result;
+    if (p_layer < 0 || p_layer >= static_cast<int>(shapes_.size()))
+    {
+        return result;
+    }
+    const geometry::planar::Shape* curr_shape = shapes_[p_layer];
+    if (curr_shape == nullptr)
+    {
+        return result;
+    }
+    // Currently implemented only for box shapes, mirroring Java.
+    if (dynamic_cast<const geometry::planar::IntBox*>(curr_shape) == nullptr
+        && dynamic_cast<const geometry::planar::IntOctagon*>(curr_shape) == nullptr)
+    {
+        return result;
+    }
+    const geometry::planar::IntBox curr_box = curr_shape->bounding_box();
+
+    const bool all_dirs = std::max(curr_box.width(), curr_box.height())
+        < p_factor * std::min(curr_box.width(), curr_box.height());
+
+    if (all_dirs || curr_box.width() >= curr_box.height())
+    {
+        result.push_back(std::make_unique<IntDirection>(IntDirection::RIGHT));
+        result.push_back(std::make_unique<IntDirection>(IntDirection::LEFT));
+    }
+    if (all_dirs || curr_box.width() <= curr_box.height())
+    {
+        result.push_back(std::make_unique<IntDirection>(IntDirection::UP));
+        result.push_back(std::make_unique<IntDirection>(IntDirection::DOWN));
+    }
+    return result;
 }
 
 std::string Padstack::to_string() const

@@ -17,8 +17,26 @@ public:
     NetClasses();
 
     void add(NetClass* p_net_class);
+    int count() const { return class_count(); }
     NetClass* get(int p_index) const;
+    NetClass* get(const std::string& p_name) const;
     NetClass* get_by_name(const std::string& p_name) const;
+
+    NetClass* append(const std::string& p_name,
+                     const board::LayerStructure& p_layer_structure,
+                     const ClearanceMatrix& p_clearance_matrix,
+                     bool p_is_ignored_by_autorouter);
+    NetClass* append(const board::LayerStructure& p_layer_structure,
+                     const ClearanceMatrix& p_clearance_matrix);
+
+    NetClass* find(int p_trace_half_width,
+                   int p_trace_clearance_class,
+                   const ViaRule* p_via_rule) const;
+    NetClass* find(const std::vector<int>& p_trace_half_width_arr,
+                   int p_trace_clearance_class,
+                   const ViaRule* p_via_rule) const;
+
+    bool remove(NetClass* p_net_class);
 
     int class_count() const { return static_cast<int>(classes_.size()); }
 

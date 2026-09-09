@@ -15,8 +15,8 @@ class MockExpandableObject : public ExpandableObject {
 public:
     MockExpandableObject() : dimension_(10), element_count_(5) {}
     
-    std::shared_ptr<TileShape> get_shape() const override {
-        return nullptr; // Mock implementation
+    geometry::planar::IntBox get_shape() const override {
+        return geometry::planar::IntBox::EMPTY; // Mock implementation
     }
     
     int get_dimension() const override {
@@ -121,9 +121,9 @@ TEST_F(ExpandableObjectTest, MazeSearchElementAccess) {
 
 // Test shape functionality
 TEST_F(ExpandableObjectTest, ShapeFunctionality) {
-    // Test getting shape (returns nullptr in mock)
+    // Test getting shape (returns empty in mock)
     auto shape = test_object_->get_shape();
-    EXPECT_EQ(shape, nullptr);
+    EXPECT_EQ(shape, geometry::planar::IntBox::EMPTY);
 }
 
 // Test other room functionality
@@ -175,7 +175,7 @@ TEST_F(ExpandableObjectTest, ConstCorrectness) {
     
     // Should be able to get shape (const method)
     auto shape = const_ptr->get_shape();
-    EXPECT_EQ(shape, nullptr);
+    EXPECT_EQ(shape, geometry::planar::IntBox::EMPTY);
 }
 
 } // namespace autoroute

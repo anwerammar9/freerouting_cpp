@@ -11,9 +11,11 @@ class Package
 public:
     struct Pin
     {
-        int number;
-        int64_t x, y;
-        int layer;
+        int number = 0;
+        int64_t x = 0;
+        int64_t y = 0;
+        int layer = 0;
+        double rotation_in_degree = 0.0;
     };
 
     Package(const std::string& p_name, int p_no);

@@ -17,11 +17,13 @@ public:
 
     static Signum of(double p_value);
     static int as_int(double p_value);
+    static Signum of(int p_value);
+    static int as_int(int p_value);
 
     std::string to_string() const;
     Signum negate() const;
 
-    bool operator==(const Signum& other) const { return this == &other; }
+    bool operator==(const Signum& other) const { return name == other.name; }
     bool operator!=(const Signum& other) const { return !(*this == other); }
 
 private:

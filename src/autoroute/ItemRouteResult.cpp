@@ -58,7 +58,7 @@ ItemRouteResult::ItemRouteResult(int p_item_id,
     improvement_percentage_ = calculate_improvement_percentage();
 }
 
-auto ItemRouteResult::operator<=>(const ItemRouteResult& other) const {
+std::strong_ordering ItemRouteResult::operator<=>(const ItemRouteResult& other) const {
     // Primary comparison: incomplete count (lower is better)
     if (incomplete_count_after_ < other.incomplete_count_after_) {
         return std::strong_ordering::less;
@@ -82,6 +82,10 @@ auto ItemRouteResult::operator<=>(const ItemRouteResult& other) const {
     
     // Equal
     return std::strong_ordering::equal;
+}
+
+bool ItemRouteResult::operator==(const ItemRouteResult& other) const {
+    return (*this <=> other) == std::strong_ordering::equal;
 }
 
 bool ItemRouteResult::operator<(const ItemRouteResult& other) const {

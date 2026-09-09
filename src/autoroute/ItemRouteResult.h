@@ -1,5 +1,6 @@
 #pragma once
 
+#include <compare>
 #include <memory>
 
 namespace freerouting {
@@ -41,7 +42,8 @@ public:
                    int p_incomplete_count_after);
 
     // Comparison operators
-    auto operator<=>(const ItemRouteResult& other) const;
+    std::strong_ordering operator<=>(const ItemRouteResult& other) const;
+    bool operator==(const ItemRouteResult& other) const;
     bool operator<(const ItemRouteResult& other) const;
 
     /**
@@ -71,14 +73,14 @@ public:
     void update_improved(bool p_improved) { improved_ = p_improved; }
 
 private:
-    const int item_id_;
+    int item_id_;
     float improvement_percentage_;
-    const int via_count_before_;
-    const int via_count_after_;
-    const double trace_length_before_;
-    const double trace_length_after_;
-    const int incomplete_count_before_;
-    const int incomplete_count_after_;
+    int via_count_before_;
+    int via_count_after_;
+    double trace_length_before_;
+    double trace_length_after_;
+    int incomplete_count_before_;
+    int incomplete_count_after_;
     bool improved_;
 
     /**

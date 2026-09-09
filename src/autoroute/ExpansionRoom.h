@@ -130,7 +130,7 @@ class ExpansionDoor : public ExpandableObject
 public:
     ExpansionDoor(ExpansionRoom* p_first_room, ExpansionRoom* p_second_room, int p_dimension);
 
-    ExpansionRoom* other_room(ExpansionRoom* p_room) override;
+    ExpansionRoom* other_room(ExpansionRoom* p_room);
     CompleteExpansionRoom* other_room(CompleteExpansionRoom* p_room) override;
 
     int get_dimension() const override { return dimension_; }

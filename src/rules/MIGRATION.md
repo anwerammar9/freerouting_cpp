@@ -10,7 +10,7 @@
 
 ## Migration Status
 
-### Mapped (7/10 = 70%)
+### Mapped (10/10 = 100%)
 | Java File      | CPP File  | H File   |
 |---------------|----------|----------|
 | BoardRules.java | BoardRules.cpp | BoardRules.h |
@@ -18,19 +18,18 @@
 | DefaultItemClearanceClasses.java | DefaultItemClearanceClasses.cpp | DefaultItemClearanceClasses.h |
 | Net.java | Net.cpp | Net.h |
 | NetClass.java | NetClass.cpp | NetClass.h |
+| NetClasses.java | BoardRules.cpp | BoardRules.h |
+| Nets.java | Net.cpp | Net.h |
 | ViaInfo.java | ViaInfo.cpp | ViaInfo.h |
+| ViaInfos.java | ViaInfo.cpp | ViaInfo.h |
 | ViaRule.java | ViaRule.cpp | ViaRule.h |
-
-### Reference Only (3/10 = 30%)
-These are Java collection/helper classes (no C++ equivalent - use std::vector, std::list, etc.)
-
-| Java File | Notes |
-|----------|-------|
-| NetClasses.java | Java collection class |
-| Nets.java | Java collection class |
-| ViaInfos.java | Java collection class |
 
 ## Migration Percentage
 
-- **Core Classes**: 7/7 = 100% migrated
-- **Total**: 7/10 = 70% migrated
+- **Core Classes**: 10/10 = 100% migrated
+
+## Notes
+
+- `NetClasses`, `Nets` and `ViaInfos` are collection wrapper classes, kept as C++ classes (not replaced by raw `std::vector<T>`) to preserve the Java API (append/find/remove/get by name/name generation, 1-based net numbers).
+- `ViaRule` now stores the padstack-based `rules::ViaInfo` from `ViaInfo.h`; the previous duplicate drill/layer-based `rules::ViaInfo` in `ViaRule.h` was removed.
+- Pending: `ViaRule::get_layer_range()` and any method needing complete padstack internals, plus locale-based (`TextManager`) naming.

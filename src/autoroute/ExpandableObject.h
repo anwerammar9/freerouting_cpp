@@ -2,6 +2,7 @@
 
 #include <memory>
 #include "geometry/planar/TileShape.h"
+#include "geometry/planar/IntBox.h"
 
 namespace freerouting {
 namespace autoroute {
@@ -24,7 +25,7 @@ public:
      * 
      * @return The tile shape representing the object's shape
      */
-    virtual std::shared_ptr<TileShape> get_shape() const = 0;
+    virtual geometry::planar::IntBox get_shape() const = 0;
 
     /**
      * @brief Returns the dimension of the intersection of the shapes of the 2 objects belonging to this door

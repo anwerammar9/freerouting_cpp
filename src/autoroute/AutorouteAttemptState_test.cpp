@@ -24,9 +24,10 @@ TEST_F(AutorouteAttemptStateTest, BasicEnumValues) {
     EXPECT_EQ(static_cast<int>(AutorouteAttemptState::CONNECTED_TO_PLANE), 3);
     EXPECT_EQ(static_cast<int>(AutorouteAttemptState::ALREADY_CONNECTED), 4);
     EXPECT_EQ(static_cast<int>(AutorouteAttemptState::NO_CONNECTIONS), 5);
-    EXPECT_EQ(static_cast<int>(AutorouteAttemptState::ROUTED), 6);
-    EXPECT_EQ(static_cast<int>(AutorouteAttemptState::FAILED), 7);
-    EXPECT_EQ(static_cast<int>(AutorouteAttemptState::INSERT_ERROR), 8);
+    EXPECT_EQ(static_cast<int>(AutorouteAttemptState::NOT_ROUTED), 6);
+    EXPECT_EQ(static_cast<int>(AutorouteAttemptState::ROUTED), 7);
+    EXPECT_EQ(static_cast<int>(AutorouteAttemptState::FAILED), 8);
+    EXPECT_EQ(static_cast<int>(AutorouteAttemptState::INSERT_ERROR), 9);
 }
 
 // Test string conversion

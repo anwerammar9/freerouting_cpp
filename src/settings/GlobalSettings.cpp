@@ -113,7 +113,9 @@ void GlobalSettings::apply_command_line_arguments(const std::vector<std::string>
         try {
             const std::string& arg = args[i];
 
-            if (arg.starts_with("--")) {
+            if (arg == "--help" || arg == "-help" || arg == "-h" || arg == "--h" || arg.find("help") != std::string::npos) {
+                show_help_option = true;
+            } else if (arg.starts_with("--")) {
                 // --property=value format
                 auto eq_pos = arg.find('=');
                 if (eq_pos != std::string::npos && arg.substr(2, eq_pos - 2) != "user_data_path") {
@@ -237,8 +239,6 @@ void GlobalSettings::apply_command_line_arguments(const std::vector<std::string>
                     runtime_environment_.host = args[i + 1];
                     i++;
                 }
-            } else if (arg.starts_with("-help")) {
-                show_help_option = true;
             } else if (arg.starts_with("-inc")) {
                 if (i + 1 < args.size() && !args[i + 1].starts_with("-")) {
                     // TODO: set ignore net classes

@@ -4,11 +4,11 @@
 #include <memory>
 #include <vector>
 
+#include "core/Package.h"
 #include "geometry/planar/Point.h"
 
 namespace freerouting::board {
 
-class Package;
 class LogicalPart;
 
 class Component
@@ -16,22 +16,28 @@ class Component
 public:
     Component(const std::string& p_name,
                int p_no,
-               Package* p_package,
+               core::Package* p_package,
                bool p_position_fixed);
 
     const std::string& get_name() const { return name_; }
     int get_no() const { return no_; }
     bool is_position_fixed() const { return position_fixed_; }
+    bool is_placed_on_front() const { return placed_on_front_; }
+    void set_placed_on_front(bool p_value) { placed_on_front_ = p_value; }
 
     int64_t get_location_x() const { return location_x_; }
     int64_t get_location_y() const { return location_y_; }
     void set_location(int64_t p_x, int64_t p_y);
+    geometry::planar::IntPoint get_location() const
+    {
+        return geometry::planar::IntPoint(location_x_, location_y_);
+    }
 
     double get_rotation() const { return rotation_in_degree_; }
     void set_rotation(double p_rotation) { rotation_in_degree_ = p_rotation; }
 
-    Package* get_package() const { return package_; }
-    void set_package(Package* p_package) { package_ = p_package; }
+    core::Package* get_package() const { return package_; }
+    void set_package(core::Package* p_package) { package_ = p_package; }
 
     bool is_placed() const { return placed_; }
     void set_placed(bool p_value) { placed_ = p_value; }
@@ -48,9 +54,10 @@ private:
     int64_t location_x_;
     int64_t location_y_;
     double rotation_in_degree_;
-    Package* package_;
-    bool placed_;
-    int pin_count_;
+    core::Package* package_ = nullptr;
+    bool placed_ = false;
+    bool placed_on_front_ = true;
+    int pin_count_ = 0;
 };
 
 class Components

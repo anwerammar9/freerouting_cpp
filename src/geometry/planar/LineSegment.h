@@ -1,31 +1,70 @@
 #pragma once
 
+#include "geometry/planar/Direction.h"
 #include "geometry/planar/IntBox.h"
+#include "geometry/planar/Point.h"
 #include "geometry/planar/Vector.h"
+
+#include <memory>
+#include <optional>
+#include <vector>
 
 namespace freerouting {
 namespace geometry {
 namespace planar {
 
+class Polyline;
+class PolylineShape;
+class Simplex;
+class TileShape;
+
 class LineSegment
 {
 public:
-    LineSegment(const IntPoint& p_start, const IntPoint& p_end);
+    LineSegment(const Line& p_start_line, const Line& p_middle_line, const Line& p_end_line);
+    LineSegment(const Polyline& p_polyline, int p_no);
+    LineSegment(const PolylineShape& p_shape, int p_no);
 
-    const IntPoint& start_point() const { return start_; }
-    const IntPoint& end_point() const { return end_; }
+    static LineSegment from_endpoints(const IntPoint& p_start, const IntPoint& p_end);
 
-    Line supporting_line() const;
-    IntBox bounding_box() const;
+    IntPoint start_point() const;
+    IntPoint end_point() const;
+    FloatPoint start_point_approx() const;
+    FloatPoint end_point_approx() const;
+
+    const Line& get_line() const { return middle_; }
+    const Line& get_start_closing_line() const { return start_; }
+    const Line& get_end_closing_line() const { return end_; }
+
+    LineSegment opposite() const;
+    Polyline to_polyline() const;
+    std::unique_ptr<Simplex> to_simplex() const;
+
     bool contains(const IntPoint& p_point) const;
+
+    IntBox bounding_box() const;
+    IntOctagon bounding_octagon() const;
+
+    LineSegment change_length_approx(double p_new_length) const;
+
+    std::vector<Line> intersection(const LineSegment& p_other) const;
     bool intersects(const LineSegment& p_other) const;
+    bool overlaps(const LineSegment& p_other) const;
+
+    std::vector<IntPoint> stair_approximation(double p_width, bool p_to_the_right) const;
+    std::vector<IntPoint> stair_approximation_45(double p_width, bool p_to_the_right) const;
+    std::vector<int> border_intersections(const TileShape& p_shape) const;
+
+    LineSegment sort_endpoints_in_x_y() const;
 
 private:
-    IntPoint start_;
-    IntPoint end_;
+    Line start_;
+    Line middle_;
+    Line end_;
+    mutable std::optional<IntPoint> precalculated_start_point_;
+    mutable std::optional<IntPoint> precalculated_end_point_;
 
-    static int orientation(const IntPoint& p, const IntPoint& q, const IntPoint& r);
-    static bool on_segment(const IntPoint& p, const IntPoint& q, const IntPoint& r);
+    static IntDirection normalized_direction(const IntPoint& p_from, const IntPoint& p_to);
 };
 
 } // namespace planar

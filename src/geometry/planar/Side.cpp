@@ -1,25 +1,22 @@
-#include "geometry/planar/Point.h"
-#include <stdexcept>
-#include <string>
+#include "geometry/planar/Side.h"
 
 namespace freerouting {
 namespace geometry {
 namespace planar {
 
-class SideUtils
-{
-public:
-    static Side of(double p_value) {
+Side SideUtils::of(double p_value) {
         if (p_value > 0) return Side::ON_THE_LEFT;
         if (p_value < 0) return Side::ON_THE_RIGHT;
         return Side::COLLINEAR;
     }
-    
-    static Side of(int p_value) {
-        return of(static_cast<double>(p_value));
-    }
-    
-    static std::string to_string(Side side) {
+
+Side SideUtils::of(int p_value)
+{
+    return of(static_cast<double>(p_value));
+}
+
+std::string SideUtils::to_string(Side side)
+{
         switch (side) {
             case Side::ON_THE_LEFT: return "ON_THE_LEFT";
             case Side::ON_THE_RIGHT: return "ON_THE_RIGHT";
@@ -28,15 +25,15 @@ public:
             default: return "UNKNOWN";
         }
     }
-    
-    static Side negate(Side side) {
+
+Side SideUtils::negate(Side side)
+{
         switch (side) {
             case Side::ON_THE_LEFT: return Side::ON_THE_RIGHT;
             case Side::ON_THE_RIGHT: return Side::ON_THE_LEFT;
             default: return side;
         }
     }
-};
 
 } // namespace planar
 } // namespace geometry

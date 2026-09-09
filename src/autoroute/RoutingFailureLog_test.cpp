@@ -4,6 +4,7 @@
  */
 
 #include "autoroute/RoutingFailureLog.h"
+#include "board/Item.h"
 #include <gtest/gtest.h>
 #include <memory>
 #include <thread>
@@ -12,7 +13,7 @@
 namespace freerouting {
 namespace autoroute {
 
-// Mock implementations for testing
+// Mock implementation for testing
 class MockItem : public Item {
 public:
     int item_id;
@@ -20,13 +21,9 @@ public:
     int net_no_val;
     
     MockItem(int id, int net_cnt = 1, int net = 1) 
-        : item_id(id), net_count_val(net_cnt), net_no_val(net) {}
-    
-    int get_id_no() const override { return item_id; }
-    int net_count() const override { return net_count_val; }
-    int get_net_no(int index) const override { 
-        return (index == 0) ? net_no_val : -1; 
-    }
+        : Item(net_cnt > 0 ? std::vector<int>{net} : std::vector<int>{},
+               0, id, 0, board::FixedState::NOT_FIXED, nullptr)
+        , item_id(id), net_count_val(net_cnt), net_no_val(net) {}
     
     void set_id(int id) { item_id = id; }
     void set_net_count(int cnt) { net_count_val = cnt; }
@@ -203,7 +200,7 @@ TEST_F(RoutingFailureLogTest, ThreadSafety) {
     
     auto stats = log->get_statistics();
     EXPECT_EQ(stats.first, 1);  // total items
-    EXPECT_EQ(stats.second, 0); // unroutable items (assuming threshold not reached)
+    EXPECT_EQ(stats.second, 1); // unroutable items (100 failures >= threshold 50)
 }
 
 // Test ItemFailureInfo functionality

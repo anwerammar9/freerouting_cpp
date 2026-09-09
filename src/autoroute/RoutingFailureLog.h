@@ -8,9 +8,12 @@
 #include "autoroute/AutorouteAttemptState.h"
 
 namespace freerouting {
+namespace board {
+class Item;
+}
 namespace autoroute {
 
-class Item;
+using board::Item;
 
 /**
  * @brief Thread-safe logbook for tracking routing failures per item
@@ -64,7 +67,7 @@ public:
         std::string to_string() const;
 
         // Accessors
-        int get_failure_count() const { return failure_count; }
+        int get_failure_count() const { std::lock_guard<std::mutex> lock(mutex_); return failure_count; }
         AutorouteAttemptState get_last_failure_state() const { return last_failure_state; }
         const std::string& get_last_failure_reason() const { return last_failure_reason; }
         long get_last_attempt_pass() const { return last_attempt_pass; }

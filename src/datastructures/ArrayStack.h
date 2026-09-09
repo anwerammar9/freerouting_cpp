@@ -30,7 +30,7 @@ private:
 template <typename T>
 ArrayStack<T>::ArrayStack(size_t p_max_stack_depth)
 {
-    node_arr.reserve(p_max_stack_depth);
+    node_arr.resize(p_max_stack_depth);
 }
 
 template <typename T>
@@ -68,7 +68,7 @@ template <typename T>
 void ArrayStack<T>::reallocate()
 {
     size_t new_size = node_arr.size() == 0 ? 4 : node_arr.size() * 4;
-    node_arr.reserve(new_size);
+    node_arr.resize(new_size);
 }
 
 } // namespace datastructures

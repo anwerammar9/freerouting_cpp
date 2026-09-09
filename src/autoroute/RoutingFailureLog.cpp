@@ -9,7 +9,7 @@ namespace autoroute {
 // ItemFailureInfo implementation
 RoutingFailureLog::ItemFailureInfo::ItemFailureInfo(std::shared_ptr<Item> p_item)
     : item(std::move(p_item))
-    , net_no(item && item->net_count() > 0 ? item->get_net_no(0) : -1)
+    , net_no(item && !item->get_net_nos().empty() ? item->get_net_nos().front() : -1)
     , failure_count(0)
     , last_failure_state(AutorouteAttemptState::UNKNOWN)
     , last_failure_reason("")
@@ -37,7 +37,7 @@ std::string RoutingFailureLog::ItemFailureInfo::to_string() const {
     std::ostringstream oss;
     
     if (item) {
-        oss << "Item #" << item->get_id_no() 
+        oss << "Item #" << item->get_id() 
             << " (net #" << net_no 
             << ", " << failure_count << " failures)";
     } else {
@@ -68,7 +68,7 @@ bool RoutingFailureLog::should_skip(std::shared_ptr<Item> item) const {
     }
 
     std::lock_guard<std::mutex> lock(mutex_);
-    auto it = failures_.find(item->get_id_no());
+    auto it = failures_.find(item->get_id());
     if (it != failures_.end()) {
         return it->second->should_give_up();
     }
@@ -107,7 +107,7 @@ int RoutingFailureLog::get_failure_count(std::shared_ptr<Item> item) const {
     }
 
     std::lock_guard<std::mutex> lock(mutex_);
-    auto it = failures_.find(item->get_id_no());
+    auto it = failures_.find(item->get_id());
     if (it != failures_.end()) {
         return it->second->get_failure_count();
     }
@@ -143,10 +143,10 @@ std::shared_ptr<RoutingFailureLog::ItemFailureInfo>
 RoutingFailureLog::get_or_create_failure_info(std::shared_ptr<Item> item) {
     std::lock_guard<std::mutex> lock(mutex_);
     
-    auto it = failures_.find(item->get_id_no());
+    auto it = failures_.find(item->get_id());
     if (it == failures_.end()) {
         auto failure_info = std::make_shared<ItemFailureInfo>(item);
-        failures_[item->get_id_no()] = failure_info;
+        failures_[item->get_id()] = failure_info;
         return failure_info;
     }
     

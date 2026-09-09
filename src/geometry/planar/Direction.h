@@ -58,6 +58,10 @@ public:
     int compareTo(const IntDirection& p_other) const override;
     std::string to_string() const override;
 
+    double determinant(const IntDirection& p_other) const;
+    bool equals(const IntDirection& p_other) const;
+    IntDirection turn_45_degree_int(int p_factor) const;
+
     static const IntDirection NULL_DIR;
     static const IntDirection RIGHT;
     static const IntDirection RIGHT45;
@@ -67,6 +71,30 @@ public:
     static const IntDirection LEFT45;
     static const IntDirection DOWN;
     static const IntDirection DOWN45;
+};
+
+/**
+ * Implements the abstract class Direction as a tuple of infinite precision
+ * integers. Port of Java BigIntDirection.
+ */
+class BigIntDirection : public Direction
+{
+public:
+    const datastructures::BigInt x;
+    const datastructures::BigInt y;
+
+    BigIntDirection(const datastructures::BigInt& p_x, const datastructures::BigInt& p_y);
+    explicit BigIntDirection(const IntDirection& p_dir);
+
+    std::unique_ptr<Vector> get_vector() const override;
+    bool is_orthogonal() const override;
+    bool is_diagonal() const override;
+    std::unique_ptr<Direction> turn_45_degree(int p_factor) const override;
+    std::unique_ptr<Direction> opposite() const override;
+
+    int compareTo(const IntDirection& p_other) const override;
+    int compareTo(const BigIntDirection& p_other) const;
+    std::string to_string() const override;
 };
 
 } // namespace planar

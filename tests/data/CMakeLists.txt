@@ -9,7 +9,6 @@ target_link_libraries(run_tests PRIVATE
     freerouting_geometry
     freerouting_rules
     freerouting_board
-    freerouting_core_lib
     freerouting_designforms
     freerouting_drc
     Threads::Threads
@@ -17,3 +16,4 @@ target_link_libraries(run_tests PRIVATE
 
 # Register tests
 add_test(NAME AllTests COMMAND run_tests)
+set_tests_properties(AllTests PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})

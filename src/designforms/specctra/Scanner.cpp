@@ -124,22 +124,51 @@ Scanner::Token Scanner::next_token()
 
                 if (std::isdigit(str[0]) || str[0] == '-' || str[0] == '+')
                 {
-                    bool is_float = false;
-                    for (char c : str)
+                    if (str.find('.') != std::string::npos)
                     {
-                        if (c == '.')
-                            is_float = true;
-                    }
-
-                    if (is_float)
-                    {
-                        result.type = TokenType::FLOAT;
-                        result.value = std::stod(str);
+                        try
+                        {
+                            std::size_t parsed = 0;
+                            double dbl = std::stod(str, &parsed);
+                            if (parsed == str.size())
+                            {
+                                result.type = TokenType::FLOAT;
+                                result.value = dbl;
+                            }
+                            else
+                            {
+                                result.type = TokenType::STRING;
+                                result.value = str;
+                            }
+                        }
+                        catch (...)
+                        {
+                            result.type = TokenType::STRING;
+                            result.value = str;
+                        }
                     }
                     else
                     {
-                        result.type = TokenType::INTEGER;
-                        result.value = std::stoll(str);
+                        try
+                        {
+                            std::size_t parsed = 0;
+                            int64_t integer = std::stoll(str, &parsed);
+                            if (parsed == str.size())
+                            {
+                                result.type = TokenType::INTEGER;
+                                result.value = integer;
+                            }
+                            else
+                            {
+                                result.type = TokenType::STRING;
+                                result.value = str;
+                            }
+                        }
+                        catch (...)
+                        {
+                            result.type = TokenType::STRING;
+                            result.value = str;
+                        }
                     }
                 }
                 else

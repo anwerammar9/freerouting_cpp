@@ -132,9 +132,9 @@ void test_line_geometry_ops()
 
 void test_line_segment_basics()
 {
-    const LineSegment s1(IntPoint(0, 0), IntPoint(10, 0));
-    const LineSegment s2(IntPoint(5, -2), IntPoint(5, 3));
-    const LineSegment s3(IntPoint(20, 20), IntPoint(30, 30));
+    const LineSegment s1 = LineSegment::from_endpoints(IntPoint(0, 0), IntPoint(10, 0));
+    const LineSegment s2 = LineSegment::from_endpoints(IntPoint(5, -2), IntPoint(5, 3));
+    const LineSegment s3 = LineSegment::from_endpoints(IntPoint(20, 20), IntPoint(30, 30));
 
     assert(s1.contains(IntPoint(0, 0)));
     assert(s1.contains(IntPoint(4, 0)));

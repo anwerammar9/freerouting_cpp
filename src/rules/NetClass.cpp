@@ -1,7 +1,8 @@
 #include "rules/NetClass.h"
 
-#include <stdexcept>
+#include <algorithm>
 #include <sstream>
+#include <stdexcept>
 
 #include "rules/ViaRule.h"
 
@@ -129,6 +130,19 @@ void NetClass::set_trace_half_width(int p_layer, int p_width)
     }
 }
 
+void NetClass::set_trace_half_width(int p_width)
+{
+    std::fill(trace_half_width_arr_.begin(), trace_half_width_arr_.end(), p_width);
+}
+
+void NetClass::set_trace_half_width_on_inner(int p_value)
+{
+    for (size_t i = 1; i + 1 < trace_half_width_arr_.size(); ++i)
+    {
+        trace_half_width_arr_[i] = p_value;
+    }
+}
+
 bool NetClass::is_active_routing_layer(int p_layer) const
 {
     if (p_layer < 0 || p_layer >= static_cast<int>(active_routing_layer_arr_.size()))
@@ -144,6 +158,35 @@ void NetClass::set_active_routing_layer(int p_layer, bool p_active)
     {
         active_routing_layer_arr_[p_layer] = p_active;
     }
+}
+
+void NetClass::set_all_layers_active(bool p_value)
+{
+    std::fill(active_routing_layer_arr_.begin(), active_routing_layer_arr_.end(), p_value);
+}
+
+void NetClass::set_all_inner_layers_active(bool p_value)
+{
+    for (size_t i = 1; i + 1 < active_routing_layer_arr_.size(); ++i)
+    {
+        active_routing_layer_arr_[i] = p_value;
+    }
+}
+
+bool NetClass::trace_width_is_layer_dependent() const
+{
+    int compare_value = trace_half_width_arr_.empty() ? 0 : trace_half_width_arr_[0];
+    for (size_t i = 1; i < trace_half_width_arr_.size(); ++i)
+    {
+        if (board_layer_structure_.get_layer(static_cast<int>(i))->is_signal)
+        {
+            if (trace_half_width_arr_[i] != compare_value)
+            {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 std::string NetClass::to_string() const

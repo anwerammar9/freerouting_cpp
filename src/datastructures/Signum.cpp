@@ -44,6 +44,16 @@ int Signum::as_int(double p_value)
     }
 }
 
+Signum Signum::of(int p_value)
+{
+    return of(static_cast<double>(p_value));
+}
+
+int Signum::as_int(int p_value)
+{
+    return as_int(static_cast<double>(p_value));
+}
+
 std::string Signum::to_string() const
 {
     return name;

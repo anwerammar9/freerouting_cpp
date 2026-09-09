@@ -104,6 +104,8 @@ bool Structure::read_boundary_scope(Scanner& p_scanner, Result& p_result)
 
     if (!first_coord)
     {
+        p_result.board_min_x = x1;
+        p_result.board_min_y = y1;
         p_result.board_width = x2 - x1;
         p_result.board_height = y2 - y1;
     }

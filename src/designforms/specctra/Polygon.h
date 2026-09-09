@@ -3,8 +3,10 @@
 #include <array>
 #include <memory>
 #include <string>
+#include <vector>
 
-#include "geometry/planar/IntPoint.h"
+#include "geometry/planar/Point.h"
+#include "geometry/planar/IntBox.h"
 
 namespace freerouting {
 namespace designforms {

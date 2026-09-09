@@ -5,6 +5,10 @@
 #include "board/Item.h"
 #include "board/Connectable.h"
 
+namespace freerouting::geometry::planar {
+class Shape;
+}
+
 namespace freerouting {
 namespace board {
 

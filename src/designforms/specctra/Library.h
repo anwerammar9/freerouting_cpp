@@ -16,6 +16,7 @@ public:
 
 private:
     static bool read_padstack_scope(Scanner& p_scanner, Result& p_result);
+    static bool read_image_scope(Scanner& p_scanner, Result& p_result);
     static bool skip_scope(Scanner& p_scanner);
 };
 

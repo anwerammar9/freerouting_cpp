@@ -1,5 +1,6 @@
 #include "autoroute/Connection.h"
 #include "board/Item.h"
+#include "board/Trace.h"
 #include "autoroute/ItemAutorouteInfo.h"
 #include "geometry/planar/Point.h"
 #include <cmath>
@@ -42,8 +43,10 @@ double Connection::trace_length() const {
     double result = 0;
     for (auto* item : item_list) {
         if (item->is_trace()) {
-            auto* trace = static_cast<board::Trace*>(item);
-            result += trace->get_length();
+            auto* trace = dynamic_cast<board::Trace*>(item);
+            if (trace) {
+                result += trace->get_length();
+            }
         }
     }
     return result;

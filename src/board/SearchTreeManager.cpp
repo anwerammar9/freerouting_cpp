@@ -35,10 +35,8 @@ void SearchTreeManager::remove(Item* p_item)
         return;
     }
     for (auto curr_tree : compensated_search_trees_) {
-        // Need get_search_tree_entries in Item.h
-        // curr_tree->remove(p_item->get_search_tree_entries(curr_tree));
+        curr_tree->remove(p_item);
     }
-    // p_item->clear_search_tree_entries();
     p_item->set_on_board(false);
 }
 

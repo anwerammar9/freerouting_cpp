@@ -1,10 +1,14 @@
 #include "geometry/planar/Point.h"
 #include "geometry/planar/IntBox.h"
+#include "geometry/planar/IntOctagon.h"
 #include "geometry/planar/Vector.h"
+#include "geometry/planar/Direction.h"
+#include "geometry/planar/Rational.h"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <numeric>
 #include <stdexcept>
 #include <sstream>
 
@@ -191,7 +195,13 @@ std::unique_ptr<Point> IntPoint::translate_by(const Vector& p_vector) const
     {
         return std::make_unique<IntPoint>(x + v->x, y + v->y);
     }
-    throw std::runtime_error("IntPoint::translate_by: not implemented for non-IntVector");
+    const RationalVector* rv = dynamic_cast<const RationalVector*>(&p_vector);
+    if (rv)
+    {
+        // Java parity: IntPoint.translate_by(RationalVector) = p_vector.add_to(this)
+        return rv->add_to(*this);
+    }
+    throw std::runtime_error("IntPoint::translate_by: not implemented for this vector type");
 }
 
 std::unique_ptr<Vector> IntPoint::difference_by(const Point& p_other) const
@@ -201,7 +211,15 @@ std::unique_ptr<Vector> IntPoint::difference_by(const Point& p_other) const
     {
         return std::make_unique<IntVector>(x - other_int->x, y - other_int->y);
     }
-    throw std::runtime_error("IntPoint::difference_by: not implemented for non-IntPoint");
+    const RationalPoint* other_rat = dynamic_cast<const RationalPoint*>(&p_other);
+    if (other_rat)
+    {
+        // Java parity: IntPoint.difference_by(RationalPoint) =
+        // p_other.difference_by(this).negate()
+        std::unique_ptr<Vector> tmp = other_rat->difference_by(*this);
+        return tmp->negate();
+    }
+    throw std::runtime_error("IntPoint::difference_by: not implemented for this point type");
 }
 
 Side IntPoint::side_of(const Line& p_line) const
@@ -218,14 +236,14 @@ std::unique_ptr<Point> IntPoint::perpendicular_projection(const Line& p_line) co
     int64_t vxvx = v.x * v.x;
     int64_t vyvy = v.y * v.y;
     int64_t denominator = vxvx + vyvy;
-    
+
     if (denominator == 0)
         return std::make_unique<IntPoint>(p_line.a.x, p_line.a.y);
-    
-    int64_t det = determinant(p_line.b);
+
+    int64_t det = p_line.a.x * p_line.b.y - p_line.a.y * p_line.b.x;
     int64_t proj_x = (vxvx * x + v.x * v.y * y + det * v.y) / denominator;
     int64_t proj_y = (v.x * v.y * x + vyvy * y - det * v.x) / denominator;
-    
+
     return std::make_unique<IntPoint>(proj_x, proj_y);
 }
 
@@ -234,6 +252,9 @@ int IntPoint::compare_x(const Point& p_other) const
     const IntPoint* other_int = dynamic_cast<const IntPoint*>(&p_other);
     if (other_int)
         return compare_x(*other_int);
+    const RationalPoint* other_rat = dynamic_cast<const RationalPoint*>(&p_other);
+    if (other_rat)
+        return -other_rat->compare_x(*this);
     return 0;
 }
 
@@ -242,6 +263,9 @@ int IntPoint::compare_y(const Point& p_other) const
     const IntPoint* other_int = dynamic_cast<const IntPoint*>(&p_other);
     if (other_int)
         return compare_y(*other_int);
+    const RationalPoint* other_rat = dynamic_cast<const RationalPoint*>(&p_other);
+    if (other_rat)
+        return -other_rat->compare_y(*this);
     return 0;
 }
 
@@ -257,6 +281,16 @@ int IntPoint::compare_y(const IntPoint& p_other) const
     if (y > p_other.y) return 1;
     if (y < p_other.y) return -1;
     return 0;
+}
+
+int IntPoint::compare_x_y(const IntPoint& p_other) const
+{
+    const int result_x = compare_x(p_other);
+    if (result_x != 0)
+    {
+        return result_x;
+    }
+    return compare_y(p_other);
 }
 
 double IntPoint::signed_area(const IntPoint& p_1, const IntPoint& p_2) const
@@ -296,7 +330,13 @@ std::unique_ptr<Point> FloatPoint::translate_by(const Vector& p_vector) const
     {
         return std::make_unique<FloatPoint>(x + static_cast<double>(v->x), y + static_cast<double>(v->y));
     }
-    throw std::runtime_error("FloatPoint::translate_by: not implemented for non-IntVector");
+    const RationalVector* rv = dynamic_cast<const RationalVector*>(&p_vector);
+    if (rv)
+    {
+        FloatPoint vf = rv->to_float();
+        return std::make_unique<FloatPoint>(x + vf.x, y + vf.y);
+    }
+    throw std::runtime_error("FloatPoint::translate_by: not implemented for this vector type");
 }
 
 std::unique_ptr<Vector> FloatPoint::difference_by(const Point& p_other) const
@@ -308,7 +348,10 @@ std::unique_ptr<Vector> FloatPoint::difference_by(const Point& p_other) const
             static_cast<int64_t>(other_fp->x - x),
             static_cast<int64_t>(other_fp->y - y));
     }
-    throw std::runtime_error("FloatPoint::difference_by: not implemented");
+    FloatPoint other = p_other.to_float();
+    return std::make_unique<IntVector>(
+        static_cast<int64_t>(other.x - x),
+        static_cast<int64_t>(other.y - y));
 }
 
 Side FloatPoint::side_of(const Line& p_line) const
@@ -333,8 +376,9 @@ std::unique_ptr<Point> FloatPoint::perpendicular_projection(const Line& p_line) 
     if (denominator < 1e-10)
         return std::make_unique<FloatPoint>(p_line.a.x, p_line.a.y);
     
-    double proj_x = (vx * vx * x + vx * vy * y + (p_line.b.y - p_line.a.y) * vy) / denominator;
-    double proj_y = (vx * vy * x + vy * vy * y - (p_line.b.y - p_line.a.y) * vx) / denominator;
+    double det = p_line.a.x * p_line.b.y - p_line.a.y * p_line.b.x;
+    double proj_x = (vx * vx * x + vx * vy * y + det * vy) / denominator;
+    double proj_y = (vx * vy * x + vy * vy * y - det * vx) / denominator;
     
     return std::make_unique<FloatPoint>(proj_x, proj_y);
 }
@@ -348,6 +392,9 @@ int FloatPoint::compare_x(const Point& p_other) const
         if (x < other_fp->x) return -1;
         return 0;
     }
+    double other_x = p_other.to_float().x;
+    if (x > other_x) return 1;
+    if (x < other_x) return -1;
     return 0;
 }
 
@@ -360,6 +407,9 @@ int FloatPoint::compare_y(const Point& p_other) const
         if (y < other_fp->y) return -1;
         return 0;
     }
+    double other_y = p_other.to_float().y;
+    if (y > other_y) return 1;
+    if (y < other_y) return -1;
     return 0;
 }
 
@@ -382,9 +432,71 @@ double FloatPoint::distance(const FloatPoint& p_other) const
     return std::sqrt(distance_square(p_other));
 }
 
+double FloatPoint::weighted_distance(const FloatPoint& p_other, double p_horizontal_weight,
+                                     double p_vertical_weight) const
+{
+    double delta_x = (x - p_other.x) * p_horizontal_weight;
+    double delta_y = (y - p_other.y) * p_vertical_weight;
+    return std::sqrt(delta_x * delta_x + delta_y * delta_y);
+}
+
 FloatPoint FloatPoint::middle_point(const FloatPoint& p_other) const
 {
     return FloatPoint((x + p_other.x) / 2.0, (y + p_other.y) / 2.0);
+}
+
+FloatPoint FloatPoint::rotate(double p_angle, const FloatPoint& p_pole) const
+{
+    if (p_angle == 0)
+    {
+        return *this;
+    }
+    double dx = x - p_pole.x;
+    double dy = y - p_pole.y;
+    double sin_angle = std::sin(p_angle);
+    double cos_angle = std::cos(p_angle);
+    double new_dx = dx * cos_angle - dy * sin_angle;
+    double new_dy = dx * sin_angle + dy * cos_angle;
+    return FloatPoint(p_pole.x + new_dx, p_pole.y + new_dy);
+}
+
+FloatPoint FloatPoint::change_length(const FloatPoint& p_to_point, double p_new_length) const
+{
+    double dx = p_to_point.x - x;
+    double dy = p_to_point.y - y;
+    if (dx == 0 && dy == 0)
+    {
+        return p_to_point;
+    }
+    double length = std::sqrt(dx * dx + dy * dy);
+    double new_x = x + (dx * p_new_length) / length;
+    double new_y = y + (dy * p_new_length) / length;
+    return FloatPoint(new_x, new_y);
+}
+
+FloatPoint FloatPoint::change_size(double p_new_size) const
+{
+    if (x == 0 && y == 0)
+    {
+        // the size of the zero point cannot be changed
+        return *this;
+    }
+    double length = std::sqrt(x * x + y * y);
+    double new_x = (x * p_new_size) / length;
+    double new_y = (y * p_new_size) / length;
+    return FloatPoint(new_x, new_y);
+}
+
+FloatPoint FloatPoint::projection_approx(const Line& p_line) const
+{
+    return perpendicular_projection(p_line)->to_float();
+}
+
+IntPoint FloatPoint::round() const
+{
+    // Java Math.round(x) == floor(x + 0.5) (rounds halves towards +infinity)
+    return IntPoint(static_cast<int64_t>(std::floor(x + 0.5)),
+                    static_cast<int64_t>(std::floor(y + 0.5)));
 }
 
 double FloatPoint::scalar_product(const FloatPoint& p_from, const FloatPoint& p_to) const
@@ -405,6 +517,24 @@ bool FloatPoint::is_contained_in_box(const FloatPoint& p_a, const FloatPoint& p_
     return x >= min_x && x <= max_x && y >= min_y && y <= max_y;
 }
 
+Side FloatPoint::side_of(const FloatPoint& p_1, const FloatPoint& p_2) const
+{
+    double d21_x = p_2.x - p_1.x;
+    double d21_y = p_2.y - p_1.y;
+    double d01_x = x - p_1.x;
+    double d01_y = y - p_1.y;
+    double determinant = d21_x * d01_y - d21_y * d01_x;
+    if (determinant > 0)
+    {
+        return Side::ON_THE_LEFT;
+    }
+    if (determinant < 0)
+    {
+        return Side::ON_THE_RIGHT;
+    }
+    return Side::COLLINEAR;
+}
+
 FloatPoint FloatPoint::turn_90_degree(int p_factor, const FloatPoint& p_from_point) const
 {
     double dx = x - p_from_point.x;
@@ -412,6 +542,27 @@ FloatPoint FloatPoint::turn_90_degree(int p_factor, const FloatPoint& p_from_poi
     double new_x = p_from_point.x - p_factor * dy;
     double new_y = p_from_point.y + p_factor * dx;
     return FloatPoint(new_x, new_y);
+}
+
+IntDirection IntPoint::perpendicular_direction(const Line& p_line) const
+{
+    Side side = p_line.side_of(*this);
+    if (side == Side::COLLINEAR)
+    {
+        return IntDirection::NULL_DIR;
+    }
+    // Java IntPoint.perpendicular_direction uses IntPoint.side_of(Line), which is
+    // the negate of Line.side_of(p_point). Hence the factor must be flipped here.
+    int factor = (side == Side::ON_THE_LEFT) ? 2 : 6;
+    IntVector d = p_line.direction();
+    int64_t g = std::gcd(std::llabs(d.x), std::llabs(d.y));
+    if (g == 0)
+    {
+        return IntDirection::NULL_DIR;
+    }
+    // Java Line.direction() normalizes by gcd; mirror that for exact parity.
+    IntDirection line_dir(d.x / g, d.y / g);
+    return line_dir.turn_45_degree_int(factor);
 }
 
 } // namespace planar

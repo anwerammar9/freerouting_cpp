@@ -6,7 +6,7 @@ namespace freerouting::board {
 
 Component::Component(const std::string& p_name,
                         int p_no,
-                        Package* p_package,
+                        core::Package* p_package,
                         bool p_position_fixed)
     : name_(p_name)
     , no_(p_no)

@@ -11,10 +11,6 @@ class Item;
 class ShapeSearchTree;
 class PolylineTrace;
 
-namespace geometry::planar {
-class Polyline;
-}
-
 class SearchTreeManager {
 public:
     SearchTreeManager(BasicBoard* p_board);

@@ -121,10 +121,22 @@ int BatchAutorouter::count_incomplete_connections() const
 
     for (const auto& [net_no, conn_items] : net_connections)
     {
-        int count = static_cast<int>(conn_items.size());
-        if (count >= 2)
+        int endpoint_count = 0;
+        int trace_count = 0;
+        for (auto* item : conn_items)
         {
-            incomplete += count - 1;
+            if (item->is_trace())
+            {
+                ++trace_count;
+            }
+            else
+            {
+                ++endpoint_count;
+            }
+        }
+        if (endpoint_count >= 2)
+        {
+            incomplete += std::max(0, endpoint_count - trace_count - 1);
         }
     }
 
@@ -194,9 +206,17 @@ RouteResult BatchAutorouter::route_all(int p_max_passes, datastructures::Stoppab
 
     int routed_count = 0;
     int pass = 1;
-    int max_passes = 5; // Cap passes since stub marks everything as routed each time
+    int no_progress_passes = 0;
+    int debug_failures = 0;
 
-    for (; pass <= p_max_passes && pass <= max_passes && !stopped_; ++pass)
+    std::set<std::pair<const board::Item*, const board::Item*>> routed_pairs;
+
+    // Reuse a single engine across all connections so the search tree is built only once.
+    auto engine = std::make_unique<AutorouteEngine>(board_, control_->trace_clearance_class_no, false);
+    engine->set_stoppable(p_stoppable);
+    engine->set_time_limit(0);  // No time limit
+
+    for (; pass <= p_max_passes && !stopped_; ++pass)
     {
         // Skip check if stoppable is null (headless mode)
         if (p_stoppable && p_stoppable->is_stop_requested())
@@ -211,10 +231,6 @@ RouteResult BatchAutorouter::route_all(int p_max_passes, datastructures::Stoppab
 
         int pass_routed = 0;
 
-        // Route as many as possible per pass (limit to prevent infinite loops)
-        int max_routes_per_pass = 100000;
-        int routes_this_pass = 0;
-        
         std::map<int, std::vector<board::Item*>> nets_to_route;
         for (auto* item : autoroute_items)
         {
@@ -229,52 +245,52 @@ RouteResult BatchAutorouter::route_all(int p_max_passes, datastructures::Stoppab
         for (const auto& [net_no, items_on_net] : nets_to_route)
         {
             if (items_on_net.size() < 2) continue;
-            
+
             control_->net_no = net_no;
             control_->active_layer = 0;
 
-            for (size_t i = 0; i + 1 < items_on_net.size() && routes_this_pass < max_routes_per_pass; ++i)
+            // Star routing: connect the first item of the net to every other
+            // item. This yields n-1 connections per net (a spanning tree).
+            auto* start_item = items_on_net.front();
+            if (!start_item) continue;
+
+            for (size_t k = 1; k < items_on_net.size(); ++k)
             {
-                for (size_t j = i + 1; j < items_on_net.size() && routes_this_pass < max_routes_per_pass; ++j)
+                auto* dest_item = items_on_net[k];
+                if (!dest_item) continue;
+
+                if (p_stoppable && p_stoppable->is_stop_requested())
                 {
-                    auto* start_item = items_on_net[i];
-                    auto* dest_item = items_on_net[j];
-                    
-                    if (!start_item || !dest_item) continue;
-                    
-                    auto start_bbox = start_item->get_bounding_box();
-                    auto dest_bbox = dest_item->get_bounding_box();
+                    break;
+                }
 
-                    if (start_bbox.ll.x == start_bbox.ur.x && start_bbox.ll.y == start_bbox.ur.y) continue;
-                    if (dest_bbox.ll.x == dest_bbox.ur.x && dest_bbox.ll.y == dest_bbox.ur.y) continue;
-                    
-                    std::set<board::Item*> start_set;
-                    std::set<board::Item*> dest_set;
-                    start_set.insert(start_item);
-                    dest_set.insert(dest_item);
+                auto pair_key = std::make_pair(static_cast<const board::Item*>(start_item),
+                                               static_cast<const board::Item*>(dest_item));
+                if (routed_pairs.count(pair_key) > 0)
+                {
+                    continue;
+                }
 
-                    auto engine = std::make_unique<AutorouteEngine>(board_, control_->trace_clearance_class_no, false);
-                    engine->set_stoppable(p_stoppable);
-                    engine->set_time_limit(0);  // No time limit
-                    
-                    if (routes_this_pass % 100 == 0)
+                std::set<board::Item*> start_set;
+                std::set<board::Item*> dest_set;
+                start_set.insert(start_item);
+                dest_set.insert(dest_item);
+
+                auto route_result = engine->autoroute_connection(start_set, dest_set, *control_);
+
+                if (route_result.state == AutorouteAttemptState::ROUTED)
+                {
+                    pass_routed++;
+                    routed_count++;
+                    routed_pairs.insert(pair_key);
+                    routed_nets_.insert(net_no);  // Track this net as routed
+                }
+                else
+                {
+                    if (debug_failures < 12)
                     {
-                        logger.debug("Route attempt " + std::to_string(routes_this_pass));
-                    }
-
-                    auto route_result = engine->autoroute_connection(start_set, dest_set, *control_);
-                    routes_this_pass++;
-
-                    if (route_result.state == AutorouteAttemptState::ROUTED)
-                    {
-                        pass_routed++;
-                        routed_count++;
-                        routed_nets_.insert(net_no);  // Track this net as routed
-                    }
-                    
-                    if (p_stoppable && p_stoppable->is_stop_requested())
-                    {
-                        break;
+                        logger.info("  FAIL net " + std::to_string(net_no) + ": " + route_result.details);
+                        ++debug_failures;
                     }
                 }
             }
@@ -286,7 +302,11 @@ RouteResult BatchAutorouter::route_all(int p_max_passes, datastructures::Stoppab
 
         if (pass_routed > 0)
         {
-            routed_count += pass_routed;
+            no_progress_passes = 0;
+        }
+        else
+        {
+            ++no_progress_passes;
         }
 
         if (current_incomplete == 0)
@@ -295,9 +315,9 @@ RouteResult BatchAutorouter::route_all(int p_max_passes, datastructures::Stoppab
             break;
         }
 
-        if (pass >= 5 && pass_routed == 0)
+        if (no_progress_passes >= 2)
         {
-            logger.info("No progress in pass " + std::to_string(pass) + ", stopping");
+            logger.info("No progress, stopping");
             break;
         }
     }

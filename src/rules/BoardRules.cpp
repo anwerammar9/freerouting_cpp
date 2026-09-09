@@ -29,6 +29,11 @@ NetClass* NetClasses::get(int p_index) const
     return nullptr;
 }
 
+NetClass* NetClasses::get(const std::string& p_name) const
+{
+    return get_by_name(p_name);
+}
+
 NetClass* NetClasses::get_by_name(const std::string& p_name) const
 {
     for (size_t i = 0; i < names_.size(); ++i)
@@ -37,6 +42,107 @@ NetClass* NetClasses::get_by_name(const std::string& p_name) const
             return classes_[i];
     }
     return nullptr;
+}
+
+NetClass* NetClasses::append(const std::string& p_name,
+                             const board::LayerStructure& p_layer_structure,
+                             const ClearanceMatrix& p_clearance_matrix,
+                             bool p_is_ignored_by_autorouter)
+{
+    auto* new_class = new NetClass(p_name,
+                                   p_layer_structure,
+                                   p_clearance_matrix,
+                                   p_is_ignored_by_autorouter);
+    add(new_class);
+    return new_class;
+}
+
+NetClass* NetClasses::append(const board::LayerStructure& p_layer_structure,
+                             const ClearanceMatrix& p_clearance_matrix)
+{
+    int index = 0;
+    std::string new_name;
+    do
+    {
+        ++index;
+        new_name = "class" + std::to_string(index);
+    } while (get(new_name) != nullptr);
+    return append(new_name, p_layer_structure, p_clearance_matrix, false);
+}
+
+NetClass* NetClasses::find(int p_trace_half_width,
+                           int p_trace_clearance_class,
+                           const ViaRule* p_via_rule) const
+{
+    for (NetClass* curr_class : classes_)
+    {
+        if (!curr_class)
+            continue;
+        if (curr_class->get_trace_clearance_class() != p_trace_clearance_class
+            || curr_class->get_via_rule() != p_via_rule)
+        {
+            continue;
+        }
+        bool trace_widths_equal = true;
+        for (int i = 0; i < curr_class->layer_count(); ++i)
+        {
+            if (curr_class->get_trace_half_width(i) != p_trace_half_width)
+            {
+                trace_widths_equal = false;
+                break;
+            }
+        }
+        if (trace_widths_equal)
+        {
+            return curr_class;
+        }
+    }
+    return nullptr;
+}
+
+NetClass* NetClasses::find(const std::vector<int>& p_trace_half_width_arr,
+                           int p_trace_clearance_class,
+                           const ViaRule* p_via_rule) const
+{
+    for (NetClass* curr_class : classes_)
+    {
+        if (!curr_class)
+            continue;
+        if (curr_class->get_trace_clearance_class() != p_trace_clearance_class
+            || curr_class->get_via_rule() != p_via_rule
+            || static_cast<int>(p_trace_half_width_arr.size()) != curr_class->layer_count())
+        {
+            continue;
+        }
+        bool trace_widths_equal = true;
+        for (int i = 0; i < curr_class->layer_count(); ++i)
+        {
+            if (curr_class->get_trace_half_width(i) != p_trace_half_width_arr[i])
+            {
+                trace_widths_equal = false;
+                break;
+            }
+        }
+        if (trace_widths_equal)
+        {
+            return curr_class;
+        }
+    }
+    return nullptr;
+}
+
+bool NetClasses::remove(NetClass* p_net_class)
+{
+    for (int i = 0; i < class_count(); ++i)
+    {
+        if (classes_[i] == p_net_class)
+        {
+            classes_.erase(classes_.begin() + i);
+            names_.erase(names_.begin() + i);
+            return true;
+        }
+    }
+    return false;
 }
 
 std::string NetClasses::to_string() const

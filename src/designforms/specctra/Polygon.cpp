@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace freerouting {
 namespace designforms {
@@ -67,7 +68,7 @@ std::vector<geometry::planar::IntPoint> Polygon::to_int_corners() const
     return corners;
 }
 
-Polygon::Rectangle Polygon::bounding_box() const
+Rectangle Polygon::bounding_box() const
 {
     double min_x = std::numeric_limits<double>::max();
     double min_y = std::numeric_limits<double>::max();

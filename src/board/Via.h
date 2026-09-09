@@ -11,13 +11,25 @@ class DrillItem : public Item
 {
 public:
     const geometry::planar::IntPoint& get_center() const { return center_; }
+    void set_center(const geometry::planar::IntPoint& p_center) { center_ = p_center; }
 
     int get_layer() const override { return from_layer_; }
     int get_from_layer() const { return from_layer_; }
     int get_to_layer() const { return to_layer_; }
 
+    // A drill item (pin/via) is a single convex shape on the tree (the pad
+    // octagon). Without this the item is skipped by ShapeSearchTree::insert
+    // and can never block routing.
+    int tile_shape_count() const override { return 1; }
+
     Padstack* get_padstack() const { return padstack_; }
     void set_padstack(Padstack* p_padstack) { padstack_ = p_padstack; }
+
+    /**
+     * Returns the minimum width over all padstack shapes.
+     * Mirrors Java DrillItem.min_width().
+     */
+    double min_width() const;
 
 protected:
     DrillItem(const geometry::planar::IntPoint& p_center,
@@ -53,6 +65,12 @@ public:
     Item* copy(int p_id_no) const;
 
     std::string to_string() const override;
+
+    // Get tree shape for a specific layer (used by shove algorithms)
+    const geometry::planar::TileShape* get_tree_shape_on_layer(ShapeSearchTree* p_search_tree, int p_layer);
+
+    // Get tree shape for a specific layer (const version)
+    const geometry::planar::TileShape* get_tree_shape_on_layer(const ShapeSearchTree* p_search_tree, int p_layer) const;
 
 private:
     bool attach_allowed_;

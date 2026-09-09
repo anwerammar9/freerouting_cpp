@@ -101,16 +101,16 @@ void PerformanceProfiler::record_configuration(int via_costs, int plane_via_cost
 }
 
 void PerformanceProfiler::print_results() {
-    FRLogger::debug("=== Performance Profile ===");
+    FR_LOG_DEBUG("=== Performance Profile ===");
     
     // Print configuration info if available
     {
         std::lock_guard<std::mutex> lock(config_mutex_);
         if (config_info_) {
-            FRLogger::debug("=== Routing Parameters ===");
-            FRLogger::debug("  Via Costs: " + std::to_string(config_info_->via_costs) + 
+            FR_LOG_DEBUG("=== Routing Parameters ===");
+            FR_LOG_DEBUG("  Via Costs: " + std::to_string(config_info_->via_costs) + 
                            ", Plane Via Costs: " + std::to_string(config_info_->plane_via_costs));
-            FRLogger::debug("  Layer Costs (Preferred / Against):");
+            FR_LOG_DEBUG("  Layer Costs (Preferred / Against):");
             
             for (size_t i = 0; i < config_info_->preferred_costs.size() && 
                         i < config_info_->against_costs.size(); ++i) {
@@ -118,9 +118,9 @@ void PerformanceProfiler::print_results() {
                 oss << "    Layer " << (i + 1) << ": " 
                     << std::fixed << std::setprecision(1) << config_info_->preferred_costs[i]
                     << " / " << config_info_->against_costs[i];
-                FRLogger::debug(oss.str());
+                FR_LOG_DEBUG(oss.str());
             }
-            FRLogger::debug("");
+            FR_LOG_DEBUG("");
         }
     }
     
@@ -153,7 +153,7 @@ void PerformanceProfiler::print_results() {
                 << std::right << std::setw(8) << total_ms << " ms total, "
                 << std::setw(8) << count << " calls, "
                 << std::setw(6) << avg_ms << " ms avg";
-            FRLogger::debug(oss.str());
+            FR_LOG_DEBUG(oss.str());
         }
     }
     
@@ -161,8 +161,8 @@ void PerformanceProfiler::print_results() {
     {
         std::lock_guard<std::mutex> lock(pass_history_mutex_);
         if (!pass_history_.empty()) {
-            FRLogger::debug("");
-            FRLogger::debug("=== Pass History ===");
+            FR_LOG_DEBUG("");
+            FR_LOG_DEBUG("=== Pass History ===");
             
             // Sort by pass number to ensure correct order
             auto sorted_passes = pass_history_;
@@ -175,12 +175,12 @@ void PerformanceProfiler::print_results() {
                     << std::setw(4) << pass.unrouted_items << " unrouted items, "
                     << std::fixed << std::setprecision(2) << (pass.duration_ms / 1000.0) << " s, "
                     << std::setw(5) << pass.ripup_cost << " ripup cost";
-                FRLogger::debug(oss.str());
+                FR_LOG_DEBUG(oss.str());
             }
         }
     }
     
-    FRLogger::debug("===========================");
+    FR_LOG_DEBUG("===========================");
 }
 
 void PerformanceProfiler::reset() {

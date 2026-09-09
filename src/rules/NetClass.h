@@ -48,9 +48,16 @@ public:
 
     int get_trace_half_width(int p_layer) const;
     void set_trace_half_width(int p_layer, int p_width);
+    void set_trace_half_width(int p_width);
+    void set_trace_half_width_on_inner(int p_value);
+
+    int layer_count() const { return static_cast<int>(trace_half_width_arr_.size()); }
 
     bool is_active_routing_layer(int p_layer) const;
     void set_active_routing_layer(int p_layer, bool p_active);
+    void set_all_layers_active(bool p_value);
+    void set_all_inner_layers_active(bool p_value);
+    bool trace_width_is_layer_dependent() const;
 
     const ClearanceMatrix& get_clearance_matrix() const { return clearance_matrix_; }
     const board::LayerStructure& get_layer_structure() const { return board_layer_structure_; }

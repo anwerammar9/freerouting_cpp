@@ -128,7 +128,7 @@ TEST_F(BoardUpdateStrategyTest, ConsistencyChecks) {
     // Descriptions should contain relevant keywords
     EXPECT_NE(greedy_desc.find("immediately"), std::string::npos);
     EXPECT_NE(global_desc.find("global"), std::string::npos);
-    EXPECT_NE(hybrid_desc.find("combination"), std::string::npos);
+    EXPECT_NE(hybrid_desc.find("Combination"), std::string::npos);
 }
 
 // Test practical usage scenarios
@@ -159,7 +159,7 @@ TEST_F(BoardUpdateStrategyTest, PracticalUsage) {
     
     // Test description usage
     std::string desc = get_strategy_description(strategy);
-    EXPECT_NE(desc.find("combination"), std::string::npos);
+    EXPECT_NE(desc.find("Combination"), std::string::npos);
 }
 
 // Test compilation-time evaluation

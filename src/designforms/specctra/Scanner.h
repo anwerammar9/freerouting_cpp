@@ -91,10 +91,32 @@ struct PinDef
     int64_t x, y;
 };
 
+struct ImagePinDef
+{
+    std::string name;
+    std::string padstack;
+    double x = 0;
+    double y = 0;
+};
+
+struct PadstackDef
+{
+    std::string name;
+    double width = 0;
+    double height = 0;
+};
+
+struct ImageDef
+{
+    std::string name;
+    std::vector<ImagePinDef> pins;
+};
+
 struct ComponentDef
 {
     std::string name;
     std::string package;
+    std::string footprint;
     int64_t x, y;
     int rotation;
     bool placed;
@@ -108,8 +130,12 @@ struct Result
     int unit = 25400;
     int64_t board_width = 0;
     int64_t board_height = 0;
+    int64_t board_min_x = 0;
+    int64_t board_min_y = 0;
     std::vector<LayerDef> layers;
     std::vector<ViaDef> vias;
+    std::vector<PadstackDef> padstacks;
+    std::vector<ImageDef> images;
     std::vector<NetDef> nets;
     std::vector<PinDef> pins;
     std::vector<ComponentDef> components;

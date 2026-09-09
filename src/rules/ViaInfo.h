@@ -5,16 +5,19 @@
 #include <memory>
 
 namespace freerouting {
+namespace board {
+class Padstack;
+} // namespace board
+
 namespace rules {
 
 class BoardRules;
-struct Padstack;
 
 class ViaInfo : public std::enable_shared_from_this<ViaInfo>
 {
 public:
     ViaInfo(const std::string& p_name,
-          std::shared_ptr<Padstack> p_padstack,
+          std::shared_ptr<board::Padstack> p_padstack,
           int p_clearance_class,
           bool p_attach_smd_allowed,
           BoardRules* p_board_rules);
@@ -22,8 +25,8 @@ public:
     const std::string& get_name() const { return name_; }
     void set_name(const std::string& p_name) { name_ = p_name; }
 
-    std::shared_ptr<Padstack> get_padstack() const { return padstack_; }
-    void set_padstack(std::shared_ptr<Padstack> p_padstack) { padstack_ = p_padstack; }
+    std::shared_ptr<board::Padstack> get_padstack() const { return padstack_; }
+    void set_padstack(std::shared_ptr<board::Padstack> p_padstack) { padstack_ = p_padstack; }
 
     int get_clearance_class() const { return clearance_class_; }
     void set_clearance_class(int p_clearance_class) { clearance_class_ = p_clearance_class; }
@@ -36,7 +39,7 @@ public:
 
 private:
     std::string name_;
-    std::shared_ptr<Padstack> padstack_;
+    std::shared_ptr<board::Padstack> padstack_;
     int clearance_class_;
     bool attach_smd_allowed_;
     BoardRules* board_rules_;

@@ -18,6 +18,11 @@ include_directories(
 
 find_package(Threads REQUIRED)
 
+# ============== Dependencies (installed via Conan, see conanfile.txt) ==============
+# Boost is used header-only (boost::multiprecision::cpp_int) by the geometry
+# rational types (RationalPoint / RationalVector / BigIntDirection).
+find_package(Boost REQUIRED)
+
 # ============== Include subdirectories for each package ==============
 add_subdirectory(src/core)
 add_subdirectory(src/datastructures)
@@ -34,7 +39,8 @@ add_subdirectory(src/management)
 
 # Empty packages (not yet migrated)
 # add_subdirectory(src/boardgraphics)
-# add_subdirectory(src/designforms)
+
+add_subdirectory(src/designforms)
 
 # ============== Main Executable ==============
 add_executable(freerouting src/main.cpp src/Freerouting.cpp)
@@ -51,13 +57,20 @@ target_link_libraries(freerouting PRIVATE
     freerouting_settings
     freerouting_constants
     freerouting_management
+    freerouting_designforms
     Threads::Threads
 )
 
 # ============== Test ==============
 if(BUILD_TESTS)
     enable_testing()
+
+    find_package(GTest REQUIRED)
+    include(GoogleTest)
+
     add_executable(test_main src/test_main.cpp)
     target_link_libraries(test_main PRIVATE freerouting_core freerouting_logger freerouting_constants)
     add_test(NAME test_main COMMAND test_main)
+
+    add_subdirectory(tests)
 endif()

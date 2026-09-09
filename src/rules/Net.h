@@ -13,10 +13,20 @@ class Net
 {
 public:
     Net(int p_net_no, const std::string& p_name, NetClass* p_net_class);
+    Net(int p_net_no,
+        const std::string& p_name,
+        int p_subnet_number,
+        NetClass* p_net_class,
+        bool p_contains_plane);
 
     int get_net_no() const { return net_no_; }
     const std::string& get_name() const { return name_; }
     void set_name(const std::string& p_name);
+
+    int get_subnet_number() const { return subnet_number_; }
+
+    bool contains_plane() const { return contains_plane_; }
+    void set_contains_plane(bool p_value);
 
     NetClass* get_net_class() const { return net_class_; }
     void set_net_class(NetClass* p_net_class);
@@ -38,11 +48,13 @@ public:
 private:
     int net_no_;
     std::string name_;
+    int subnet_number_;
     NetClass* net_class_;
     int clearance_class_;
     bool is_ghost_;
     bool has_items_;
     bool routing_ignored_;
+    bool contains_plane_;
 };
 
 class Nets
@@ -63,11 +75,17 @@ public:
     void add(Net* p_net);
 
     Net* get(int p_net_no) const;
+    Net* get(const std::string& p_name, int p_subnet_number) const;
+    std::vector<Net*> get_all_by_name(const std::string& p_name) const;
     Net* get_by_name(const std::string& p_name) const;
+
+    Net* new_net();
+    Net* add(const std::string& p_name, int p_subnet_number, bool p_contains_plane);
 
     int net_count() const { return static_cast<int>(net_arr_.size()); }
     int signal_net_count() const;
 
+    void* get_board() const { return board_; }
     void set_board(void* p_board);
 
     const std::vector<Net*>& get_nets() const { return net_arr_; }

@@ -24,16 +24,11 @@ class IdentificationNumberGeneratorImpl : public IdentificationNumberGenerator
 {
 public:
     IdentificationNumberGeneratorImpl() = default;
+    ~IdentificationNumberGeneratorImpl() override = default;
 
-    int new_no() override
-    {
-        return next_no_.fetch_add(1) + 1;
-    }
+    int new_no() override;
 
-    int max_generated_no() const override
-    {
-        return next_no_.load();
-    }
+    int max_generated_no() const override;
 
 private:
     std::atomic<int> next_no_{0};

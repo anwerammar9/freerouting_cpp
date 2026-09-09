@@ -1,0 +1,14 @@
+[requires]
+boost/1.86.0
+gtest/1.15.0
+
+[options]
+# Only boost headers are used (multiprecision::cpp_int is header-only)
+boost/*:header_only=True
+
+[generators]
+CMakeDeps
+CMakeToolchain
+
+[layout]
+cmake_layout
