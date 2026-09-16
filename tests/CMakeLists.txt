@@ -108,12 +108,13 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/src/autoroute/AutorouteAttemptState_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/BoardUpdateStrategy_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/CompleteExpansionRoom_test.cpp
-        ${CMAKE_SOURCE_DIR}/src/autoroute/DrillPageArray_test.cpp
+        # DrillPageArray_test.cpp: not compiled (DrillPage is Java only, DrillPageArray.cpp excluded)
         ${CMAKE_SOURCE_DIR}/src/autoroute/ExpansionDrill_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/ExpandableObject_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/IncompleteFreeSpaceExpansionRoom_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/ItemRouteResult_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/ItemSelectionStrategy_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/autoroute/NamedAlgorithm_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/NamedAlgorithmType_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/PerformanceProfiler_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/RoutingFailureLog_test.cpp
@@ -146,6 +147,7 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/src/board/OptViaAlgo_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/PullTightAlgo_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/Trace_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/board/ItemContacts_test.cpp
     )
 
     foreach(test_src IN LISTS BOARD_TEST_SOURCES)
@@ -157,6 +159,64 @@ if(BUILD_TESTS)
         )
         target_link_libraries(${test_name} PRIVATE
             $<LINK_GROUP:RESCAN,freerouting_board,freerouting_autoroute,freerouting_core,freerouting_datastructures,freerouting_geometry,freerouting_rules,freerouting_logger,freerouting_constants>
+            GTest::gtest_main
+        )
+        gtest_discover_tests(${test_name})
+    endforeach()
+
+    # ---- gtest-based companion tests for compiled interactive classes ----
+    set(INTERACTIVE_TEST_SOURCES
+        ${CMAKE_SOURCE_DIR}/src/interactive/NetIncompletes_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/interactive/RatsNest_test.cpp
+    )
+
+    foreach(test_src IN LISTS INTERACTIVE_TEST_SOURCES)
+        get_filename_component(test_name ${test_src} NAME_WE)
+        add_executable(${test_name} ${test_src})
+        target_include_directories(${test_name} PRIVATE
+            ${CMAKE_SOURCE_DIR}/include
+            ${CMAKE_SOURCE_DIR}/src
+        )
+        target_link_libraries(${test_name} PRIVATE
+            $<LINK_GROUP:RESCAN,freerouting_interactive,freerouting_board,freerouting_autoroute,freerouting_core,freerouting_datastructures,freerouting_geometry,freerouting_rules,freerouting_logger,freerouting_constants>
+            GTest::gtest_main
+        )
+        gtest_discover_tests(${test_name})
+    endforeach()
+
+    # ---- gtest-based companion tests for compiled designforms classes ----
+    set(DESIGNFORMS_TEST_SOURCES
+        ${CMAKE_SOURCE_DIR}/src/designforms/specctra/Wiring_test.cpp
+    )
+
+    foreach(test_src IN LISTS DESIGNFORMS_TEST_SOURCES)
+        get_filename_component(test_name ${test_src} NAME_WE)
+        add_executable(${test_name} ${test_src})
+        target_include_directories(${test_name} PRIVATE
+            ${CMAKE_SOURCE_DIR}/include
+            ${CMAKE_SOURCE_DIR}/src
+        )
+        target_link_libraries(${test_name} PRIVATE
+            $<LINK_GROUP:RESCAN,freerouting_designforms,freerouting_board,freerouting_geometry,freerouting_logger,freerouting_constants>
+            GTest::gtest_main
+        )
+        gtest_discover_tests(${test_name})
+    endforeach()
+
+    # ---- gtest-based companion test for board loading materialization ----
+    set(BOARDLOADER_TEST_SOURCES
+        ${CMAKE_SOURCE_DIR}/src/board/BoardLoader_test.cpp
+    )
+
+    foreach(test_src IN LISTS BOARDLOADER_TEST_SOURCES)
+        get_filename_component(test_name ${test_src} NAME_WE)
+        add_executable(${test_name} ${test_src})
+        target_include_directories(${test_name} PRIVATE
+            ${CMAKE_SOURCE_DIR}/include
+            ${CMAKE_SOURCE_DIR}/src
+        )
+        target_link_libraries(${test_name} PRIVATE
+            $<LINK_GROUP:RESCAN,freerouting_board,freerouting_autoroute,freerouting_designforms,freerouting_core,freerouting_datastructures,freerouting_geometry,freerouting_rules,freerouting_logger,freerouting_constants>
             GTest::gtest_main
         )
         gtest_discover_tests(${test_name})

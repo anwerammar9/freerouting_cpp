@@ -1,0 +1,31 @@
+# Cursor Rules — Freerouting C++ Migration
+
+## Project Context
+Migrating Freerouting PCB autorouter from Java to C++20. Java source is truth. Headless routing parity goal.
+
+## At Session Start
+Read `SOURCE_OF_TRUTH/01_MEMORY.md` and `SOURCE_OF_TRUTH/05_WORK_PACKAGES.md`.
+
+## Build
+```bash
+cmake --build build --target <module_target> -j$(nproc)
+ctest --test-dir build --output-on-failure
+```
+
+## Rules
+1. Java `src/**/*.java` is reference — port faithfully
+2. 4 files per class: `.h`, `.cpp`, `_test.cpp`, `.java`
+3. C++20: smart pointers, RAII, `std::optional`, `#pragma once`
+4. Naming: PascalCase classes, snake_case functions, trailing `_` for private
+5. Layering: `freerouting_core` has NO deps
+6. Never include `src/board/Components.h/.cpp` — dead code
+7. Java nets are 1-based for indexing
+
+## Gotchas
+- `Item::get_normal_contacts()` base returns `{}` — Trace overrides
+- `DrillItem` canonical = `Via.h`
+- No JSON serializer — hand-roll matching Java `@SerializedName`
+- `run_tests` AND `ctest` must both pass
+
+## Session End
+Update `SOURCE_OF_TRUTH/02_PROGRESS.md`, `03_MISSING.md`, `docs/migration/INDEX.md`.

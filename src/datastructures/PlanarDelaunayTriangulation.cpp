@@ -147,13 +147,20 @@ PlanarDelaunayTriangulation::get_edge_lines() const
     std::set<EdgeKey> edges;
     for (const Triangle& triangle : triangles_)
     {
-        if (corners_[triangle.a].super || corners_[triangle.b].super || corners_[triangle.c].super)
+        // Skip edges containing a bounding corner instead of the whole
+        // triangle, mirroring Java TriangleGraph.get_leaf_edges(). This keeps
+        // hull edges of degenerate point sets (e.g. two isolated pins) which
+        // only occur in triangles together with a bounding corner.
+        const int corner_indices[3] = {triangle.a, triangle.b, triangle.c};
+        for (int i = 0; i < 3; ++i)
         {
-            continue;
+            const int first = corner_indices[i];
+            const int second = corner_indices[(i + 1) % 3];
+            if (!corners_[first].super && !corners_[second].super)
+            {
+                edges.insert(make_edge(first, second));
+            }
         }
-        edges.insert(make_edge(triangle.a, triangle.b));
-        edges.insert(make_edge(triangle.b, triangle.c));
-        edges.insert(make_edge(triangle.c, triangle.a));
     }
 
     std::vector<ResultEdge> result;

@@ -3,6 +3,7 @@
 #include "designforms/specctra/Library.h"
 #include "designforms/specctra/Network.h"
 #include "designforms/specctra/Placement.h"
+#include "designforms/specctra/Wiring.h"
 
 #include <cctype>
 
@@ -192,7 +193,7 @@ bool Scanner::expect_keyword(const std::string& p_keyword)
     Token token = next_token();
     if (token.type != TokenType::STRING)
         return false;
-    return std::get<std::string>(token.value) == p_keyword;
+    return to_lower(std::get<std::string>(token.value)) == to_lower(p_keyword);
 }
 
 std::string Scanner::read_string()
@@ -238,77 +239,71 @@ bool Scanner::is_open() const
     return owns_stream_ ? file_stream_.is_open() : true;
 }
 
-Result read_dsn(const std::string& p_filename)
+Result read_dsn(Scanner& p_scanner)
 {
     Result result;
     result.success = false;
 
-    Scanner scanner(p_filename);
-    if (!scanner.is_open())
+    if (!p_scanner.is_open())
     {
-        result.error_message = "Could not open file: " + p_filename;
+        result.error_message = "Could not open input";
         return result;
     }
 
     // First token should be OPEN_PAREN
-    if (!scanner.expect(Scanner::TokenType::OPEN_PAREN))
+    if (!p_scanner.expect(Scanner::TokenType::OPEN_PAREN))
     {
         result.error_message = "File does not start with (";
         return result;
     }
 
     // Next token should be "pcb" keyword
-    if (!scanner.expect_keyword("pcb"))
+    if (!p_scanner.expect_keyword("pcb"))
     {
         result.error_message = "File does not start with (pcb";
         return result;
     }
 
     // Read board name
-    result.board_name = scanner.read_string();
+    result.board_name = p_scanner.read_string();
 
-    while (!scanner.eof())
+    while (!p_scanner.eof())
     {
-        Scanner::Token token = scanner.next_token();
+        Scanner::Token token = p_scanner.next_token();
 
         if (token.type == Scanner::TokenType::OPEN_PAREN)
         {
-            Scanner::Token keyword_token = scanner.next_token();
+            Scanner::Token keyword_token = p_scanner.next_token();
             if (keyword_token.type == Scanner::TokenType::STRING)
             {
-                std::string keyword = std::get<std::string>(keyword_token.value);
+                std::string keyword = to_lower(std::get<std::string>(keyword_token.value));
 
                 if (keyword == "structure")
                 {
-                    Structure::read_scope(scanner, result);
+                    Structure::read_scope(p_scanner, result);
                 }
                 else if (keyword == "library")
                 {
-                    Library::read_scope(scanner, result);
+                    Library::read_scope(p_scanner, result);
                 }
                 else if (keyword == "placement")
                 {
-                    Placement::read_scope(scanner, result);
+                    Placement::read_scope(p_scanner, result);
                 }
                 else if (keyword == "network")
                 {
-                    Network::read_scope(scanner, result);
+                    Network::read_scope(p_scanner, result);
                 }
                 else if (keyword == "wiring")
                 {
-                    // Skip wiring section for now
-                    while (scanner.current_level() > 0 && !scanner.eof())
-                    {
-                        Scanner::Token t = scanner.next_token();
-                        if (t.type == Scanner::TokenType::CLOSED_PAREN)
-                            break;
-                    }
+                    Wiring wiring;
+                    wiring.read_scope(p_scanner, result);
                 }
                 else
                 {
-                    while (scanner.current_level() > 0 && !scanner.eof())
+                    while (p_scanner.current_level() > 0 && !p_scanner.eof())
                     {
-                        Scanner::Token t = scanner.next_token();
+                        Scanner::Token t = p_scanner.next_token();
                         if (t.type == Scanner::TokenType::CLOSED_PAREN)
                             break;
                     }
@@ -317,13 +312,25 @@ Result read_dsn(const std::string& p_filename)
         }
         else if (token.type == Scanner::TokenType::CLOSED_PAREN)
         {
-            if (scanner.current_level() < 0)
+            if (p_scanner.current_level() < 0)
                 break;
         }
     }
 
     result.success = true;
     return result;
+}
+
+Result read_dsn(const std::string& p_filename)
+{
+    Scanner scanner(p_filename);
+    return read_dsn(scanner);
+}
+
+Result read_dsn(std::istream& p_input)
+{
+    Scanner scanner(p_input);
+    return read_dsn(scanner);
 }
 
 } // namespace freerouting::designforms::specctra

@@ -23,6 +23,8 @@ class LineSegment;
 namespace freerouting::board {
 
 class Item;
+class Component;
+class Components;
 class Padstack;
 class PolylineTrace;
 class Trace;
@@ -76,6 +78,29 @@ public:
     // Get items for routing
     std::vector<Item*> get_autoroute_items() const;
     std::vector<Item*> get_connectable_items() const;
+
+    /**
+     * Returns all items of net p_net_no which can be connected by routing.
+     * Mirrors Java BasicBoard.get_connectable_items(int).
+     */
+    std::vector<Item*> get_connectable_items(int p_net_no) const;
+
+    /** Returns all Pin items on the board. Mirrors Java BasicBoard.get_pins(). */
+    std::vector<Pin*> get_pins() const;
+
+    /** Returns all Trace items on the board. Mirrors Java BasicBoard.get_traces(). */
+    std::vector<Trace*> get_traces() const;
+
+    /** Returns all Via items on the board. Mirrors Java BasicBoard.get_vias(). */
+    std::vector<Via*> get_vias() const;
+
+    /** Returns the board communication information. */
+    Communication* communication() const { return board_communication_; }
+    void set_communication(Communication* p_communication) { board_communication_ = p_communication; }
+
+    /** Returns the components placed on the board. Mirrors Java BasicBoard.components. */
+    Components* components() { return components_.get(); }
+    const Components* components() const { return components_.get(); }
 
     // Create Pin items from parsed data
     void create_pins_from_parsed();
@@ -173,6 +198,7 @@ private:
     geometry::planar::IntBox bounding_box_;
     Communication* board_communication_ = nullptr;
     std::vector<Item*> items_;
+    std::unique_ptr<Components> components_;
     designforms::specctra::Result parsed_result_;
 };
 

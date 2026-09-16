@@ -1,5 +1,6 @@
 #include "board/RoutingBoard.h"
 #include "board/Item.h"
+#include "board/Component.h"
 #include "board/Padstack.h"
 #include "board/Pin.h"
 #include "board/PolylineTrace.h"
@@ -30,10 +31,11 @@ RoutingBoard::RoutingBoard(const geometry::planar::IntBox& p_bounding_box,
                            std::unique_ptr<::freerouting::rules::BoardRules> p_rules,
                            Communication* p_board_communication)
     : BasicBoard(p_layer_structure, std::move(p_rules))
-    , board_communication_(p_board_communication)
     , changed_area_(std::make_unique<ChangedArea>(p_layer_structure.layer_count()))
     , search_tree_manager_(std::make_unique<SearchTreeManager>(this))
     , bounding_box_(p_bounding_box)
+    , board_communication_(p_board_communication)
+    , components_(std::make_unique<Components>())
 {
 }
 
@@ -111,6 +113,62 @@ std::vector<Item*> RoutingBoard::get_connectable_items() const
         }
     }
     return connectable;
+}
+
+std::vector<Item*> RoutingBoard::get_connectable_items(int p_net_no) const
+{
+    std::vector<Item*> connectable;
+    for (auto* item : items_)
+    {
+        if (item == nullptr || !item->contains_net(p_net_no))
+        {
+            continue;
+        }
+        if (item->is_pin() || item->is_via() || item->is_trace())
+        {
+            connectable.push_back(item);
+        }
+    }
+    return connectable;
+}
+
+std::vector<Pin*> RoutingBoard::get_pins() const
+{
+    std::vector<Pin*> result;
+    for (auto* item : items_)
+    {
+        if (auto* pin = dynamic_cast<Pin*>(item))
+        {
+            result.push_back(pin);
+        }
+    }
+    return result;
+}
+
+std::vector<Trace*> RoutingBoard::get_traces() const
+{
+    std::vector<Trace*> result;
+    for (auto* item : items_)
+    {
+        if (auto* trace = dynamic_cast<Trace*>(item))
+        {
+            result.push_back(trace);
+        }
+    }
+    return result;
+}
+
+std::vector<Via*> RoutingBoard::get_vias() const
+{
+    std::vector<Via*> result;
+    for (auto* item : items_)
+    {
+        if (auto* via = dynamic_cast<Via*>(item))
+        {
+            result.push_back(via);
+        }
+    }
+    return result;
 }
 
 Item* RoutingBoard::get_item(int p_index) const
@@ -697,7 +755,18 @@ Via* RoutingBoard::insert_via(Padstack* p_padstack,
     }
     auto* new_via = new Via(p_padstack, center, p_net_no_arr, p_clearance_class, generate_item_id(), 0,
                             p_fixed_state, p_attach_allowed, this);
+
+    // Compute the via bounding box from the padstack shapes, translated to the
+    // center. Padstack shapes are stored center-relative (around (0,0)).
+    const geometry::planar::IntBox pad_box = p_padstack->get_bounding_box();
+    new_via->set_bounding_box(geometry::planar::IntBox(
+        pad_box.ll.x + center.x, pad_box.ll.y + center.y,
+        pad_box.ur.x + center.x, pad_box.ur.y + center.y));
+
     add_item(new_via);
+    // Register the via in the search tree so traces can connect to it and the
+    // autorouter can see it as an obstacle/connection point.
+    get_search_tree_manager()->insert(new_via);
     // TODO: split traces at the via location once split_traces is ported
     // (Java BasicBoard.insert_via splits traces on layers from_layer..to_layer-1).
     return new_via;

@@ -19,6 +19,7 @@ add_library(freerouting_autoroute STATIC
     MazeSearchAlgo.cpp
     MazeSearchElement.cpp
     MazeSearchRoute.cpp
+    NamedAlgorithm.cpp
     NamedAlgorithmType.cpp
     PerformanceProfiler.cpp
     RoutingFailureLog.cpp

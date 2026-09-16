@@ -1,4 +1,5 @@
 #include "board/Item.h"
+#include "board/ConductionArea.h"
 #include "board/ItemSearchTreesInfo.h"
 #include "board/ItemSelectionFilter.h"
 #include "board/ShapeSearchTree.h"
@@ -44,6 +45,42 @@ std::vector<Item*> Item::get_normal_contacts() const
     if (!board_) return {};
     // Stub: actual implementation would query the board's search trees
     return {};
+}
+
+std::set<Item*> Item::get_connected_set(int p_net_no, bool p_stop_at_plane) const
+{
+    std::set<Item*> result;
+    if (p_net_no > 0 && !contains_net(p_net_no))
+    {
+        return result;
+    }
+    result.insert(const_cast<Item*>(this));
+    get_connected_set_recu(result, p_net_no, p_stop_at_plane);
+    return result;
+}
+
+void Item::get_connected_set_recu(std::set<Item*>& p_result, int p_net_no, bool p_stop_at_plane) const
+{
+    const std::vector<Item*> contact_list = get_normal_contacts();
+    for (Item* curr_contact : contact_list)
+    {
+        if (p_stop_at_plane)
+        {
+            const auto* curr_area = dynamic_cast<const ConductionArea*>(curr_contact);
+            if (curr_area != nullptr && curr_contact->get_component_no() <= 0)
+            {
+                continue;
+            }
+        }
+        if (p_net_no > 0 && !curr_contact->contains_net(p_net_no))
+        {
+            continue;
+        }
+        if (p_result.insert(curr_contact).second)
+        {
+            curr_contact->get_connected_set_recu(p_result, p_net_no, p_stop_at_plane);
+        }
+    }
 }
 
 int Item::first_common_layer(const Item* p_other) const

@@ -1,54 +1,93 @@
 #pragma once
 
-#include <memory>
-#include <vector>
 #include <list>
-#include <cstdint>
+#include <memory>
+#include <set>
+#include <vector>
+
+#include "geometry/planar/Point.h"
+#include "interactive/RatsNest.h"
 
 namespace freerouting {
+namespace rules {
+class Net;
+} // namespace rules
+
+namespace board {
+class Item;
+class RoutingBoard;
+} // namespace board
+
+namespace datastructures {
+class PlanarDelaunayTriangulation;
+} // namespace datastructures
+
 namespace interactive {
 
-class Net;
-class RoutingBoard;
-class Item;
-
-struct AirLine
-{
-    int from_x = 0, from_y = 0;
-    int to_x = 0, to_y = 0;
-    int from_item_id = 0;
-    int to_item_id = 0;
-    int from_net_no = 0;
-    int to_net_no = 0;
-};
-
+/**
+ * Creates the Incompletes (Ratsnest) of one net to display them on the screen.
+ * Mirrors Java NetIncompletes.java.
+ */
 class NetIncompletes
 {
 public:
-    NetIncompletes() = default;
+    NetIncompletes(int p_net_no, const std::vector<board::Item*>& p_net_items,
+                   board::RoutingBoard* p_board);
 
-    void add_air_line(const AirLine& p_line) { incompletes_.push_back(p_line); }
-
+    /**
+     * Returns the number of incompletes/airlines of this net.
+     */
     int count() const { return static_cast<int>(incompletes_.size()); }
-
     bool empty() const { return incompletes_.empty(); }
 
-    void clear() { incompletes_.clear(); }
+    /**
+     * Recalculates the length violations. Returns false, if the length
+     * violation has not changed.
+     */
+    bool calc_length_violation();
 
-    const std::list<AirLine>& lines() const { return incompletes_; }
-
+    /**
+     * Returns the length of the violation of the length restriction of the
+     * net, > 0, if the cumulative trace length is too big, < 0, if the trace
+     * length is too small, 0, if the trace length is ok or the net has no
+     * length restrictions.
+     */
     double get_length_violation() const { return length_violation_; }
-    void set_length_violation(double p_violation) { length_violation_ = p_violation; }
 
-    int get_net_no() const { return net_no_; }
-    std::shared_ptr<Net> get_net() const { return net_; }
+    rules::Net* get_net() const { return net_; }
+    double get_draw_marker_radius() const { return draw_marker_radius_; }
+
+    const std::list<std::shared_ptr<RatsNest::AirLine>>& incompletes() const
+    {
+        return incompletes_;
+    }
 
 private:
-    int net_no_ = 0;
-    std::shared_ptr<Net> net_;
+    struct NetItem;
+    struct Edge;
+
+    /**
+     * Calculates a vector of Item-connected_set pairs for the items of this
+     * net. Pairs belonging to the same connected set are located next to each
+     * other. Mirrors Java NetIncompletes.calculate_net_items().
+     */
+    std::vector<std::shared_ptr<NetItem>> calculate_net_items(
+        const std::vector<board::Item*>& p_item_list, int p_net_no) const;
+
+    /**
+     * Joins p_from_connected_set to p_to_connected_set and updates the
+     * connected sets of the items in p_net_items. Mirrors Java
+     * NetIncompletes.join_connected_sets().
+     */
+    void join_connected_sets(const std::vector<std::shared_ptr<NetItem>>& p_net_items,
+                             const std::shared_ptr<std::set<board::Item*>>& p_from_connected_set,
+                             const std::shared_ptr<std::set<board::Item*>>& p_to_connected_set) const;
+
+    board::RoutingBoard* board_;
+    rules::Net* net_;
     double draw_marker_radius_ = 0;
     double length_violation_ = 0;
-    std::list<AirLine> incompletes_;
+    std::list<std::shared_ptr<RatsNest::AirLine>> incompletes_;
 };
 
 } // namespace interactive

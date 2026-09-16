@@ -50,7 +50,7 @@ bool Library::read_padstack_scope(Scanner& p_scanner, Result& p_result)
             Scanner::Token keyword_token = p_scanner.next_token();
             if (keyword_token.type == Scanner::TokenType::STRING)
             {
-                std::string keyword = std::get<std::string>(keyword_token.value);
+                std::string keyword = to_lower(std::get<std::string>(keyword_token.value));
 
                 if (keyword == "shape")
                 {
@@ -143,7 +143,7 @@ bool Library::read_image_scope(Scanner& p_scanner, Result& p_result)
             Scanner::Token keyword_token = p_scanner.next_token();
             if (keyword_token.type == Scanner::TokenType::STRING)
             {
-                std::string keyword = std::get<std::string>(keyword_token.value);
+                std::string keyword = to_lower(std::get<std::string>(keyword_token.value));
 
                 if (keyword == "pin")
                 {
@@ -212,7 +212,7 @@ bool Library::read_scope(Scanner& p_scanner, Result& p_result)
             Scanner::Token keyword_token = p_scanner.next_token();
             if (keyword_token.type == Scanner::TokenType::STRING)
             {
-                std::string keyword = std::get<std::string>(keyword_token.value);
+                std::string keyword = to_lower(std::get<std::string>(keyword_token.value));
 
                 if (keyword == "padstack")
                 {

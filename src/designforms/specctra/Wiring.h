@@ -1,26 +1,29 @@
 #pragma once
 
-#include <memory>
-#include <string>
 #include <vector>
 
 namespace freerouting {
 namespace designforms {
 namespace specctra {
 
+class Scanner;
+struct Result;
+
+/**
+ * Parses the DSN "wiring" scope (traces, vias and conduction areas) into the
+ * parse Result. The parse keeps DSN data in the Result; board items are
+ * materialized later by BoardLoader.
+ */
 class Wiring
 {
 public:
     Wiring() = default;
 
-    bool read_scope(const class ReadScopeParameter& p_par);
-    void write_scope(const class WriteScopeParameter& p_par);
+    bool read_scope(Scanner& p_scanner, Result& p_result);
 
 private:
-    bool read_wire_scope(const class ReadScopeParameter& p_par);
-    bool read_via_scope(const class ReadScopeParameter& p_par);
-    void write_via_scope(const class WriteScopeParameter& p_par, const std::shared_ptr<class Via>& p_via);
-    void write_wire_scope(const class WriteScopeParameter& p_par, const std::shared_ptr<class Trace>& p_trace);
+    bool read_wire_scope(Scanner& p_scanner, Result& p_result);
+    bool read_via_scope(Scanner& p_scanner, Result& p_result);
 };
 
 } // namespace specctra

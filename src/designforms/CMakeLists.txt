@@ -11,6 +11,7 @@ add_library(freerouting_designforms STATIC
     specctra/Scanner.cpp
     specctra/SessionWriter.cpp
     specctra/Structure.cpp
+    specctra/Wiring.cpp
 )
 
 target_link_libraries(freerouting_designforms PUBLIC

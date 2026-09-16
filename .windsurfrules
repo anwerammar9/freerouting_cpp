@@ -1,0 +1,31 @@
+# Windsurf Rules — Freerouting C++ Migration
+
+## Project
+Freerouting Java → C++20 PCB autorouter migration. Java is source of truth. Goal: headless routing (DSN → route → SES).
+
+## Session Start
+Read `SOURCE_OF_TRUTH/01_MEMORY.md` for architecture and `SOURCE_OF_TRUTH/05_WORK_PACKAGES.md` for tasks.
+
+## Build
+```bash
+cmake --build build --target <module_target> -j$(nproc)
+ctest --test-dir build --output-on-failure
+```
+
+## Rules
+1. Java `src/**/*.java` = reference implementation
+2. 4 files per class: `.h`, `.cpp`, `_test.cpp`, `.java`
+3. C++20: smart pointers, RAII, `std::optional`, `#pragma once`
+4. PascalCase classes, snake_case functions, `_` trailing private members
+5. `freerouting_core` has no dependencies (leaf lib)
+6. `Components.h/.cpp` is dead code — never use it
+7. Java nets are 1-based
+
+## Key Files
+- `SOURCE_OF_TRUTH/02_PROGRESS.md` — what's done
+- `SOURCE_OF_TRUTH/03_MISSING.md` — what's missing
+- `SOURCE_OF_TRUTH/04_IMPLEMENTATION_PLAN.md` — phased plan
+- `docs/migration/INDEX.md` — module percentages
+
+## Session End
+Update progress in `SOURCE_OF_TRUTH/02_PROGRESS.md`, `03_MISSING.md`, and `docs/migration/INDEX.md`.

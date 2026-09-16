@@ -53,8 +53,8 @@ bool Placement::read_place_scope(Scanner& p_scanner, Result& p_result, const std
                 // Sub-scope inside the place entry. Fully consume it so its own
                 // closing paren does not terminate the (place ...) entry.
                 {
-                    std::string keyword = p_scanner.read_string();
-                    if (keyword == "PN")
+                    std::string keyword = to_lower(p_scanner.read_string());
+                    if (keyword == "pn")
                     {
                         comp_def.package = p_scanner.read_string();
                     }
@@ -132,7 +132,7 @@ bool Placement::read_component_scope(Scanner& p_scanner, Result& p_result)
             Scanner::Token keyword_token = p_scanner.next_token();
             if (keyword_token.type == Scanner::TokenType::STRING)
             {
-                std::string keyword = std::get<std::string>(keyword_token.value);
+                std::string keyword = to_lower(std::get<std::string>(keyword_token.value));
 
                 if (keyword == "place")
                 {
@@ -165,7 +165,7 @@ bool Placement::read_scope(Scanner& p_scanner, Result& p_result)
             Scanner::Token keyword_token = p_scanner.next_token();
             if (keyword_token.type == Scanner::TokenType::STRING)
             {
-                std::string keyword = std::get<std::string>(keyword_token.value);
+                std::string keyword = to_lower(std::get<std::string>(keyword_token.value));
 
                 if (keyword == "component" || keyword == "package")
                 {

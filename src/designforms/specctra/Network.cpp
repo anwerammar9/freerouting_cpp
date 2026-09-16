@@ -63,7 +63,7 @@ bool Network::read_class_scope(Scanner& p_scanner, Result& p_result)
             Scanner::Token keyword_token = p_scanner.next_token();
             if (keyword_token.type == Scanner::TokenType::STRING)
             {
-                std::string keyword = std::get<std::string>(keyword_token.value);
+                std::string keyword = to_lower(std::get<std::string>(keyword_token.value));
 
                 if (keyword == "circuit")
                 {
@@ -128,7 +128,7 @@ bool Network::read_net_scope(Scanner& p_scanner, Result& p_result)
             Scanner::Token keyword_token = p_scanner.next_token();
             if (keyword_token.type == Scanner::TokenType::STRING)
             {
-                std::string keyword = std::get<std::string>(keyword_token.value);
+                std::string keyword = to_lower(std::get<std::string>(keyword_token.value));
 
                 if (keyword == "pins")
                 {
@@ -198,7 +198,7 @@ bool Network::read_scope(Scanner& p_scanner, Result& p_result)
             Scanner::Token keyword_token = p_scanner.next_token();
             if (keyword_token.type == Scanner::TokenType::STRING)
             {
-                std::string keyword = std::get<std::string>(keyword_token.value);
+                std::string keyword = to_lower(std::get<std::string>(keyword_token.value));
 
                 if (keyword == "net")
                 {

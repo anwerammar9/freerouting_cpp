@@ -4,8 +4,17 @@
 #include <string>
 #include <vector>
 #include <variant>
+#include <algorithm>
+#include <cctype>
 
 namespace freerouting::designforms::specctra {
+
+inline std::string to_lower(std::string value)
+{
+    std::transform(value.begin(), value.end(), value.begin(),
+        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return value;
+}
 
 struct Location
 {
@@ -122,6 +131,37 @@ struct ComponentDef
     bool placed;
 };
 
+/**
+ * A single wire from the DSN wiring scope. Represents one polyline trace, one
+ * polygon trace or a conduction area (plane). Coordinates are kept in DSN
+ * units (doubles) and converted to board coordinates when the board items are
+ * materialized by BoardLoader.
+ */
+struct WireDef
+{
+    int layer_no = 0;                 // resolved from the layer name at parse time
+    double width = 0;                 // full trace width in DSN units
+    std::vector<double> coords;       // alternating x, y doubles (4 values per line segment)
+    bool is_polygon_path = false;
+    bool is_conduction_area = false;  // rect/polygon/circle wire (plane)
+    std::vector<int> net_nos;
+    int clearance_class = 0;
+    bool fixed = false;
+};
+
+/**
+ * A via placement from the DSN wiring scope, referencing a via padstack by
+ * name (resolved against Result.vias when the board is materialized).
+ */
+struct ViaPlacementDef
+{
+    std::string padstack_name;
+    std::vector<double> location;     // [x, y] in DSN units
+    std::vector<int> net_nos;
+    int clearance_class = 0;
+    bool fixed = false;
+};
+
 struct Result
 {
     bool success = false;
@@ -139,8 +179,11 @@ struct Result
     std::vector<NetDef> nets;
     std::vector<PinDef> pins;
     std::vector<ComponentDef> components;
+    std::vector<WireDef> wires;
+    std::vector<ViaPlacementDef> via_placements;
 };
 
 Result read_dsn(const std::string& p_filename);
+Result read_dsn(std::istream& p_input);
 
 } // namespace freerouting::designforms::specctra

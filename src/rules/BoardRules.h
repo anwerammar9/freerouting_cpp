@@ -83,6 +83,12 @@ public:
     int get_max_trace_half_width() const { return max_trace_half_width_; }
     void set_max_trace_half_width(int p_value);
 
+    /**
+     * Returns the clearance class of the default net class.
+     * Mirrors Java BoardRules.default_clearance_class().
+     */
+    static int default_clearance_class() { return 1; }
+
     double get_pin_edge_to_turn_dist() const { return pin_edge_to_turn_dist_; }
     void set_pin_edge_to_turn_dist(double p_value);
 

@@ -31,6 +31,18 @@ public:
      */
     double min_width() const;
 
+    /**
+     * Returns all items of a net, which are connected to this drill item via
+     * normal contacts. Mirrors Java DrillItem.get_normal_contacts().
+     */
+    std::vector<Item*> get_normal_contacts() const override;
+
+    /**
+     * Returns the uncontacted center point used for ratsnest display.
+     * Mirrors Java DrillItem.get_ratsnest_corners().
+     */
+    std::vector<std::shared_ptr<geometry::planar::Point>> get_ratsnest_corners() const override;
+
 protected:
     DrillItem(const geometry::planar::IntPoint& p_center,
               const std::vector<int>& p_net_nos,

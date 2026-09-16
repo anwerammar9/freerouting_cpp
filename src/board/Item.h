@@ -92,6 +92,19 @@ public:
     /** Returns true if this item is not contacted at either endpoint (Trace/Via override). */
     virtual bool is_tail() const { return false; }
 
+    /**
+     * Returns the set of all Connectable items of the net with number p_net_no
+     * which can be reached recursively via normal contacts from this item.
+     * If p_net_no <= 0, the net number is ignored. If p_stop_at_plane, the
+     * recursive algorithm stops, when a conduction area is reached, which does
+     * not belong to a component.
+     * Mirrors Java Item.get_connected_set(int, boolean).
+     */
+    std::set<Item*> get_connected_set(int p_net_no, bool p_stop_at_plane) const;
+
+    /** Recursive part of get_connected_set. */
+    void get_connected_set_recu(std::set<Item*>& p_result, int p_net_no, bool p_stop_at_plane) const;
+
     /** Returns true if this item has overlapping contacts at the same endpoint. */
     virtual bool is_overlap() const { return false; }
 

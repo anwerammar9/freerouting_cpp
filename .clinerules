@@ -1,0 +1,27 @@
+# Cline Rules — Freerouting C++ Migration
+
+## Project
+Freerouting Java → C++20 PCB autorouter. Java source is truth. Headless routing parity.
+
+## Read at Start
+- `SOURCE_OF_TRUTH/README.md`
+- `SOURCE_OF_TRUTH/01_MEMORY.md`
+- `SOURCE_OF_TRUTH/05_WORK_PACKAGES.md`
+
+## Build & Test
+```bash
+cmake --build build --target <module> -j$(nproc)
+ctest --test-dir build --output-on-failure
+```
+
+## Rules
+- Java `src/**/*.java` = source of truth
+- 4 files per class: `.h`, `.cpp`, `_test.cpp`, `.java`
+- C++20 only: smart pointers, RAII, `std::optional`
+- PascalCase classes, snake_case functions, trailing `_` private
+- `freerouting_core` = leaf lib (no deps)
+- Never include `src/board/Components.h/.cpp` (dead code)
+- Java nets are 1-based
+
+## After Changes
+Update `SOURCE_OF_TRUTH/02_PROGRESS.md` and `docs/migration/INDEX.md`.

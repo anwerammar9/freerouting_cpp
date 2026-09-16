@@ -1,5 +1,7 @@
 #include "designforms/specctra/Structure.h"
 
+#include <algorithm>
+
 #include "logger/FRLogger.h"
 
 namespace freerouting::designforms::specctra {
@@ -34,19 +36,34 @@ bool Structure::read_boundary_scope(Scanner& p_scanner, Result& p_result)
     bool read_x = true;
     int64_t cur_x = 0, cur_y = 0;
 
+    // Track paren depth so that the inner shape scope(s) (e.g. "(rect ...)")
+    // are consumed fully and the loop only stops at the boundary's own close.
+    int depth = 0;
+
     while (!p_scanner.eof())
     {
         Scanner::Token token = p_scanner.next_token();
 
+        if (token.type == Scanner::TokenType::OPEN_PAREN)
+        {
+            ++depth;
+            continue;
+        }
+
         if (token.type == Scanner::TokenType::CLOSED_PAREN)
         {
-            break;
+            if (depth == 0)
+            {
+                break;
+            }
+            --depth;
+            continue;
         }
 
         if (token.type == Scanner::TokenType::STRING)
         {
-            std::string keyword = std::get<std::string>(token.value);
-            if (keyword == "rectangle")
+            std::string keyword = to_lower(std::get<std::string>(token.value));
+            if (keyword == "rectangle" || keyword == "rect" || keyword == "polygon")
             {
                 found_coords = true;
             }
@@ -104,10 +121,21 @@ bool Structure::read_boundary_scope(Scanner& p_scanner, Result& p_result)
 
     if (!first_coord)
     {
-        p_result.board_min_x = x1;
-        p_result.board_min_y = y1;
-        p_result.board_width = x2 - x1;
-        p_result.board_height = y2 - y1;
+        if (p_result.board_width <= 0 || p_result.board_height <= 0)
+        {
+            p_result.board_min_x = x1;
+            p_result.board_min_y = y1;
+            p_result.board_width = x2 - x1;
+            p_result.board_height = y2 - y1;
+        }
+        else
+        {
+            // Multiple boundary scopes: expand the box to cover all of them.
+            p_result.board_min_x = std::min(p_result.board_min_x, x1);
+            p_result.board_min_y = std::min(p_result.board_min_y, y1);
+            p_result.board_width = std::max(p_result.board_min_x + p_result.board_width, x2) - p_result.board_min_x;
+            p_result.board_height = std::max(p_result.board_min_y + p_result.board_height, y2) - p_result.board_min_y;
+        }
     }
 
     return true;
@@ -135,7 +163,7 @@ bool Structure::read_layer_scope(Scanner& p_scanner, Result& p_result)
             Scanner::Token keyword_token = p_scanner.next_token();
             if (keyword_token.type == Scanner::TokenType::STRING)
             {
-                std::string keyword = std::get<std::string>(keyword_token.value);
+                std::string keyword = to_lower(std::get<std::string>(keyword_token.value));
 
                 if (keyword == "type")
                 {
@@ -193,18 +221,30 @@ bool Structure::read_via_padstack_scope(Scanner& p_scanner, Result& p_result)
 
     via_def.name = p_scanner.read_string();
 
+    int depth = 0;
     while (!p_scanner.eof())
     {
         Scanner::Token token = p_scanner.next_token();
 
+        if (token.type == Scanner::TokenType::OPEN_PAREN)
+        {
+            ++depth;
+            continue;
+        }
+
         if (token.type == Scanner::TokenType::CLOSED_PAREN)
         {
-            break;
+            if (depth == 0)
+            {
+                break;
+            }
+            --depth;
+            continue;
         }
 
         if (token.type == Scanner::TokenType::STRING)
         {
-            std::string keyword = std::get<std::string>(token.value);
+            std::string keyword = to_lower(std::get<std::string>(token.value));
 
             if (keyword == "hole")
             {
@@ -241,7 +281,7 @@ bool Structure::read_scope(Scanner& p_scanner, Result& p_result)
             Scanner::Token keyword_token = p_scanner.next_token();
             if (keyword_token.type == Scanner::TokenType::STRING)
             {
-                std::string keyword = std::get<std::string>(keyword_token.value);
+                std::string keyword = to_lower(std::get<std::string>(keyword_token.value));
 
                 if (keyword == "layer")
                 {

@@ -65,7 +65,9 @@ TEST(PlanarDelaunayTriangulationTest, DuplicateCoordinatesDoNotCreateDegenerateE
     PlanarDelaunayTriangulation triangulation({first, duplicate, third});
 
     EXPECT_TRUE(triangulation.validate());
-    EXPECT_TRUE(triangulation.get_edge_lines().empty());
+    // Both corners collapse to a single {0,0}; the remaining two distinct
+    // corners produce exactly one connecting edge.
+    EXPECT_EQ(triangulation.get_edge_lines().size(), 1);
 }
 
 } // namespace freerouting::datastructures

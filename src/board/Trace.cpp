@@ -10,6 +10,7 @@
 #include "board/ViaObstacleArea.h"
 #include "logger/FRLogger.h"
 #include "geometry/planar/IntBox.h"
+#include "geometry/planar/Shape.h"
 #include "rules/Net.h"
 
 #include <algorithm>
@@ -18,6 +19,28 @@
 
 namespace freerouting {
 namespace board {
+
+namespace {
+
+/**
+ * Checks, whether the area shape of p_area contains p_point, accepting both
+ * integer and float points.
+ */
+bool area_contains_point(const geometry::planar::Area& p_area,
+                         const geometry::planar::Point& p_point)
+{
+    if (const auto* int_point = dynamic_cast<const geometry::planar::IntPoint*>(&p_point))
+    {
+        return p_area.contains(*int_point);
+    }
+    if (const auto* float_point = dynamic_cast<const geometry::planar::FloatPoint*>(&p_point))
+    {
+        return p_area.contains(*float_point);
+    }
+    return false;
+}
+
+} // namespace
 
 Trace::Trace(int p_layer, int p_half_width,
              const std::vector<int>& p_net_no_arr,
@@ -110,8 +133,21 @@ std::set<Item*> Trace::get_normal_contacts(const geometry::planar::Point& p_poin
                 result.insert(curr_item);
             }
         }
-        // Java additionally handles DrillItem (via get_center) and
-        // ConductionArea (area contains p_point). Neither is ported yet.
+        else if (const DrillItem* curr_drill_item = dynamic_cast<const DrillItem*>(curr_item))
+        {
+            if (is_within_tolerance(p_point, curr_drill_item->get_center(), tolerance))
+            {
+                result.insert(curr_item);
+            }
+        }
+        else if (const ConductionArea* curr_area = dynamic_cast<const ConductionArea*>(curr_item))
+        {
+            if (curr_area->get_area() != nullptr &&
+                area_contains_point(*curr_area->get_area(), p_point))
+            {
+                result.insert(curr_item);
+            }
+        }
     }
     return result;
 }

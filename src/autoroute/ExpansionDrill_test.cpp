@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include "autoroute/ExpansionDrill.h"
 #include "geometry/planar/IntBox.h"
-#include "geometry/planar/IntPoint.h"
+#include "geometry/planar/Point.h"
 
 namespace fr = freerouting;
 using fr::geometry::planar::IntBox;
