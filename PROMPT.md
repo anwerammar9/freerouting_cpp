@@ -27,7 +27,7 @@ STEP 2: Verify the build works:
 cmake --build build --target freerouting_board -j$(nproc)
 
 STEP 3: Pick the highest-priority incomplete work package from 05_WORK_PACKAGES.md and implement it. For each class:
-1. Read the Java source in src/<module>/ClassName.java
+1. Read the Java source in java/app/freerouting/<module>/ClassName.java
 2. Check if C++ .h/.cpp already exists
 3. Create/update .h, .cpp, _test.cpp files
 4. Update src/<module>/CMakeLists.txt

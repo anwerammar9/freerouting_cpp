@@ -2,13 +2,14 @@
 
 ## Project Overview
 
-Migrating Freerouting PCB autorouter from Java to C++20. Java source is truth.
-Goal: headless routing parity — load DSN → route → write SES.
+Migrating Freerouting PCB autorouter from Java to C++20. The Java baseline
+(`java/`, Freerouting 2.1.0) is truth. Goal: headless routing parity — load DSN →
+route → write SES.
 
 ## Repository Layout
 
 ```
-src/                          # All source code
+src/                          # C++20 migration (only C++ sources live here)
 ├── autoroute/                # Routing algorithms
 ├── board/                    # Board model, items, search trees
 ├── core/                     # Core data model, jobs, events
@@ -21,6 +22,8 @@ src/                          # All source code
 ├── management/               # Session management
 ├── rules/                    # Design rules
 └── settings/                 # Configuration
+java/                         # Java baseline (Freerouting 2.1.0), source of truth
+└── app/freerouting/          # package root; build with ./gradlew executableJar
 tests/                        # Test data and integration tests
 docs/migration/               # Per-module migration status
 SOURCE_OF_TRUTH/              # Compiled knowledge base
@@ -48,16 +51,20 @@ ctest --test-dir build -R ClassName --output-on-failure
 
 # Run assert-based smoke tests
 cmake --build build --target run_tests -j$(nproc) && ./build/tests/run_tests
+
+# Build the Java baseline (JDK 25); run it headless:
+./gradlew executableJar
+java -jar build/libs/freerouting-<version>-executable.jar -de in.dsn -do out.ses
 ```
 
 Module targets: `freerouting_core`, `freerouting_board`, `freerouting_autoroute`, `freerouting_geometry`, `freerouting_rules`, `freerouting_datastructures`, `freerouting_logger`, `freerouting_constants`, `freerouting_interactive`, `freerouting_settings`, `freerouting_management`, `freerouting_designforms`, `freerouting_drc`
 
 ## Porting a Class
 
-1. Read Java source: `src/<module>/ClassName.java`
+1. Read Java source: `java/app/freerouting/<module>/ClassName.java`
 2. Check if C++ `.h`/`.cpp` already exists (partial port?)
 3. Read dependencies — what C++ classes does this need?
-4. Create 4 files: `.h`, `.cpp`, `_test.cpp`, `.java` (copy reference)
+4. Create 3 files: `.h`, `.cpp`, `_test.cpp`
 5. Update `src/<module>/CMakeLists.txt` — add `.cpp` to target
 6. Build and fix errors
 7. Register test in `tests/CMakeLists.txt`
@@ -75,8 +82,8 @@ Module targets: `freerouting_core`, `freerouting_board`, `freerouting_autoroute`
 
 ## Critical Rules
 
-- **Java `src/**/*.java`** = source of truth
-- **4 files per class**: `.h`, `.cpp`, `_test.cpp`, `.java`
+- **Java `java/**/*.java`** = source of truth
+- **3 files per class**: `.h`, `.cpp`, `_test.cpp`
 - **C++20**: smart pointers, RAII, `std::optional`, `#pragma once`
 - **Layering**: `freerouting_core` has NO deps (leaf lib)
 - **Never include** `src/board/Components.h/.cpp` — dead code

@@ -2,7 +2,7 @@
 
 **Purpose**: Handoff document for parallel migration work. Multiple agents (fresh sessions) pick a work package (WP), implement it, verify, and check it off. Work packages are ordered by dependency; independent WPs can run concurrently.
 
-**Source of truth**: Java reference lives in `src/**/*.java` (checked into the C++ repo). Migrate faithfully: same classes, names (Java `camelCase`), fields, algorithm logic. Prefer existing C++ idioms already established in this repo (see `src/board/`, `src/geometry/planar/`).
+**Source of truth**: Java reference lives in `java/app/freerouting/**` (Freerouting 2.1.0). Migrate faithfully: same classes, names (Java `camelCase`), fields, algorithm logic. Prefer existing C++ idioms already established in this repo (see `src/board/`, `src/geometry/planar/`).
 
 ---
 

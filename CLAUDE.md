@@ -37,8 +37,8 @@ ctest --test-dir build --output-on-failure
 
 ## Key Rules
 
-1. **Java files in `src/**/*.java`** are the reference — port faithfully
-2. **4 files per class**: `.h`, `.cpp`, `_test.cpp`, `.java`
+1. **Java files in `java/app/freerouting/**`** are the reference — port faithfully
+2. **3 files per class**: `.h`, `.cpp`, `_test.cpp`
 3. **C++20 only**: smart pointers, RAII, `std::optional`, `#pragma once`
 4. **Naming**: PascalCase classes, snake_case functions, trailing `_` for private
 5. **Layering**: `freerouting_core` is leaf (no deps). BoardStatistics goes in `freerouting_scoring` lib

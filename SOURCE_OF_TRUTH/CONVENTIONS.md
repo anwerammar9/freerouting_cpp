@@ -2,14 +2,14 @@
 
 ## File Structure
 
-Every migrated Java class produces exactly 4 files:
+Every migrated Java class produces exactly 3 files:
 ```
 src/<module>/
 ├── ClassName.h          # Header declaration
 ├── ClassName.cpp        # Implementation
-├── ClassName_test.cpp   # Unit tests (GTest)
-└── ClassName.java       # Original Java reference
+└── ClassName_test.cpp   # Unit tests (GTest)
 ```
+The Java reference lives separately in `java/app/freerouting/<module>/ClassName.java`.
 
 ## Naming Conventions
 

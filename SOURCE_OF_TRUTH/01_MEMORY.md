@@ -4,29 +4,33 @@
 
 ```
 freerouting_cpp/
-├── src/                          # All source (no separate include/)
+├── src/                          # C++20 migration (no Java here)
 │   ├── main.cpp                  # Entry point
 │   ├── Freerouting.cpp/.h        # Main application class
-│   ├── autoroute/                # Auto-routing algorithms (35 Java, 21 C++ compiled)
-│   ├── board/                    # Board model (51 Java, 41 C++ headless)
-│   ├── boardgraphics/            # NOT migrated (GUI only)
-│   ├── constants/                # Constants (1 Java, 1 C++ — done)
-│   ├── core/                     # Core data model (36 Java, 6 C++)
-│   ├── datastructures/           # Generic data structures (14 Java, 6+2 C++)
-│   ├── designforms/specctra/     # Specctra DSN/SES I/O (41 Java, 9 C++)
-│   ├── drc/                      # Design rules checking (7 Java, 1 C++)
-│   ├── geometry/planar/          # 2D geometry primitives (34 Java, 34 C++ — done)
-│   ├── interactive/              # Interactive/headless (9 Java, 3 C++)
-│   ├── logger/                   # Logging (4 Java, 4 C++ — done)
-│   ├── management/               # Session/job management (18 Java, 2 C++)
-│   ├── rules/                    # Design rules (10 Java, 10 C++ — done)
-│   └── settings/                 # Configuration (21 Java, 2 C++)
+│   ├── autoroute/                # Auto-routing algorithms
+│   ├── board/                    # Board model
+│   ├── constants/                # Constants
+│   ├── core/                     # Core data model
+│   ├── datastructures/           # Generic data structures
+│   ├── designforms/specctra/     # Specctra DSN/SES I/O
+│   ├── drc/                      # Design rules checking
+│   ├── geometry/planar/          # 2D geometry primitives
+│   ├── interactive/              # Interactive/headless
+│   ├── logger/                   # Logging
+│   ├── management/               # Session/job management
+│   ├── rules/                    # Design rules
+│   └── settings/                 # Configuration
+├── java/                         # Java baseline (Freerouting 2.1.0), source of truth
+│   └── app/freerouting/          # package root (incl. gui/, api/, analytics/)
 ├── tests/                        # Integration tests + test data
 ├── docs/migration/               # Per-module migration status
 ├── templates/                    # Migration templates
 ├── SOURCE_OF_TRUTH/              # This folder — compiled knowledge
 └── build/                        # Build output
 ```
+
+The Java reference files are no longer co-located in `src/`; read them from
+`java/app/freerouting/<module>/ClassName.java`.
 
 ## Build System
 
@@ -59,7 +63,7 @@ ctest --test-dir build --output-on-failure
 
 - Smart pointers (`unique_ptr`/`shared_ptr`), RAII, `std::optional`
 - Naming: `PascalCase` classes, `snake_case` functions/variables, `kPascalCase` constants, trailing `_` for private members
-- Each migrated class produces 4 files: `.h`, `.cpp`, `_test.cpp`, `.java`
+- Each migrated class produces 3 files: `.h`, `.cpp`, `_test.cpp` (Java reference in `java/`)
 - `#pragma once` headers
 - Member initializer lists for constructors
 

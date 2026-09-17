@@ -15,8 +15,8 @@ ctest --test-dir build --output-on-failure
 ```
 
 ## Rules
-- Java `src/**/*.java` = source of truth
-- 4 files per class: `.h`, `.cpp`, `_test.cpp`, `.java`
+- Java `java/app/freerouting/**` = source of truth
+- 3 files per class: `.h`, `.cpp`, `_test.cpp`
 - C++20 only: smart pointers, RAII, `std::optional`
 - PascalCase classes, snake_case functions, trailing `_` private
 - `freerouting_core` = leaf lib (no deps)

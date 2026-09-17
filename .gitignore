@@ -4,6 +4,8 @@ build/
 *.jar
 *.war
 *.ear
+__pycache__/
+*.pyc
 
 # Gradle
 .gradle/
@@ -11,6 +13,11 @@ build/
 !gradlew.bat
 !gradle/wrapper/gradle-wrapper.jar
 !gradle/wrapper/gradle-wrapper.properties
+
+# Agent worktrees / session dumps
+.kilo/
+.kilocode/
+session-*.md
 
 # IDE
 .idea/
@@ -39,6 +46,9 @@ Makefile
 # Test outputs
 test-results/
 *.xml
+java_output_ses/
+board.html
+board.json
 
 # Local config
 local.properties

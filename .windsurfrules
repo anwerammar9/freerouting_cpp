@@ -13,8 +13,8 @@ ctest --test-dir build --output-on-failure
 ```
 
 ## Rules
-1. Java `src/**/*.java` = reference implementation
-2. 4 files per class: `.h`, `.cpp`, `_test.cpp`, `.java`
+1. Java `java/app/freerouting/**` = reference implementation
+2. 3 files per class: `.h`, `.cpp`, `_test.cpp`
 3. C++20: smart pointers, RAII, `std::optional`, `#pragma once`
 4. PascalCase classes, snake_case functions, `_` trailing private members
 5. `freerouting_core` has no dependencies (leaf lib)
