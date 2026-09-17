@@ -16,6 +16,7 @@
 | DRC | 7 | 1 | 1 | 5 | 29% |
 | Settings | 21 | 2 | 4 | 15 | 29% |
 | Core | 36 | 6 | 1 | 29 | 19% |
+| Scoring | 12 | 3 | 0 | 9 | 25% |
 | Management | 18 | 2 | 0 | 16 | 11% |
 | BoardGraphics | 8 | 0 | 0 | 8 | 0% |
 | **TOTAL** | **289** | **131** | **22** | **136** | **45%** |
@@ -121,7 +122,34 @@ Scanner, Structure, Network, Library, Placement, SessionWriter, Circle, Polygon,
 ## Module: Core (19%)
 
 ### Done: FileFormat, RoutingJob, RoutingStage, StopRequestState, Package, Session
-### Missing: Padstack/Padstacks, BoardFileDetails (6576 lines), BoardLibrary (4980 lines), Packages, StoppableThread, all 12 scoring classes, all 6 event classes
+### Missing: Padstack/Padstacks, BoardFileDetails (6576 lines), BoardLibrary (4980 lines), Packages, StoppableThread, all 6 event classes
+
+## Module: Scoring (25%)
+
+### Compiled & Tested (3 classes)
+BoardStatistics, BoardStatisticsBoard, BoardStatisticsLayers, BoardStatisticsItems, BoardStatisticsComponents, BoardStatisticsPads, BoardStatisticsNets, BoardStatisticsConnections, BoardStatisticsTraces, BoardStatisticsBends, BoardStatisticsVias, BoardStatisticsClearanceViolations
+
+### Not Migrated (9 classes)
+| Class | Lines | Priority | Notes |
+|-------|-------|----------|-------|
+| BoardStatisticsBoard | 16 | LOW | Data holder, C++ port in progress |
+| BoardStatisticsLayers | 15 | LOW | Data holder |
+| BoardStatisticsItems | 28 | LOW | Data holder |
+| BoardStatisticsComponents | 13 | LOW | Data holder |
+| BoardStatisticsPads | 13 | LOW | Data holder |
+| BoardStatisticsNets | 15 | LOW | Data holder |
+| BoardStatisticsConnections | 12 | LOW | Data holder |
+| BoardStatisticsTraces | 34 | LOW | Data holder |
+| BoardStatisticsBends | 19 | LOW | Data holder |
+
+### Completed (3 classes)
+- BoardStatistics (main class) - full port from Java BoardStatistics.java
+- BoardStatisticsBoard (data holder)
+- BoardStatisticsLayers (data holder)
+
+### Critical Missing
+- `BoardStatistics` full implementation needs `init_from_board()` with all item counting, trace analysis, bend calculation, via classification
+- `calculateScore()`, `getMaximumScore()`, `getNormalizedScore()` need proper scoring logic from RouterScoringSettings
 
 ## Module: Interactive (56%)
 

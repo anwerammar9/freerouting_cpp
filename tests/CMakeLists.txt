@@ -148,6 +148,7 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/src/board/PullTightAlgo_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/Trace_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/ItemContacts_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/core/scoring/BoardStatistics_test.cpp
     )
 
     foreach(test_src IN LISTS BOARD_TEST_SOURCES)
@@ -158,7 +159,7 @@ if(BUILD_TESTS)
             ${CMAKE_SOURCE_DIR}/src
         )
         target_link_libraries(${test_name} PRIVATE
-            $<LINK_GROUP:RESCAN,freerouting_board,freerouting_autoroute,freerouting_core,freerouting_datastructures,freerouting_geometry,freerouting_rules,freerouting_logger,freerouting_constants>
+            $<LINK_GROUP:RESCAN,freerouting_board,freerouting_autoroute,freerouting_core,freerouting_datastructures,freerouting_geometry,freerouting_rules,freerouting_logger,freerouting_constants,freerouting_scoring>
             GTest::gtest_main
         )
         gtest_discover_tests(${test_name})

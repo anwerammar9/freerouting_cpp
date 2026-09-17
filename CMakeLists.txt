@@ -25,6 +25,7 @@ find_package(Boost REQUIRED)
 
 # ============== Include subdirectories for each package ==============
 add_subdirectory(src/core)
+add_subdirectory(src/core/scoring)
 add_subdirectory(src/datastructures)
 add_subdirectory(src/logger)
 add_subdirectory(src/rules)
@@ -58,6 +59,7 @@ target_link_libraries(freerouting PRIVATE
     freerouting_constants
     freerouting_management
     freerouting_designforms
+    freerouting_scoring
     Threads::Threads
 )
 

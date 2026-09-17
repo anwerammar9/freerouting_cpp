@@ -42,6 +42,25 @@ Each WP is self-contained for parallel agent execution. See `04_IMPLEMENTATION_P
 
 Register gtests for WP-1..4, update docs/migration/INDEX.md, verify ctest green.
 
+## WP-4: BoardStatistics + Scoring (IN PROGRESS)
+
+**Java refs**: BoardStatistics.java + 11 substructs
+**C++ files**: src/core/scoring/BoardStatistics.{h,cpp}, src/core/scoring/CMakeLists.txt
+**Note**: Must go in separate `freerouting_scoring` lib (layering constraint)
+
+### Completed
+- `BoardStatistics` main class created with all sub-structs as nested types
+- `BoardStatistics.h` and `BoardStatistics.cpp` created
+- `freerouting_scoring` library created and builds successfully
+- 4 gtest tests created and passing (CanCreateFromBoard, CanCreateFromDSN, CanCreateFromSES, ScoreCalculation)
+- Test registered in `tests/CMakeLists.txt`
+
+### TODO
+- `init_from_board()` needs full implementation with item counting, trace analysis, bend calculation, via classification
+- `calculateScore()`, `getMaximumScore()`, `getNormalizedScore()` need proper scoring logic
+- File-based constructors need full SES/DSN parsing
+- Unit conversion needs proper implementation
+
 ## WP-6: RoutingJob / Session / BoardFileDetails
 
 Full port of core data model with event wiring.

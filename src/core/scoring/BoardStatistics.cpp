@@ -9,6 +9,8 @@ namespace scoring {
 
 BoardStatistics::BoardStatistics() {}
 
+BoardStatistics::~BoardStatistics() {}
+
 BoardStatistics::BoardStatistics(board::RoutingBoard* board) : BoardStatistics(board, "") {}
 
 BoardStatistics::BoardStatistics(board::RoutingBoard* board, const std::string& unit) { init_from_board(board, unit); }
