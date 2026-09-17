@@ -1,54 +1,44 @@
-# Build directories
+# Java build
 build/
-cmake-build-*/
+*.class
+*.jar
+*.war
+*.ear
 
-# IDE files
-.vscode/
+# Gradle
+.gradle/
+!gradlew
+!gradlew.bat
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+
+# IDE
 .idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
 *.swp
 *.swo
-*~
 
-# Compiled binaries
-*.exe
-*.out
-*.app
+# OS
+.DS_Store
+Thumbs.db
 
-# Object files
-*.o
-*.obj
-
-# Library files
-*.a
-*.lib
-*.so
-*.dylib
-
-# Log files
-*.log
-
-# Temporary files
-*.tmp
-*.temp
-
-# CMake generated files
+# C++ build
+build_cpp/
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
 Makefile
-*.cmake
+*.o
+*.so
+*.a
+*.exe
 
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
+# Test outputs
+test-results/
+*.xml
 
-# Java source (reference only)
-freerouting_java/
-
-# Migration status tracking (optional - remove if you want to track it)
-migration_status.csv
+# Local config
+local.properties
