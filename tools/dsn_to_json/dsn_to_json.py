@@ -189,9 +189,9 @@ class DsnConverter:
                 elif k == "path":
                     shape_name = "path"
                     pts = []
-                    for pt in sub[2:]:
-                        if isinstance(pt, list) and kw(pt) == "pt" and len(pt) >= 3:
-                            pts.append([num(pt[1]), num(pt[2])])
+                    vals = [v for v in sub[3:] if isinstance(v, (int, float))]
+                    for i in range(0, len(vals) - 1, 2):
+                        pts.append([vals[i], vals[i + 1]])
                     if pts:
                         xs = [p[0] for p in pts]
                         ys = [p[1] for p in pts]
@@ -248,6 +248,8 @@ class DsnConverter:
         if k == "rect" and len(nums) >= 4:
             return abs(nums[2] - nums[0]), abs(nums[3] - nums[1])
         if k == "polygon" and nums:
+            if len(nums) % 2 == 1:
+                nums = nums[1:]  # drop the point-count header
             xs = nums[::2]
             ys = nums[1::2]
             if xs and ys:
@@ -263,9 +265,12 @@ class DsnConverter:
             if kw(sub) == "padstack":
                 self.read_padstack(sub)
                 continue
-            image = {"name": str(sub[1]) if len(sub) > 1 else "", "pads": []}
+            image = {"name": str(sub[1]) if len(sub) > 1 else "",
+                     "side": "front", "pads": []}
             for item in sub[2:]:
-                if isinstance(item, list) and kw(item) == "pin" and len(item) >= 4:
+                if isinstance(item, list) and kw(item) == "side" and len(item) >= 2:
+                    image["side"] = str(item[1]).lower()
+                elif isinstance(item, list) and kw(item) == "pin" and len(item) >= 4:
                     image["pads"].append(
                         {"padstack": str(item[1]), "number": str(item[2]),
                          "x": num(item[3]), "y": num(item[4])})
@@ -274,6 +279,7 @@ class DsnConverter:
     def read_padstack(self, item):
         """Record padstack outer-width/height taken from its shape scopes."""
         w = h = 0.0
+        shapes = []
         name = str(item[1]) if len(item) > 1 else ""
         for shape in item[2:]:
             if isinstance(shape, list) and kw(shape) == "shape":
@@ -282,7 +288,14 @@ class DsnConverter:
                         sw, shh = self.shape_size(sh)
                         w = max(w, sw)
                         h = max(h, shh)
-        self.board["padstacks"].append({"name": name, "width": w, "height": h})
+                        shapes.append({
+                            "kind": kw(sh),
+                            "layer": str(sh[1]) if len(sh) > 1
+                                     and isinstance(sh[1], str) else "",
+                            "params": [v for v in sh if isinstance(v, (int, float))],
+                        })
+        self.board["padstacks"].append(
+            {"name": name, "width": w, "height": h, "shapes": shapes})
 
     def read_net(self, node):
         """Read a single (net NAME [no] (pins ...)) entry."""
@@ -429,7 +442,7 @@ class DsnConverter:
             if not isinstance(sub, list):
                 continue
             k = kw(sub)
-            if k in ("polyline_path", "polygon_path"):
+            if k in ("path", "polyline_path", "polygon_path"):
                 layer, width, coords, poly = self.read_path(sub)
                 wire["layer"] = layer
                 wire["width"] = width
@@ -522,7 +535,53 @@ class DsnConverter:
             pin["resolved"] = True
 
     # -- entry point -------------------------------------------------------
-    def convert(self, tree):
+    def clean_wires(self):
+        """Drop trace points that fall outside the board box (phantom segments
+        produced by buggy freerouting DSN writers), keeping only the maximal
+        in-board runs as separate wires."""
+        box = self.board["board_box"]
+        if box["width"] <= 0 or box["height"] <= 0:
+            return
+        margin = 0.6
+        min_x = box["min_x"] - margin
+        max_x = box["min_x"] + box["width"] + margin
+        min_y = box["min_y"] - margin
+        max_y = box["min_y"] + box["height"] + margin
+        cleaned = []
+        dropped = 0
+        for wire in self.board["wires"]:
+            coords = wire["coords"]
+            run = []
+            runs = []
+
+            def flush():
+                if len(run) >= 2:
+                    runs.append(list(run))
+                run.clear()
+
+            for i in range(0, len(coords) - 1, 2):
+                x, y = coords[i], coords[i + 1]
+                if min_x <= x <= max_x and min_y <= y <= max_y:
+                    run.append(x)
+                    run.append(y)
+                else:
+                    dropped += 1
+                    flush()
+            flush()
+            for flat in runs:
+                new = dict(wire)
+                new["coords"] = flat
+                xs = flat[0::2]
+                ys = flat[1::2]
+                new["segments"] = [
+                    [xs[i], ys[i], xs[i + 1], ys[i + 1]]
+                    for i in range(len(xs) - 1)]
+                cleaned.append(new)
+        self.board["wires"] = cleaned
+        self.board["dropped_phantom_points"] = dropped
+        self.board["clean"] = True
+
+    def convert(self, tree, clean=False):
         for node in tree:
             if not isinstance(node, list):
                 continue
@@ -549,17 +608,19 @@ class DsnConverter:
                         self.read_wiring(sub)
                     # parser / host_cad / host_version / rule / ... ignored
         self.position_pins()
+        if clean:
+            self.clean_wires()
         return self.board
 
 
-def convert_file(path):
+def convert_file(path, clean=False):
     with open(path, "r", encoding="utf-8", errors="replace") as fh:
         text = fh.read()
     tokens = tokenize(text)
     tree = parse_sexp(tokens)
     if not tree:
         raise ValueError("DSN file contains no scopes")
-    board = DsnConverter(path).convert(tree)
+    board = DsnConverter(path).convert(tree, clean=clean)
     board["board_box"]["width"] = max(board["board_box"]["width"], 0)
     board["board_box"]["height"] = max(board["board_box"]["height"], 0)
     return board
@@ -575,10 +636,13 @@ def main():
                         help="write the JSON to stdout instead of a file")
     parser.add_argument("--minify", action="store_true",
                         help="compact output instead of pretty-printed")
+    parser.add_argument("--clean", action="store_true",
+                        help="drop phantom trace points that fall outside the "
+                             "board box (cosmetic filter for buggy DSNs)")
     args = parser.parse_args()
 
     try:
-        board = convert_file(args.input)
+        board = convert_file(args.input, clean=args.clean)
     except (OSError, ValueError) as exc:
         print("error: {}".format(exc), file=sys.stderr)
         return 1
