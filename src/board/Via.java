@@ -233,7 +233,7 @@ public class Via extends DrillItem implements Serializable {
   public boolean write(ObjectOutputStream p_stream) {
     try {
       p_stream.writeObject(this);
-    } catch (IOException _) {
+    } catch (IOException e) {
       return false;
     }
     return true;

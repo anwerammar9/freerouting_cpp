@@ -4,8 +4,9 @@
 
 set -e
 
-JAVA_HOME="/tmp/jdk-17.0.2"
-export PATH="$JAVA_HOME/bin:$PATH"
+# Use system Java (assumes java is in PATH)
+# JAVA_HOME="/tmp/jdk-17.0.2"
+# export PATH="$JAVA_HOME/bin:$PATH"
 
 PROJECT_DIR="/mnt/d/projects/EDA/freerouting_cpp"
 OUTPUT_DIR="$PROJECT_DIR/java_output_ses"

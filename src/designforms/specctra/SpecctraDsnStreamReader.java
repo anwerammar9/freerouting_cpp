@@ -572,7 +572,7 @@ class SpecctraDsnStreamReader implements IJFlexScanner {
     String message;
     try {
       message = ZZ_ERROR_MSG[errorCode];
-    } catch (ArrayIndexOutOfBoundsException _) {
+    } catch (ArrayIndexOutOfBoundsException e) {
       message = ZZ_ERROR_MSG[ZZ_UNKNOWN_ERROR];
     }
 
@@ -1440,7 +1440,7 @@ class SpecctraDsnStreamReader implements IJFlexScanner {
     }
     try {
       return nf.parse(s).doubleValue();
-    } catch (ParseException _) {
+    } catch (ParseException e) {
       return null;
     }
   }

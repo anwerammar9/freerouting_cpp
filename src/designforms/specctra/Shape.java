@@ -154,7 +154,7 @@ public abstract class Shape {
     Object next_token;
     try {
       next_token = p_scanner.next_token();
-    } catch (IOException _) {
+    } catch (IOException e) {
       FRLogger.warn("Shape.read_area_scope: IO error scanning file at '" + p_scanner.get_scope_identifier() + "'");
       return null;
     }

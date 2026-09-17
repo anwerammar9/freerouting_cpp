@@ -27,7 +27,7 @@ public enum Unit implements Serializable {
   public static Unit from_string(String p_string) {
     try {
       return Unit.valueOf(p_string.toUpperCase());
-    } catch (IllegalArgumentException _) {
+    } catch (IllegalArgumentException e) {
       return null;
     }
   }

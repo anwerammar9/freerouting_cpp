@@ -151,7 +151,7 @@ public class RoutingJob implements Serializable, Comparable<RoutingJob> {
       if (dsn_file_generated_by_host) {
         return RulesFile.read(input_stream, p_design_name, p_board_handling);
       }
-    } catch (IOException _) {
+    } catch (IOException e) {
       FRLogger.error("File '" + rules_file_name + "' was not found.", null);
     }
     return false;
@@ -195,7 +195,7 @@ public class RoutingJob implements Serializable, Comparable<RoutingJob> {
           return FileFormat.SES;
         }
       }
-    } catch (IOException _) {
+    } catch (IOException e) {
       // Ignore the exception, it can happen with the build-in template or if the user
       // doesn't choose any file in the file dialog
     }
@@ -224,7 +224,7 @@ public class RoutingJob implements Serializable, Comparable<RoutingJob> {
 
   public boolean setInput(byte[] inputFileContent) {
     this.input = new BoardFileDetails();
-    this.input.addUpdatedEventListener(_ -> this.fireInputUpdatedEvent());
+    this.input.addUpdatedEventListener(e -> this.fireInputUpdatedEvent());
     return this.tryToSetInput(inputFileContent);
   }
 
@@ -306,7 +306,7 @@ public class RoutingJob implements Serializable, Comparable<RoutingJob> {
 
     if ((ff == FileFormat.DSN) || (ff == FileFormat.FRB) || (ff == FileFormat.SES) || (ff == FileFormat.SCR)) {
       this.output = new BoardFileDetails(outputFile);
-      this.output.addUpdatedEventListener(_ -> this.fireInputUpdatedEvent());
+      this.output.addUpdatedEventListener(e -> this.fireInputUpdatedEvent());
       this.output.format = ff;
       fireOutputUpdatedEvent();
       return true;
@@ -357,19 +357,19 @@ public class RoutingJob implements Serializable, Comparable<RoutingJob> {
 
     if (this.input.format == FileFormat.FRB) {
       this.output = new BoardFileDetails();
-      this.output.addUpdatedEventListener(_ -> this.fireOutputUpdatedEvent());
+      this.output.addUpdatedEventListener(e -> this.fireOutputUpdatedEvent());
       this.output.setFilename(changeFileExtension(input.getAbsolutePath(), BINARY_FILE_EXTENSION));
     }
 
     if (this.input.format == FileFormat.DSN) {
       this.output = new BoardFileDetails();
-      this.output.addUpdatedEventListener(_ -> this.fireOutputUpdatedEvent());
+      this.output.addUpdatedEventListener(e -> this.fireOutputUpdatedEvent());
       this.output.setFilename(changeFileExtension(input.getAbsolutePath(), SES_FILE_EXTENSION));
     }
 
     if (this.input.format != FileFormat.UNKNOWN) {
       this.input = new BoardFileDetails(inputFile);
-      this.input.addUpdatedEventListener(_ -> this.fireInputUpdatedEvent());
+      this.input.addUpdatedEventListener(e -> this.fireInputUpdatedEvent());
       this.name = input.getFilenameWithoutExtension();
 
     }

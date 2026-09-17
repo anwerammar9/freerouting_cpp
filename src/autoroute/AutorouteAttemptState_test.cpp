@@ -4,6 +4,7 @@
  */
 
 #include "autoroute/AutorouteAttemptState.h"
+#include <algorithm>
 #include <gtest/gtest.h>
 
 namespace freerouting {

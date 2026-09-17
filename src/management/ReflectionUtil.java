@@ -218,7 +218,7 @@ public class ReflectionUtil {
           .getType()
           .getConstructor()
           .newInstance();
-    } catch (NoSuchMethodException _) {
+    } catch (NoSuchMethodException e) {
       // The field does not have a default constructor, this can usually the case if
       // the type is a primitive type
       if (field.getType() == int.class || field.getType() == Integer.class) {

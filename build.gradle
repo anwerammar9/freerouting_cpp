@@ -4,11 +4,11 @@ plugins {
 }
 
 group = 'app.freerouting'
-version = '1.0.0'
+version = '2.0.1'
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
 }
 
 repositories {
@@ -16,15 +16,17 @@ repositories {
 }
 
 dependencies {
-    // Google Gson for JSON serialization
-    implementation 'com.google.code.gson:gson:2.10.1'
+    // Core dependencies
+    implementation 'org.apache.logging.log4j:log4j-core:2.26.1'
+    implementation 'org.apache.logging.log4j:log4j-api:2.26.1'
+    implementation 'com.google.code.gson:gson:2.14.0'
     
-    // Apache Log4j2 for logging
-    implementation 'org.apache.logging.log4j:log4j-api:2.23.1'
-    implementation 'org.apache.logging.log4j:log4j-core:2.23.1'
-    implementation 'org.apache.logging.log4j:log4j-slf4j2-impl:2.23.1'
+    // Jakarta EE dependencies (required by Jersey/Log4j2)
+    implementation 'jakarta.inject:jakarta.inject-api:2.0.1'
+    implementation 'jakarta.annotation:jakarta.annotation-api:3.0.0'
+    implementation 'jakarta.validation:jakarta.validation-api:3.1.1'
     
-    // Testing (optional - no Java tests exist yet)
+    // Testing
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
 }
 
@@ -36,6 +38,8 @@ sourceSets {
         resources {
             srcDirs = ['src']
             includes = ['**/*.xml', '**/*.properties', '**/*.json']
+            exclude '**/.vscode/**'
+            exclude '**/build/**'
         }
     }
 }
@@ -46,7 +50,16 @@ application {
 
 tasks.named('compileJava') {
     options.encoding = 'UTF-8'
-    options.compilerArgs << '-Xlint:unchecked' << '-Xlint:deprecation'
+    options.compilerArgs << '-Xlint:unchecked' << '-Xlint:deprecation' << '-Xmaxerrs' << '1000' << '-Xmaxwarns' << '1000'
+}
+
+tasks.named('processResources') {
+    includeEmptyDirs = false
+}
+
+tasks.withType(AbstractCopyTask).configureEach {
+    filePermissions { }
+    dirPermissions { }
 }
 
 tasks.named('jar') {
@@ -58,14 +71,24 @@ tasks.named('jar') {
     }
 }
 
-task copyDependencies(type: Copy) {
-    from configurations.runtimeClasspath
-    into 'build/libs/lib'
+task copyDependencies {
+    def libDir = layout.buildDirectory.dir('libs/lib')
+    inputs.files(configurations.runtimeClasspath)
+    outputs.dir(libDir)
+    doLast {
+        def targetDir = libDir.get().asFile
+        targetDir.mkdirs()
+        configurations.runtimeClasspath.files.each { f ->
+            java.nio.file.Files.copy(
+                f.toPath(),
+                new File(targetDir, f.name).toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+        }
+    }
 }
 
 jar.dependsOn copyDependencies
 
-// Run with: ./gradlew run --args="<dsn_file>"
 run {
     standardInput = System.in
 }

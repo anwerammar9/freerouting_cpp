@@ -1230,7 +1230,7 @@ public class RoutingBoard extends BasicBoard implements Serializable {
         if (ois != null) {
           ois.close();
         }
-      } catch (Exception _) {
+      } catch (Exception e) {
       }
     }
   }

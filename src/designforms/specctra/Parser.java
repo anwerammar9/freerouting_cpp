@@ -151,7 +151,7 @@ public class Parser extends ScopeKeyword {
       Object prev_token = next_token;
       try {
         next_token = p_par.scanner.next_token();
-      } catch (IOException _) {
+      } catch (IOException e) {
         FRLogger.warn("Parser.read_scope: IO error scanning file at '" + p_par.scanner.get_scope_identifier() + "'");
         return false;
       }

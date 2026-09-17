@@ -68,7 +68,7 @@ public class Freerouting {
     while ((routingJob.state != RoutingJobState.COMPLETED) && (routingJob.state != RoutingJobState.TERMINATED)) {
       try {
         Thread.sleep(500);
-      } catch (InterruptedException _) {
+      } catch (InterruptedException e) {
         routingJob.state = RoutingJobState.CANCELLED;
         break;
       }
@@ -201,7 +201,7 @@ public class Freerouting {
     try {
       globalSettings = GlobalSettings.load();
       FRLogger.debug("Settings were loaded from freerouting.json");
-    } catch (Exception _) {
+    } catch (Exception e) {
     }
 
     if ((globalSettings == null) || (globalSettings.version != Constants.FREEROUTING_VERSION)) {
@@ -213,7 +213,7 @@ public class Freerouting {
 
       try {
         GlobalSettings.saveAsJson(globalSettings);
-      } catch (Exception _) {
+      } catch (Exception e) {
       }
     }
 

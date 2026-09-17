@@ -116,7 +116,7 @@ public class FRLogger {
       timeElapsed = Duration
           .between(perfData.get(perfId.hashCode()), Instant.now())
           .toMillis();
-    } catch (Exception _) {
+    } catch (Exception e) {
       // we can ignore this exception
     }
 

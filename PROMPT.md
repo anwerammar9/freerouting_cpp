@@ -46,6 +46,68 @@ Do NOT commit unless explicitly asked.
 
 ---
 
+## Commit Prompt (run after finishing a work package)
+
+```
+Commit the migration work just completed. Follow these steps:
+
+1. Check what changed:
+git status
+git diff --stat
+
+2. Review the diff for correctness:
+git diff
+
+3. Stage only migration files (not build artifacts):
+git add src/ tests/ docs/migration/ SOURCE_OF_TRUTH/
+
+4. Write a descriptive commit message:
+- First line: module + what was ported (max 72 chars)
+- Body: list ported classes, line counts, test results
+- Example:
+  "board: port ForcedPadAlgo and ForcedViaAlgo
+
+   Ported from Java:
+   - ForcedPadAlgo (352 lines) — force-pad placement algorithm
+   - ForcedViaAlgo (223 lines) — force-via wrapper
+
+   Added tests: ForcedPadAlgo_test, ForcedViaAlgo_test
+   All 377 ctest tests pass.
+   Board module: 84% -> 88% headless."
+
+5. Commit:
+git commit -m "<message>"
+
+6. Do NOT push unless explicitly asked.
+```
+
+---
+
+## Commit + Update Prompt (commit and update source of truth together)
+
+```
+Commit the migration work and update all tracking files. Steps:
+
+1. Build and test one final time:
+cmake --build build --target freerouting_board -j$(nproc)
+ctest --test-dir build --output-on-failure
+
+2. Update source of truth:
+- SOURCE_OF_TRUTH/02_PROGRESS.md
+- SOURCE_OF_TRUTH/03_MISSING.md
+- docs/migration/INDEX.md
+- docs/migration/MIGRATION_<module>.md
+
+3. Stage everything:
+git add src/ tests/ docs/migration/ SOURCE_OF_TRUTH/
+
+4. Commit with descriptive message (see commit prompt format above).
+
+5. Do NOT push unless explicitly asked.
+```
+
+---
+
 ## Short Prompt (for quick tasks)
 
 ```

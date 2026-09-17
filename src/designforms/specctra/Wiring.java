@@ -283,7 +283,7 @@ class Wiring extends ScopeKeyword {
       Object prev_token = next_token;
       try {
         next_token = p_par.scanner.next_token();
-      } catch (IOException _) {
+      } catch (IOException e) {
         FRLogger.warn("Wiring.read_scope: IO error scanning file at '" + p_par.scanner.get_scope_identifier() + "'");
         return false;
       }
@@ -313,7 +313,7 @@ class Wiring extends ScopeKeyword {
     for (int i = 1; i <= board.rules.nets.max_net_no(); i++) {
       try {
         board.normalize_traces(i);
-      } catch (Exception _) {
+      } catch (Exception e) {
         FRLogger.warn("The normalization of net '" + board.rules.nets.get(i).name + "' failed.");
       }
     }
