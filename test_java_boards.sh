@@ -7,10 +7,18 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DATA_DIR="$SCRIPT_DIR/tests/data"
 OUTPUT_DIR="${JAVA_OUTPUT_DIR:-$SCRIPT_DIR/java_output_ses}"
 
-# Prefer $FREEROUTING_JAR, otherwise the jar produced by ./gradlew executableJar.
-JAR="${FREEROUTING_JAR:-$(ls "$SCRIPT_DIR"/build/libs/*-executable.jar 2>/dev/null | head -1 || true)}"
+# Prefer $FREEROUTING_JAR, otherwise the jar produced by 'gradle executableJar' with the
+# native-build init script (gradle output dir is redirected to the gradle user home cache).
+JAR="${FREEROUTING_JAR:-}"
+if [[ -z "${JAR:-}" ]]; then
+  JAR="$(ls "$SCRIPT_DIR"/build/libs/*-executable.jar 2>/dev/null | head -1 || true)"
+fi
+if [[ -z "${JAR:-}" ]]; then
+  JAR="$(ls /home/anwer/.cache/freerouting-gradle-build/libs/*-executable.jar 2>/dev/null | head -1 || true)"
+fi
 if [[ -z "${JAR:-}" || ! -f "$JAR" ]]; then
-  echo "Executable jar not found. Build it first with './gradlew executableJar'," >&2
+  echo "Executable jar not found. Build it first with 'gradle executableJar'" >&2
+  echo "--init-script /tmp/opencode/gradle-native-build.init.gradle'," >&2
   echo "or point FREEROUTING_JAR at an existing freerouting-executable.jar." >&2
   exit 1
 fi
@@ -37,7 +45,9 @@ for dsn in "${BOARDS[@]}"; do
     base="$(basename "$dsn" .dsn)"
     out="$OUTPUT_DIR/${base}_java.ses"
     echo "Routing $dsn -> $out"
-    timeout 180 java -jar "$JAR" -de "$src" -do "$out" 2>&1 | tail -5 || true
+    JAVA_BIN="${JAVA_HOME:-}/bin/java"
+    [[ -x "$JAVA_BIN" ]] || JAVA_BIN="java"
+    timeout 180 "$JAVA_BIN" -jar "$JAR" -de "$src" -do "$out" 2>&1 | tail -5 || true
     if [[ -s "$out" ]]; then
         echo "  OK ($(wc -l < "$out") lines)"
     else

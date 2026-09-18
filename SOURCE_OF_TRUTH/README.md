@@ -2,7 +2,7 @@
 
 **Project:** Freerouting Java → C++20 Migration
 **Goal:** Headless routing parity (load DSN → route → write SES)
-**Java source of truth:** `java/app/freerouting/**/*.java` (Freerouting 2.1.0 full upstream)
+**Java source of truth:** `java/app/freerouting/**/*.java` (Freerouting 2.1.0, pruned to a headless-only subset — GUI, API, analytics and KiCad I/O removed and stubbed; still builds and routes DSN→SES)
 **Last updated:** 2026-09-16
 
 ---

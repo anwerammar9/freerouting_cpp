@@ -22,8 +22,8 @@ src/                          # C++20 migration (only C++ sources live here)
 ├── management/               # Session management
 ├── rules/                    # Design rules
 └── settings/                 # Configuration
-java/                         # Java baseline (Freerouting 2.1.0), source of truth
-└── app/freerouting/          # package root; build with ./gradlew executableJar
+java/                         # Java baseline — pruned headless-only subset (GUI/API/analytics/io.KiCad removed, stubbed)
+└── app/freerouting/          # package root; build with gradle executableJar (JDK 25 + init script)
 tests/                        # Test data and integration tests
 docs/migration/               # Per-module migration status
 SOURCE_OF_TRUTH/              # Compiled knowledge base
@@ -53,8 +53,9 @@ ctest --test-dir build -R ClassName --output-on-failure
 cmake --build build --target run_tests -j$(nproc) && ./build/tests/run_tests
 
 # Build the Java baseline (JDK 25); run it headless:
-./gradlew executableJar
-java -jar build/libs/freerouting-<version>-executable.jar -de in.dsn -do out.ses
+export JAVA_HOME=/home/anwer/.local/jdk-25.0.4.1+1
+gradle executableJar --init-script /tmp/opencode/gradle-native-build.init.gradle
+java -jar /home/anwer/.cache/freerouting-gradle-build/libs/freerouting-<version>-executable.jar -de in.dsn -do out.ses
 ```
 
 Module targets: `freerouting_core`, `freerouting_board`, `freerouting_autoroute`, `freerouting_geometry`, `freerouting_rules`, `freerouting_datastructures`, `freerouting_logger`, `freerouting_constants`, `freerouting_interactive`, `freerouting_settings`, `freerouting_management`, `freerouting_designforms`, `freerouting_drc`
