@@ -3,6 +3,7 @@
 
 set(SCORING_SOURCES
     BoardStatistics.cpp
+    ../BoardFileDetails.cpp
 )
 
 add_library(freerouting_scoring STATIC ${SCORING_SOURCES})

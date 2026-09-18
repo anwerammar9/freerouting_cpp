@@ -11,7 +11,7 @@
 | Java Class | C++ Header | C++ Impl | Test | Java Lines | Notes |
 |------------|-----------|----------|------|-----------|-------|
 | Signum | Signum.h | Signum.cpp | - | 69 | Sign function utility |
-| UndoableObjects | UndoableObjects.h | UndoableObjects.cpp | - | 338 | Undo system |
+| UndoableObjects | UndoableObjects.h | UndoableObjects.cpp | UndoableObjects_test | 338 | Undo system; full port with restore lists in this session |
 | Stoppable | Stoppable.h | Stoppable.cpp | - | 17 | Stop request flag |
 | TimeLimit | TimeLimit.h | TimeLimit.cpp | - | 40 | Time based stop limit |
 | ShapeTree | ShapeTree.h | ShapeTree.cpp | datastructures_shape_tree_test | 254 | Abstract shape search tree; ported in this session |

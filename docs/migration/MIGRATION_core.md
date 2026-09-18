@@ -16,6 +16,7 @@
 | StopRequestState | StopRequestState.h | StopRequestState.cpp | StopRequestState_test.cpp | 20 | Simple enum with 3 values |
 | Package | Package.h | Package.cpp | - | 390 | Core package class |
 | Session | Session.h | Session.cpp | - | 1249 | Session management |
+| BoardFileDetails | BoardFileDetails.h | BoardFileDetails.cpp | BoardFileDetails_test.cpp | 224 | File metadata + CRC32 + format detection + JSON; lives in `freerouting_scoring` lib (layering) |
 
 ## Partially Migrated
 
@@ -27,7 +28,6 @@
 
 | Java Class | Java Lines | Priority | Dependencies / Notes |
 |------------|-----------|----------|---------------------|
-| BoardFileDetails | 6576 | HIGH | Board file parsing (very large) |
 | BoardLibrary | 4980 | HIGH | Board library management (very large) |
 | Packages | 77 | MED | Collection wrapper for Package |
 | Padstack | 4761 | HIGH | Padstack definitions |
@@ -66,7 +66,7 @@
 
 ## Summary
 
-- **Done**: 7 classes (19% of Java files)
+- **Done**: 8 classes (22% of Java files)
 - **Partial**: 1 class (3%)
-- **Remaining**: 28 classes (78%), including critical Padstack and BoardFileDetails
-- **Blockers**: BoardFileDetails/BoardLibrary are very large (6576/4980 lines) and critical for file I/O; Padstack needed for board item construction; Scoring/events are optional for headless routing
+- **Remaining**: 27 classes (75%), including critical Padstack and BoardLibrary
+- **Blockers**: Padstack/BoardLibrary are very large and critical for board construction; scoring/events done (BoardFileDetails ported 2026-09-18 into `freerouting_scoring` lib because it needs scoring+board — `freerouting_core` stays a leaf lib)

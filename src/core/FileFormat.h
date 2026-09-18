@@ -20,7 +20,9 @@ enum class FileFormat {
     SES,        ///< Session file format
     RULES,      ///< Design rules file format
     SCR,        ///< Script file format
-    DRC_JSON    ///< DRC results in JSON format
+    DRC_JSON,   ///< DRC results in JSON format
+    KICAD_DESIGN_JSON,  ///< KiCad design file in JSON format
+    KICAD_SESSION_JSON  ///< KiCad session file in JSON format
 };
 
 /**
@@ -52,7 +54,7 @@ FileFormat parse_file_format(const std::string& format_str);
  * 
  * @return Array of all supported file formats
  */
-constexpr std::array<FileFormat, 7> get_all_formats() {
+constexpr std::array<FileFormat, 9> get_all_formats() {
     return {
         FileFormat::UNKNOWN,
         FileFormat::DSN,
@@ -60,7 +62,9 @@ constexpr std::array<FileFormat, 7> get_all_formats() {
         FileFormat::SES,
         FileFormat::RULES,
         FileFormat::SCR,
-        FileFormat::DRC_JSON
+        FileFormat::DRC_JSON,
+        FileFormat::KICAD_DESIGN_JSON,
+        FileFormat::KICAD_SESSION_JSON
     };
 }
 

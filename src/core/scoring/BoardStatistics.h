@@ -159,6 +159,24 @@ public:
     int component_count() const { return components_.totalCount; }
     int trace_count() const { return traces_.totalCount; }
     int via_count() const { return vias_.totalCount; }
+    const std::string& get_unit() const { return unit_; }
+    const geometry::planar::FloatPoint& get_size() const { return board_.size; }
+    int signal_layer_count() const { return layers_.signalCount; }
+    int pad_count() const { return pads_.totalCount; }
+    int maximum_connections() const { return connections_.maximumCount; }
+    int incomplete_connections() const { return connections_.incompleteCount; }
+    float total_trace_length() const { return traces_.totalLength; }
+    float average_trace_length() const { return traces_.averageLength; }
+    int total_segment_count() const { return traces_.totalSegmentCount; }
+    float total_horizontal_length() const { return traces_.totalHorizontalLength; }
+    float total_vertical_length() const { return traces_.totalVerticalLength; }
+    float total_angled_length() const { return traces_.totalAngledLength; }
+    int bend_count() const { return bends_.totalCount; }
+    int ninety_degree_bend_count() const { return bends_.ninetyDegreeCount; }
+    int forty_five_degree_bend_count() const { return bends_.fortyFiveDegreeCount; }
+    int via_total_count() const { return vias_.totalCount; }
+    int via_through_hole_count() const { return vias_.throughHoleCount; }
+    int clearance_violation_count() const { return clearanceViolations_.totalCount; }
 
 private:
     void init_from_board(board::RoutingBoard* board, const std::string& unit);

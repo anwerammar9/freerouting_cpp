@@ -19,6 +19,10 @@ std::string to_string(FileFormat format) {
             return "SCR";
         case FileFormat::DRC_JSON:
             return "DRC_JSON";
+        case FileFormat::KICAD_DESIGN_JSON:
+            return "KICAD_DESIGN_JSON";
+        case FileFormat::KICAD_SESSION_JSON:
+            return "KICAD_SESSION_JSON";
         default:
             return "UNKNOWN";
     }
@@ -38,6 +42,10 @@ std::string file_extension(FileFormat format) {
             return ".scr";
         case FileFormat::DRC_JSON:
             return ".json";
+        case FileFormat::KICAD_DESIGN_JSON:
+            return ".kicad_dsn";
+        case FileFormat::KICAD_SESSION_JSON:
+            return ".kicad_ses";
         case FileFormat::UNKNOWN:
         default:
             return "";
@@ -57,6 +65,10 @@ FileFormat parse_file_format(const std::string& format_str) {
         return FileFormat::SCR;
     } else if (format_str == "DRC_JSON" || format_str == "drc_json") {
         return FileFormat::DRC_JSON;
+    } else if (format_str == "KICAD_DESIGN_JSON" || format_str == "kicad_design_json") {
+        return FileFormat::KICAD_DESIGN_JSON;
+    } else if (format_str == "KICAD_SESSION_JSON" || format_str == "kicad_session_json") {
+        return FileFormat::KICAD_SESSION_JSON;
     }
     return FileFormat::UNKNOWN;
 }

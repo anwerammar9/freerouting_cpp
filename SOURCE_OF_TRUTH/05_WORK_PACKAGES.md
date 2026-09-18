@@ -74,11 +74,19 @@ Register gtests for WP-1..4, update docs/migration/INDEX.md, verify ctest green.
 
 Full port of core data model with event wiring.
 
+**COMPLETED (2026-09-18):**
+- RoutingJob + Session already ported. `RoutingJob::get_file_format(content)` + `get_file_format_from_path(path)` added (Java `getFileFormat(byte[])`/`getFileFormat(Path)`: `{`→KICAD_DESIGN_JSON, SCR keyword sample, FRB Java-magic 0xACED0005, `(pcb`/`(ses`/`(rules` prefixes, extension table) ✅
+- `FileFormat` enum completed to full Java parity: added `KICAD_DESIGN_JSON`, `KICAD_SESSION_JSON` (enum, to_string, file_extension, parse, get_all_formats) ✅
+- `BoardFileDetails.{h,cpp,_test.cpp}` ported (Java 224 lines): CRC32 (table-based, verified vs standard vector 0xCBF43926), ctors (file→read bytes→set_data; board→statistics), set_data (size/crc32/format-detect/statistics rebuild + event), set_filename (path split, default-extension append), save_as JSON, listeners. **12 gtest cases** ✅
+- **Layering**: BoardFileDetails needs scoring+board → compiles into `freerouting_scoring` lib (NOT the leaf `freerouting_core`), added `../BoardFileDetails.cpp` to scoring CMakeLists. Test link groups now include `freerouting_settings` ✅
+- **Fixed pre-existing header collision**: `settings/RouterSettings.h` defined an ad-hoc legacy `RouterScoringSettings` (via_cost/corner_cost/length_cost) AND `settings/RouterScoringSettings.h` defines the real Java-mirror one — same name in `freerouting::settings`. Legacy struct removed; RouterSettings.h now includes the real header (its legacy fields were never read).
+- Verified: ctest **434/434** + run_tests PASSED
+
 ## WP-7..15: Remaining Modules (Parallel)
 
 | WP | Module | Key Remaining Classes |
 |----|--------|----------------------|
-| WP-7 | datastructures | TimeLimit, UndoableObjects, Stoppable, BigIntAux |
+| WP-7 | datastructures | TimeLimit, Stoppable, BigIntAux |
 | WP-8 | management | RoutingJobScheduler, TextManager remainder |
 | WP-9 | settings | GlobalSettings impl, RouterOptimizerSettings, SettingsMerger |
 | WP-10 | drc | DesignRulesChecker, DrcReport, UnconnectedItems |

@@ -150,6 +150,7 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/src/board/Trace_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/ItemContacts_test.cpp
         ${CMAKE_SOURCE_DIR}/src/core/scoring/BoardStatistics_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/core/BoardFileDetails_test.cpp
     )
 
     foreach(test_src IN LISTS BOARD_TEST_SOURCES)
@@ -160,7 +161,7 @@ if(BUILD_TESTS)
             ${CMAKE_SOURCE_DIR}/src
         )
         target_link_libraries(${test_name} PRIVATE
-            $<LINK_GROUP:RESCAN,freerouting_board,freerouting_autoroute,freerouting_core,freerouting_datastructures,freerouting_geometry,freerouting_rules,freerouting_logger,freerouting_constants,freerouting_scoring,freerouting_interactive>
+            $<LINK_GROUP:RESCAN,freerouting_board,freerouting_autoroute,freerouting_core,freerouting_datastructures,freerouting_geometry,freerouting_rules,freerouting_logger,freerouting_constants,freerouting_scoring,freerouting_interactive,freerouting_settings>
             GTest::gtest_main
         )
         gtest_discover_tests(${test_name})
@@ -356,4 +357,17 @@ if(BUILD_TESTS)
         GTest::gtest_main
     )
     gtest_discover_tests(IdentificationNumberGenerator_test)
+
+    add_executable(UndoableObjects_test
+        ${CMAKE_SOURCE_DIR}/src/datastructures/UndoableObjects_test.cpp
+    )
+    target_include_directories(UndoableObjects_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/src
+    )
+    target_link_libraries(UndoableObjects_test PRIVATE
+        freerouting_datastructures
+        GTest::gtest_main
+    )
+    gtest_discover_tests(UndoableObjects_test)
 endif()

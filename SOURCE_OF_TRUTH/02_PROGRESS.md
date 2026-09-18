@@ -9,17 +9,17 @@
 | Constants | 1 | 1 | 0 | 0 | 100% |
 | Geometry | 34 | 34 | 0 | 0 | 100% |
 | Board | 51 | 50 | 0 | 1 | 98% headless |
-| DataStructures | 14 | 6 | 2 | 6 | 57% |
+| DataStructures | 14 | 7 | 1 | 6 | 64% |
 | Autoroute | 35 | 21 | 0 | 14 | 60% |
 | Interactive | 9 | 5 | 1 | 3 | 67% |
 | DesignForms | 41 | 1 | 12 | 28 | 32% |
 | DRC | 7 | 1 | 1 | 5 | 29% |
 | Settings | 21 | 2 | 4 | 15 | 29% |
-| Core | 36 | 6 | 1 | 29 | 19% |
+| Core | 36 | 7 | 1 | 28 | 21% |
 | Scoring | 12 | 5 | 0 | 7 | 42% |
 | Management | 18 | 2 | 0 | 16 | 11% |
 | BoardGraphics | 8 | 0 | 0 | 8 | 0% |
-| **TOTAL** | **289** | **144** | **21** | **124** | **50%** |
+| **TOTAL** | **289** | **145** | **21** | **123** | **50%** |
 
 ---
 
@@ -109,10 +109,10 @@ Scanner, Structure, Network, Library, Placement, SessionWriter, Circle, Polygon,
 ### Done: RouterSettings, RuntimeEnvironment
 ### Missing: GlobalSettings (impl), RouterOptimizerSettings (2123 lines), RouterScoringSettings (2544 lines), SettingsMerger, all 9 settings sources
 
-## Module: Core (19%)
+## Module: Core (21%)
 
-### Done: FileFormat, RoutingJob, RoutingStage, StopRequestState, Package, Session
-### Missing: Padstack/Padstacks, BoardFileDetails (6576 lines), BoardLibrary (4980 lines), Packages, StoppableThread, all 6 event classes
+### Done: FileFormat, RoutingJob, RoutingStage, StopRequestState, Package, Session, BoardFileDetails, BoardFileDetailsUpdatedEvent, BoardFileDetailsUpdatedEventListener, RoutingJob*Event/Listener (events submodule)
+### Missing: Padstack/Padstacks, BoardLibrary (4980 lines), Packages, StoppableThread, RouterCounters, RouterJobResourceUsage
 
 ## Module: Scoring (42%)
 

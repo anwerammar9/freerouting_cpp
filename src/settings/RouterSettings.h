@@ -5,6 +5,7 @@
 #include <vector>
 #include <memory>
 #include "autoroute/ExpansionCostFactor.h"
+#include "settings/RouterScoringSettings.h"
 
 namespace freerouting::settings {
 
@@ -13,14 +14,6 @@ class RouterOptimizerSettings
 public:
     bool enabled = true;
     int iterations = 3;
-};
-
-class RouterScoringSettings
-{
-public:
-    double via_cost = 1.0;
-    double corner_cost = 1.0;
-    double length_cost = 0.01;
 };
 
 class RouterSettings

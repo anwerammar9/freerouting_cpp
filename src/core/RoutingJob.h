@@ -9,6 +9,7 @@
 #include "settings/RouterSettings.h"
 #include "settings/ProfileSettings.h"
 #include "core/RoutingStage.h"
+#include "core/FileFormat.h"
 
 namespace freerouting {
 namespace board { class RoutingBoard; }
@@ -43,6 +44,19 @@ class RoutingJob
 public:
     static const std::string DSN_FILE_EXTENSION;
     static const std::string BINARY_FILE_EXTENSION;
+
+    /**
+     * Detects the file format from file content (DSN/SES/RULES text markers,
+     * Java-serialised FRB magic bytes or plain-text script keywords).
+     * Mirrors Java RoutingJob.getFileFormat(byte[]).
+     */
+    static FileFormat get_file_format(const std::string& p_content);
+
+    /**
+     * Detects the file format from a file path's extension.
+     * Mirrors Java RoutingJob.getFileFormat(Path).
+     */
+    static FileFormat get_file_format_from_path(const std::string& p_path);
 
     RoutingJob();
     explicit RoutingJob(const std::string& p_name);
