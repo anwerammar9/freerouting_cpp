@@ -28,6 +28,8 @@ Phase 2 (Connectivity) ┘         │
 
 ## Phase 2: Item Connectivity (Week 2-3)
 
+> **WP-1/WP-2 status (2026-09-18):** 2.2, 2.3 DONE (`get_connection_items`, `first_common_layer`, `is_fanout_via`, DrillItem padstack layer range, `normal_contact_point`). WP-2 `NetIncompletes` full port DONE: `connected_group_count` added, `join_connected_sets` shared_ptr aliasing bug fixed (take by value). 415/415 ctest.
+
 | Task | File | Port From | Est. Lines |
 |------|------|-----------|------------|
 | 2.1 Item::get_normal_contacts() base | Item.cpp | Item.java | ~50 |
@@ -82,14 +84,16 @@ Phase 2 (Connectivity) ┘         │
 
 ## Phase 7: Board Model Stubs (Parallel)
 
-| Task | File | Port From | Est. Lines |
-|------|------|-----------|------------|
-| 7.1 additional_update_after_change() | RoutingBoard.cpp | RoutingBoard.java | ~30 |
-| 7.2 opt_changed_area() | RoutingBoard.cpp | RoutingBoard.java | ~30 |
-| 7.3 combine_traces() | RoutingBoard.cpp | RoutingBoard.java | ~15 |
-| 7.4 insert_via() trace splitting | RoutingBoard.cpp | BasicBoard.java | ~20 |
-| 7.5 get_outline() | RoutingBoard.cpp | BasicBoard.java | ~10 |
-| 7.6 contains_trace_tails/get_trace_tail | RoutingBoard.cpp | BasicBoard.java | ~30 |
+| Task | File | Port From | Est. Lines | Status |
+|------|------|-----------|------------|--------|
+| 7.1 additional_update_after_change() | RoutingBoard.cpp | RoutingBoard.java | ~30 | DONE (no-op — no autoroute engine wired yet) |
+| 7.2 opt_changed_area() | RoutingBoard.cpp | RoutingBoard.java | ~30 | TODO |
+| 7.3 combine_traces() | RoutingBoard.cpp | RoutingBoard.java | ~15 | DONE |
+| 7.4 insert_via() trace splitting | RoutingBoard.cpp | BasicBoard.java | ~20 | TODO |
+| 7.5 get_outline() | RoutingBoard.cpp | BasicBoard.java | ~10 | DONE |
+| 7.6 contains_trace_tails/get_trace_tail | RoutingBoard.cpp | BasicBoard.java | ~30 | DONE |
+
+Plus: `BoardOutline` restored to the build (fixed `geometry::planar` namespaces, `Item` base ctor, `split_to_convex()`-based `get_tile_shape`). Tests: `src/board/RoutingBoard_stubs_test.cpp` (8 cases).
 
 ---
 

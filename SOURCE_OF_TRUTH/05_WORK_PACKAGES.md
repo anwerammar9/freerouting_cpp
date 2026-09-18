@@ -7,16 +7,31 @@ Each WP is self-contained for parallel agent execution. See `04_IMPLEMENTATION_P
 **Java refs**: Item.java:546, Trace.java:172, DrillItem.java:264/342, ConductionArea.java
 **C++ files**: Item.{h,cpp}, Trace.{h,cpp}, Via.h, ConductionArea.{h,cpp}
 
-**Tasks:**
-1. `Item::get_connected_set()` — recursive over get_normal_contacts(), skip ConductionArea
-2. `DrillItem::get_ratsnest_corners()` — single center point
-3. `DrillItem::get_normal_contacts()` — search overlapping objects with tolerance
-4. Extend `Trace::get_normal_contacts(Point, bool)` for DrillItem/ConductionArea
+**Completed (2026-09-18):**
+1. `Item::get_connected_set()` — recursive over get_normal_contacts(), skip ConductionArea ✅
+2. `DrillItem::get_ratsnest_corners()` — single center point ✅
+3. `DrillItem::get_normal_contacts()` — search overlapping objects with tolerance ✅
+4. `Trace::get_normal_contacts(Point, bool)` — DrillItem/ConductionArea branches ✅
+
+**Additional gaps closed this session:**
+- `Item::first_common_layer()` — full Java port (max first / min last layer, -1 if none)
+- `DrillItem::first_layer()/last_layer()` — overrides added AND layer range now synced from the padstack in `Via` ctor / `set_padstack` (fixed real bug: vias always reported layers 0..0)
+- `Item::get_connection_items(StopConnectionOption)` — full port (fork/stub detection, trace single-contact check, via stop/fanout-stop)
+- `Item::is_fanout_via(const std::set<Item*>*)` — full port (java Item.isFanoutVia)
+- `Trace::normal_contact_point(Item*)` — DrillItem branch added
+- `DrillItem::normal_contact_point(Item*)` — new override (DrillItem+Trace cases)
+- Tests: 8 new `ItemContactGraphTest` cases (14 total green)
 
 ## WP-2: NetIncompletes Full Port (PREREQUISITE for WP-3)
 
-**Java refs**: NetIncompletes.java (~450 lines)
-**C++ files**: NetIncompletes.{h,cpp} — replace stub
+**Java refs**: NetIncompletes.java (398 lines), AirLine.java (55 lines)
+**C++ files**: NetIncompletes.{h,cpp}, NetIncompletes_test.cpp
+
+**Completed (2026-09-18):**
+1. Verified `NetIncompletes.{h,cpp}` is already a faithful port — filter (is_tail / zero contacts), `calculate_net_items`, PlanarDelaunayTriangulation, `Edge::Less` with coordinate tie-breakers, airline creation, `calc_length_violation` via `Trace::get_length()`
+2. Added missing `connected_group_count_` / `get_connected_group_count()` — port of Java `uniqueConnectedSets` count (set identity), set to net-item count when ≤ 1 ✅
+3. **Fixed aliasing bug in `join_connected_sets()`** — was taking `const shared_ptr<...>&` bound to `from_item`/`to_item` members; repointing those very members mid-loop silently changed `p_from`, so from-group items were skipped (3 isolated vias → 3 airlines, should be 2). Now takes shared_ptrs **by value**. Java is immune because reassigning a field never changes the caller's captured reference. ✅
+4. Tests: added `NoViolationWhenLengthsOk` group-count assert, `ThreeIsolatedViasProduceTwoAirlines` (MST), `SingleItemHasNoAirLines` — 8 NetIncompletesTest cases green (415/415 ctest)
 
 **Key logic:**
 - Per-item filter, connected-set analysis, Delaunay triangulation

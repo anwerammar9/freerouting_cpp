@@ -13,9 +13,9 @@
 | Rules | 10 | 10 | 0 | 0 | 100% | [MIGRATION_rules.md](MIGRATION_rules.md) |
 | Constants | 1 | 1 | 0 | 0 | 100% | [MIGRATION_constants.md](MIGRATION_constants.md) |
 | Geometry | 34 | 34 | 0 | 0 | 100% | [MIGRATION_geometry.md](MIGRATION_geometry.md) |
-| Interactive | 9 | 3 | 2 | 4 | 56% | [MIGRATION_interactive.md](MIGRATION_interactive.md) |
+| Interactive | 9 | 5 | 1 | 3 | 67% | [MIGRATION_interactive.md](MIGRATION_interactive.md) |
 | DataStructures | 14 | 6 | 2 | 6 | 57% | [MIGRATION_datastructures.md](MIGRATION_datastructures.md) |
-| Board | 51 | 41 | 0 | 8 | 84% headless* | [MIGRATION_board.md](MIGRATION_board.md) |
+| Board | 51 | 50 | 0 | 1 | 98% headless* | [MIGRATION_board.md](MIGRATION_board.md) |
 | Autoroute | 35 | 21 | 0 | 14 | 60% | [MIGRATION_autoroute.md](MIGRATION_autoroute.md) |
 | DRC | 7 | 1 | 1 | 5 | 29% | [MIGRATION_drc.md](MIGRATION_drc.md) |
 | DesignForms | 41 | 1 | 12 | 28 | 32% | [MIGRATION_designforms.md](MIGRATION_designforms.md) |
@@ -27,17 +27,17 @@
 ## Totals
 
 - **Total Java Files**: 289
-- **Fully Migrated**: 131 (45%)
-- **Partially Migrated**: 22 (8%)
-- **Not Migrated**: 136 (47%)
+- **Fully Migrated**: 142 (49%)
+- **Partially Migrated**: 21 (7%)
+- **Not Migrated**: 126 (44%)
 
 ## Critical Path (DSN -> Route -> SES)
 
 1. `geometry/planar` - Foundation primitives (100% by selection: 34/34, incl. rational `IntPoint`-substitutes via `cpp_int`, full `Shape` interface surface, `Area` interface + `PolygonArea`/`PolylineArea`/`TileShape`)
 2. `datastructures` - Supporting data structures (ShapeTree/MinAreaTree complete)
 3. `rules` - Design rules (100% done)
-4. `board` - Board representation (84% headless; 41/49 excl. GUI; `ShapeTraceEntries`+`ShoveTraceAlgo` ported headless (726+593 lines, `TileShape::offset`/`entrance_points` added); `CalcFromSide`/`CalcShapeAndFromSide`/`BoardObservers`; 347/347 ctest, headless `DSN→SES` verified on hw48na at 19%; headless blockers `ForcedPadAlgo`→`ForcedViaAlgo`/`MoveDrillItemAlgo`→`PullTight*`)
-5. `autoroute` - Routing engine (21/35 compiled; 347/347 ctest tests pass)
+4. `board` - Board representation (98% headless; 50/51; PullTight/ForcedPad/ForcedVia/MoveDrillItemAlgo/MoveComponent/OptVia compiled (WIP), RoutingBoard facade stubs `combine_traces`/`get_outline`/`contains_trace_tails`/`get_trace_tail` ported, `BoardOutline` restored to build; **WP-1 contact graph done** (2026-09-18): `first_common_layer`, `get_connection_items`, `is_fanout_via`, `DrillItem` padstack-derived layer range, `normal_contact_point` for Trace/DrillItem; **WP-2 NetIncompletes done** (2026-09-18): `connected_group_count`, `join_connected_sets` aliasing fix; **415/415 ctest**, headless `DSN→SES` verified on hw48na at 19%; headless blockers `ShoveTraceAlgo::spring_over`, `PullTight*` quality paths)
+5. `autoroute` - Routing engine (21/35 compiled; 413/413 ctest tests pass)
 6. `designforms/specctra` - DSN/SES I/O (32% done) — the missing link for real DSN->route->SES runs
 
 ## Top Blockers

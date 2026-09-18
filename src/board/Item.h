@@ -26,6 +26,9 @@ namespace freerouting::board {
 class ItemSearchTreesInfo;
 class ShapeSearchTree;
 class ItemSelectionFilter;
+class Via;
+class Pin;
+class PolylineTrace;
 
 class Item : public SearchTreeObject
 {
@@ -147,6 +150,13 @@ public:
 
     /** Returns connection items until next fork or terminal item. */
     virtual std::vector<Item*> get_connection_items(StopConnectionOption p_stop_option) const;
+
+    /**
+     * Returns true, if this via is directly or indirectly connected to a
+     * nearby SMD-pin. If p_ignore_items is not nullptr, contact traces in it
+     * are ignored. Mirrors Java Item.is_fanout_via().
+     */
+    bool is_fanout_via(const std::set<Item*>* p_ignore_items) const;
 
     /** Test function checking the item for inconsistencies. */
     virtual bool validate();

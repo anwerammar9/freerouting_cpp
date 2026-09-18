@@ -120,6 +120,41 @@ std::vector<std::shared_ptr<geometry::planar::Point>> DrillItem::get_ratsnest_co
     return result;
 }
 
+const geometry::planar::Point* DrillItem::normal_contact_point(const Item* p_other) const
+{
+    if (p_other == nullptr)
+    {
+        return nullptr;
+    }
+    if (const Trace* other_trace = dynamic_cast<const Trace*>(p_other))
+    {
+        // Mirrors Java DrillItem.normal_contact_point(Trace): the drill center
+        // is the unique contact point iff it equals a trace corner on a
+        // shared layer.
+        if (!shares_layer(p_other))
+        {
+            return nullptr;
+        }
+        if (center_.equals(&other_trace->first_corner())
+            || center_.equals(&other_trace->last_corner()))
+        {
+            return &center_;
+        }
+        return nullptr;
+    }
+    if (const DrillItem* other_drill = dynamic_cast<const DrillItem*>(p_other))
+    {
+        // Mirrors Java DrillItem.normal_contact_point(DrillItem): contact iff
+        // centers are equal and the drill items share a layer.
+        if (shares_layer(p_other) && center_.equals(&other_drill->get_center()))
+        {
+            return &center_;
+        }
+        return nullptr;
+    }
+    return nullptr;
+}
+
 DrillItem::DrillItem(const geometry::planar::IntPoint& p_center,
                        const std::vector<int>& p_net_nos,
                        int p_clearance_class,
@@ -148,6 +183,24 @@ Via::Via(Padstack* p_padstack,
       attach_allowed_(p_attach_allowed)
 {
     padstack_ = p_padstack;
+    // Mirrors Java DrillItem.first_layer/last_layer: the layer range of a drill
+    // item is derived from its padstack (Java isPlacedOnFront always returns
+    // true for the headless subset).
+    if (padstack_ != nullptr)
+    {
+        from_layer_ = padstack_->get_from_layer();
+        to_layer_ = padstack_->get_to_layer();
+    }
+}
+
+void DrillItem::set_padstack(Padstack* p_padstack)
+{
+    padstack_ = p_padstack;
+    if (padstack_ != nullptr)
+    {
+        from_layer_ = padstack_->get_from_layer();
+        to_layer_ = padstack_->get_to_layer();
+    }
 }
 
 Item* Via::copy(int p_id_no) const

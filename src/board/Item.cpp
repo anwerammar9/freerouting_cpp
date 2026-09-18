@@ -2,7 +2,11 @@
 #include "board/ConductionArea.h"
 #include "board/ItemSearchTreesInfo.h"
 #include "board/ItemSelectionFilter.h"
+#include "board/Pin.h"
+#include "board/PolylineTrace.h"
 #include "board/ShapeSearchTree.h"
+#include "board/Trace.h"
+#include "board/Via.h"
 #include "autoroute/ItemAutorouteInfo.h"
 #include "board/BasicBoard.h"
 #include "geometry/planar/IntOctagon.h"
@@ -10,6 +14,13 @@
 #include <algorithm>
 
 namespace freerouting::board {
+
+namespace {
+
+/** Mirrors Java Item.PROTECT_FANOUT_LENGTH. */
+constexpr double kProtectFanoutLength = 400.0;
+
+} // namespace
 
 Item::~Item() = default;
 
@@ -86,8 +97,13 @@ void Item::get_connected_set_recu(std::set<Item*>& p_result, int p_net_no, bool 
 int Item::first_common_layer(const Item* p_other) const
 {
     if (!p_other) return -1;
-    // Stub: simplified for now
-    return -1;
+    const int max_first_layer = std::max(first_layer(), p_other->first_layer());
+    const int min_last_layer = std::min(last_layer(), p_other->last_layer());
+    if (max_first_layer > min_last_layer)
+    {
+        return -1;
+    }
+    return max_first_layer;
 }
 
 bool Item::shares_net(const Item* p_other) const
@@ -347,8 +363,145 @@ const std::vector<std::shared_ptr<geometry::planar::TileShape>>& Item::ensure_tr
 
 std::vector<Item*> Item::get_connection_items(StopConnectionOption p_stop_option) const
 {
-    (void)p_stop_option;
-    return {};
+    const std::vector<Item*> contacts = get_normal_contacts();
+    std::set<Item*> result;
+    if (is_routable())
+    {
+        result.insert(const_cast<Item*>(this));
+    }
+    for (Item* current_item : contacts)
+    {
+        const geometry::planar::Point* prev_contact_point = normal_contact_point(current_item);
+        if (prev_contact_point == nullptr)
+        {
+            // no unique contact point
+            continue;
+        }
+        int prev_contact_layer = first_common_layer(current_item);
+        if (const Trace* start_trace = dynamic_cast<const Trace*>(this))
+        {
+            // Check, that there is only 1 contact at this location.
+            // Only for pins and vias items of more than 1 connection
+            // are collected.
+            const std::set<Item*> check_contacts = start_trace->get_normal_contacts(*prev_contact_point, false);
+            if (check_contacts.size() != 1)
+            {
+                continue;
+            }
+        }
+        // Search from current_item along the contacts
+        // until the next fork or nonroute item.
+        for (;;)
+        {
+            if (!current_item->is_routable())
+            {
+                // connection ends
+                break;
+            }
+            if (dynamic_cast<const Via*>(current_item) != nullptr)
+            {
+                if (p_stop_option == StopConnectionOption::VIA)
+                {
+                    break;
+                }
+                if (p_stop_option == StopConnectionOption::FANOUT_VIA
+                    && current_item->is_fanout_via(&result))
+                {
+                    break;
+                }
+            }
+            result.insert(current_item);
+            const std::vector<Item*> current_ob_contacts = current_item->get_normal_contacts();
+            // Filter the contacts at the previous contact point, because we
+            // were already there. If then there is not exactly 1 new contact
+            // left, there is a stub or a fork.
+            const geometry::planar::Point* next_contact_point = nullptr;
+            int next_contact_layer = -1;
+            Item* next_contact = nullptr;
+            bool fork_found = false;
+            for (Item* tmp_contact : current_ob_contacts)
+            {
+                const int tmp_contact_layer = current_item->first_common_layer(tmp_contact);
+                if (tmp_contact_layer >= 0)
+                {
+                    const geometry::planar::Point* tmp_contact_point = current_item->normal_contact_point(tmp_contact);
+                    if (tmp_contact_point == nullptr)
+                    {
+                        // no unique contact point
+                        fork_found = true;
+                        break;
+                    }
+                    if (prev_contact_layer != tmp_contact_layer
+                        || !prev_contact_point->equals(tmp_contact_point))
+                    {
+                        if (next_contact != nullptr)
+                        {
+                            // second new contact found
+                            fork_found = true;
+                            break;
+                        }
+                        next_contact = tmp_contact;
+                        next_contact_point = tmp_contact_point;
+                        next_contact_layer = tmp_contact_layer;
+                    }
+                }
+            }
+            if (next_contact == nullptr || fork_found)
+            {
+                break;
+            }
+            current_item = next_contact;
+            prev_contact_point = next_contact_point;
+            prev_contact_layer = next_contact_layer;
+        }
+    }
+    return std::vector<Item*>(result.begin(), result.end());
+}
+
+bool Item::is_fanout_via(const std::set<Item*>* p_ignore_items) const
+{
+    const std::vector<Item*> contact_list = get_normal_contacts();
+    for (Item* current_contact : contact_list)
+    {
+        if (dynamic_cast<const Pin*>(current_contact) != nullptr
+            && current_contact->first_layer() == current_contact->last_layer()
+            && static_cast<int>(current_contact->get_normal_contacts().size()) <= 1)
+        {
+            return true;
+        }
+        if (const Trace* current_trace = dynamic_cast<const Trace*>(current_contact))
+        {
+            if (p_ignore_items != nullptr
+                && p_ignore_items->find(current_contact) != p_ignore_items->end())
+            {
+                continue;
+            }
+            if (current_trace->get_length() >= kProtectFanoutLength * current_trace->get_half_width())
+            {
+                continue;
+            }
+            const std::vector<Item*> trace_contact_list = current_trace->get_normal_contacts();
+            for (Item* tmp_contact : trace_contact_list)
+            {
+                if (dynamic_cast<const Pin*>(tmp_contact) != nullptr
+                    && tmp_contact->first_layer() == tmp_contact->last_layer()
+                    && static_cast<int>(tmp_contact->get_normal_contacts().size()) <= 1)
+                {
+                    return true;
+                }
+                if (const PolylineTrace* contact_trace = dynamic_cast<const PolylineTrace*>(tmp_contact))
+                {
+                    // look for shove fixed exit traces of SMD-pins
+                    if (contact_trace->get_fixed_state() == FixedState::SHOVE_FIXED
+                        && contact_trace->corner_count() == 2)
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    return false;
 }
 
 } // namespace freerouting::board

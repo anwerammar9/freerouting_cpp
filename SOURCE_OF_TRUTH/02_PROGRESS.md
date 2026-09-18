@@ -8,10 +8,10 @@
 | Rules | 10 | 10 | 0 | 0 | 100% |
 | Constants | 1 | 1 | 0 | 0 | 100% |
 | Geometry | 34 | 34 | 0 | 0 | 100% |
-| Board | 51 | 41 | 0 | 8 | 84% headless |
+| Board | 51 | 50 | 0 | 1 | 98% headless |
 | DataStructures | 14 | 6 | 2 | 6 | 57% |
 | Autoroute | 35 | 21 | 0 | 14 | 60% |
-| Interactive | 9 | 3 | 2 | 4 | 56% |
+| Interactive | 9 | 5 | 1 | 3 | 67% |
 | DesignForms | 41 | 1 | 12 | 28 | 32% |
 | DRC | 7 | 1 | 1 | 5 | 29% |
 | Settings | 21 | 2 | 4 | 15 | 29% |
@@ -19,7 +19,7 @@
 | Scoring | 12 | 3 | 0 | 9 | 25% |
 | Management | 18 | 2 | 0 | 16 | 11% |
 | BoardGraphics | 8 | 0 | 0 | 8 | 0% |
-| **TOTAL** | **289** | **131** | **22** | **136** | **45%** |
+| **TOTAL** | **289** | **142** | **21** | **126** | **49%** |
 
 ---
 
@@ -33,37 +33,27 @@ Key classes: `Point`, `IntPoint`, `FloatPoint`, `RationalPoint`, `Vector`, `Line
 
 All 10 Java files mapped. `NetClasses`, `Nets`, `ViaInfos` inlined in C++ headers.
 
-## Module: Board (84% headless)
+## Module: Board (98% headless)
 
-### Completed (41 classes)
-AngleRestriction, FixedState, Unit, Connectable, Component, Components, DrillItem, Layer, Via, Pin, Padstack, Item, Trace, PolylineTrace, BoardOutline, ObstacleArea, ConductionArea, ViaObstacleArea, ComponentObstacleArea, LayerStructure, CoordinateTransform, BasicBoard, RoutingBoard, Communication, ChangedArea, SearchTreeManager, ShapeSearchTree, ShapeSearchTree45Degree, ShapeSearchTree90Degree, BoardLoader, BoardBuilder, ItemSearchTreesInfo, SearchTreeObject, ItemIdentificationNumberGenerator, ItemSelectionFilter, CalcFromSide, CalcShapeAndFromSide, ComponentOutline, BoardObservers, BoardObserverAdaptor, ShapeTraceEntries, ShoveTraceAlgo
+### Completed (46 classes)
+AngleRestriction, FixedState, Unit, Connectable, Component, Components, DrillItem, Layer, Via, Pin, Padstack, Item, Trace, PolylineTrace, BoardOutline, ObstacleArea, ConductionArea, ViaObstacleArea, ComponentObstacleArea, LayerStructure, CoordinateTransform, BasicBoard, RoutingBoard, Communication, ChangedArea, SearchTreeManager, ShapeSearchTree, ShapeSearchTree45Degree, ShapeSearchTree90Degree, BoardLoader, BoardBuilder, ItemSearchTreesInfo, SearchTreeObject, ItemIdentificationNumberGenerator, ItemSelectionFilter, CalcFromSide, CalcShapeAndFromSide, ComponentOutline, BoardObservers, BoardObserverAdaptor, ShapeTraceEntries, ShoveTraceAlgo, ForcedPadAlgo, ForcedViaAlgo, MoveDrillItemAlgo, MoveComponent, OptViaAlgo, PullTightAlgo, PullTightAlgo45, PullTightAlgo90, PullTightAlgoAnyAngle
 
-### Not Migrated (8+1 classes)
-| Class | Lines | Priority | Notes |
-|-------|-------|----------|-------|
-| ForcedPadAlgo | 352 | HIGH | Force-pad algorithm |
-| ForcedViaAlgo | 223 | HIGH | Force-via algorithm |
-| MoveDrillItemAlgo | 248 | MED | Drill item movement |
-| MoveComponent | 163 | MED | Component placement |
-| OptViaAlgo | 574 | MED | Via optimization |
-| PullTightAlgo | 470 | HIGH | Trace tightening base |
-| PullTightAlgo45 | 622 | HIGH | 45° tightening |
-| PullTightAlgo90 | 144 | MED | 90° tightening |
-| PullTightAlgoAnyAngle | 953 | HIGH | Any-angle tightening |
+### Remaining Board Gaps
+- `RoutingBoard::opt_changed_area()` — still empty (needs TraceTightener integration)
+- Remaining critical stubs: `ShoveTraceAlgo::spring_over()` (returns input unchanged, ShoveTraceAlgo.cpp:235), `ShoveTraceAlgo::insert()` (one-level headless minimal), base `Trace::normalize()/combine()/split()` (PolylineTrace overrides are real)
 
-### Critical Stubs in Existing Code
-- `ShoveTraceAlgo::spring_over()` — returns input unchanged
-- `ShoveTraceAlgo::insert()` — no board mutation
-- `Trace::normalize()` — returns false
-- `Trace::combine()` — returns false
-- `Trace::split()` — returns empty
-- `RoutingBoard::additional_update_after_change()` — empty
-- `RoutingBoard::opt_changed_area()` — empty
-- `RoutingBoard::combine_traces()` — empty
-- `RoutingBoard::get_outline()` — returns nullptr
-- `Item::get_normal_contacts()` — returns empty (base; Trace overrides)
-- `Item::get_connection_items()` — returns empty
-- `Item::first_common_layer()` — returns -1
+### Restored Drafts (2026-09-18)
+- `BoardOutline` — file existed but was NOT compiled (missing from `src/board/CMakeLists.txt`) and was a stale half-port: wrong namespaces (`class PolylineShape`/`class TileShape` forward-declared in `namespace board`, shadowing the `geometry::planar` types) and no `Item` base constructor call. Fixed header namespaces, wired the `Item` base ctor, reimplemented `get_tile_shape()` on the C++ `split_to_convex()` API, and added `BoardOutline.cpp` to the build.
+- Critical Stubs cleared: `combine_traces()`, `get_outline()`, `contains_trace_tails()`, `get_trace_tail()` ported from Java; `additional_update_after_change()` documented as faithful no-op (no autoroute engine wired into the item-change path yet).
+
+### Contact Graph completed (2026-09-18, WP-1)
+- `Item::first_common_layer()` — WAS a stub returning -1, now full Java port (`Item.java:320` `firstCommonLayer`)
+- `DrillItem::first_layer()/last_layer()` — overrides added; layer range is now synced from the padstack in the `Via` ctor and `set_padstack` (Java DrillItem derives `firstLayer`/`lastLayer` from the padstack). Fixed a real bug: vias always reported layers 0..0.
+- `Item::get_connection_items(StopConnectionOption)` — WAS a stub returning `{}`, now full port (`Item.java:741` `getConnectionItems`)
+- `Item::is_fanout_via(const std::set<Item*>*)` — new (`Item.java:1250` `isFanoutVia`)
+- `Trace::normal_contact_point(Item*)` — DrillItem branch added (`DrillItem.java:339`)
+- `DrillItem::normal_contact_point(Item*)` — new override (`DrillItem.java:326`)
+- Tests: 8 new `ItemContactGraphTest` cases in `ItemContacts_test.cpp` (14 total green)
 
 ## Module: Autoroute (60%)
 
@@ -151,11 +141,17 @@ BoardStatistics, BoardStatisticsBoard, BoardStatisticsLayers, BoardStatisticsIte
 - `BoardStatistics` full implementation needs `init_from_board()` with all item counting, trace analysis, bend calculation, via classification
 - `calculateScore()`, `getMaximumScore()`, `getNormalizedScore()` need proper scoring logic from RouterScoringSettings
 
-## Module: Interactive (56%)
+## Module: Interactive (67%)
 
-### Done: HeadlessBoardManager, InteractiveSettings, RatsNestItemInfo
-### Partial: BoardManager (interface), NetIncompletes (stub)
-### Missing: RatsNest, Route (624 lines), ThreadActionListener
+### Done: HeadlessBoardManager, InteractiveSettings, RatsNestItemInfo, NetIncompletes, RatsNest
+### Partial: BoardManager (interface)
+### Missing: Route (624 lines), ThreadActionListener
+
+### NetIncompletes completed (2026-09-18, WP-2)
+- Verified the existing port against `java/app/freerouting/drc/NetIncompletes.java` (398 lines): filter, `calculate_net_items`, Delaunay triangulation, `Edge::Less` tie-breakers, airline creation, `calc_length_violation` are all faithful.
+- Added `connected_group_count_` / `get_connected_group_count()` — was missing entirely (`NetIncompletes.java:46,141,155`).
+- **Fixed aliasing bug in `join_connected_sets()`**: parameters were `const shared_ptr<...>&` bound to `from_item`/`to_item` members that the loop reassigns; repointing the from-item mid-loop invalidated `p_from`, so the remaining from-group items were skipped → too many airlines (3 isolated vias → 3, expected 2). Fixed by taking shared_ptrs by value.
+- Tests: `NoViolationWhenLengthsOk` (+group count), `ThreeIsolatedViasProduceTwoAirlines` (3-island MST), `SingleItemHasNoAirLines` — 8/8 NetIncompletesTest, 415/415 ctest, run_tests all PASSED.
 
 ## Module: Management (11%)
 

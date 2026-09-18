@@ -146,6 +146,7 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/src/board/ComponentOutline_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/OptViaAlgo_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/PullTightAlgo_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/board/RoutingBoard_stubs_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/Trace_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/ItemContacts_test.cpp
         ${CMAKE_SOURCE_DIR}/src/core/scoring/BoardStatistics_test.cpp

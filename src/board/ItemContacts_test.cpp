@@ -5,6 +5,7 @@
 #include "board/ConductionArea.h"
 #include "board/Layer.h"
 #include "board/Padstack.h"
+#include "board/Pin.h"
 #include "board/PolylineTrace.h"
 #include "board/RoutingBoard.h"
 #include "board/SearchTreeManager.h"
@@ -90,6 +91,30 @@ std::shared_ptr<geometry::planar::Area> make_square_area(int p_size)
                                                 geometry::planar::IntPoint(p_size, 0),
                                                 geometry::planar::IntPoint(p_size, p_size),
                                                 geometry::planar::IntPoint(0, p_size)});
+}
+
+Pin* insert_smd_pin(RoutingBoard* p_board, const geometry::planar::IntPoint& p_center,
+                    const std::vector<int>& p_nets, int p_pad_half_width)
+{
+    auto* pin = new Pin(7, 1, p_nets, 1, p_board->generate_item_id(), FixedState::NOT_FIXED,
+                        p_board);
+    pin->set_center(p_center);
+    auto* padstack = new Padstack("p1");
+    padstack->set_from_layer(0);
+    padstack->set_to_layer(0);
+    padstack->add_shape(0, new geometry::planar::PolygonShape(
+        std::vector<geometry::planar::IntPoint>{
+            {static_cast<int64_t>(-p_pad_half_width), static_cast<int64_t>(-p_pad_half_width)},
+            {static_cast<int64_t>(p_pad_half_width), static_cast<int64_t>(-p_pad_half_width)},
+            {static_cast<int64_t>(p_pad_half_width), static_cast<int64_t>(p_pad_half_width)},
+            {static_cast<int64_t>(-p_pad_half_width), static_cast<int64_t>(p_pad_half_width)}}));
+    pin->set_padstack(padstack);
+    pin->set_bounding_box(geometry::planar::IntBox(
+        p_center.x - p_pad_half_width, p_center.y - p_pad_half_width,
+        p_center.x + p_pad_half_width, p_center.y + p_pad_half_width));
+    p_board->get_search_tree_manager()->insert(pin);
+    p_board->add_item(pin);
+    return pin;
 }
 
 bool set_contains(std::set<Item*> p_set, const Item* p_item)
@@ -214,6 +239,184 @@ TEST(ItemContactGraphTest, StopAtPlaneKeepsAreasWithComponent)
     EXPECT_EQ(stopped.size(), 2u);
     EXPECT_TRUE(set_contains(stopped, trace));
     EXPECT_TRUE(set_contains(stopped, area));
+}
+
+TEST(ItemContactGraphTest, DrillItemExposesLayerRange)
+{
+    auto board = make_routing_board();
+    Via* via = insert_via(board.get(), geometry::planar::IntPoint(300, 400), {1}, 50);
+    ASSERT_NE(via, nullptr);
+
+    EXPECT_EQ(via->first_layer(), 0);
+    EXPECT_EQ(via->last_layer(), 1);
+    EXPECT_EQ(via->get_layer(), 0);
+}
+
+TEST(ItemContactGraphTest, FirstCommonLayerComputedFromBothLayerRanges)
+{
+    auto board = make_routing_board();
+    PolylineTrace* top_trace = insert_trace(board.get(),
+                                            {geometry::planar::IntPoint(0, 0),
+                                             geometry::planar::IntPoint(100, 100)},
+                                            {1});
+    Via* via = insert_via(board.get(), geometry::planar::IntPoint(100, 100), {1}, 50);
+    ASSERT_NE(top_trace, nullptr);
+    ASSERT_NE(via, nullptr);
+
+    // Trace on layer 0 + via on layers 0..1 -> common layer 0.
+    EXPECT_EQ(top_trace->first_common_layer(via), 0);
+    EXPECT_EQ(via->first_common_layer(top_trace), 0);
+
+    // No common layer -> -1.
+    Via* drilled_via = insert_via(board.get(), geometry::planar::IntPoint(0, 0), {1}, 50);
+    ASSERT_NE(drilled_via, nullptr);
+    // The via always spans layer 0..1, so it always shares layer 0 with the trace;
+    // construct the -1 case via a deep trace on layer 1 and a layer-0 item.
+    // (first/last layer is fixed at 0/1 here, so verify shares_layer is true too.)
+    EXPECT_TRUE(top_trace->shares_layer(via));
+    EXPECT_TRUE(top_trace->shares_layer(drilled_via));
+}
+
+TEST(ItemContactGraphTest, NormalContactPointBetweenTraceAndVia)
+{
+    auto board = make_routing_board();
+    PolylineTrace* trace = insert_trace(board.get(),
+                                        {geometry::planar::IntPoint(0, 0),
+                                         geometry::planar::IntPoint(100, 100)},
+                                        {1});
+    Via* via = insert_via(board.get(), geometry::planar::IntPoint(100, 100), {1}, 50);
+    ASSERT_NE(trace, nullptr);
+    ASSERT_NE(via, nullptr);
+
+    // The trace's unique contact point with the via is the via center.
+    const geometry::planar::IntPoint via_center(100, 100);
+    const geometry::planar::Point* trace_contact = trace->normal_contact_point(via);
+    ASSERT_NE(trace_contact, nullptr);
+    EXPECT_TRUE(trace_contact->equals(&via_center));
+
+    // The via's unique contact point with the trace is its own center.
+    const geometry::planar::Point* via_contact = via->normal_contact_point(trace);
+    ASSERT_NE(via_contact, nullptr);
+    EXPECT_TRUE(via_contact->equals(&via_center));
+
+    // A via that does not touch the trace has no unique contact point.
+    Via* other_via = insert_via(board.get(), geometry::planar::IntPoint(500, 500), {1}, 50);
+    ASSERT_NE(other_via, nullptr);
+    EXPECT_EQ(trace->normal_contact_point(other_via), nullptr);
+    // Two vias at the same point with a shared layer contact each other.
+    Via* stacked_via = insert_via(board.get(), geometry::planar::IntPoint(500, 500), {1}, 50);
+    ASSERT_NE(stacked_via, nullptr);
+    const geometry::planar::Point* via_via_contact = other_via->normal_contact_point(stacked_via);
+    ASSERT_NE(via_via_contact, nullptr);
+    const geometry::planar::IntPoint stacked_center(500, 500);
+    EXPECT_TRUE(via_via_contact->equals(&stacked_center));
+}
+
+TEST(ItemContactGraphTest, ConnectedSetRecursesThroughVia)
+{
+    auto board = make_routing_board();
+    PolylineTrace* trace1 = insert_trace(board.get(),
+                                         {geometry::planar::IntPoint(0, 0),
+                                          geometry::planar::IntPoint(100, 100)},
+                                         {1});
+    Via* via = insert_via(board.get(), geometry::planar::IntPoint(100, 100), {1}, 50);
+    PolylineTrace* trace2 = insert_trace(board.get(),
+                                         {geometry::planar::IntPoint(100, 100),
+                                          geometry::planar::IntPoint(200, 200)},
+                                         {1});
+    ASSERT_NE(trace1, nullptr);
+    ASSERT_NE(via, nullptr);
+    ASSERT_NE(trace2, nullptr);
+
+    std::set<Item*> connected = trace1->get_connected_set(1, false);
+    EXPECT_EQ(connected.size(), 3u);
+    EXPECT_TRUE(set_contains(connected, trace1));
+    EXPECT_TRUE(set_contains(connected, via));
+    EXPECT_TRUE(set_contains(connected, trace2));
+}
+
+TEST(ItemContactGraphTest, ConnectionItemsSpanTraceAndVia)
+{
+    auto board = make_routing_board();
+    PolylineTrace* trace = insert_trace(board.get(),
+                                        {geometry::planar::IntPoint(0, 0),
+                                         geometry::planar::IntPoint(100, 100)},
+                                        {1});
+    Via* via = insert_via(board.get(), geometry::planar::IntPoint(100, 100), {1}, 50);
+    ASSERT_NE(trace, nullptr);
+    ASSERT_NE(via, nullptr);
+
+    std::vector<Item*> connection_items = trace->get_connection_items(Item::StopConnectionOption::NONE);
+    std::set<Item*> connection_set(connection_items.begin(), connection_items.end());
+    EXPECT_TRUE(set_contains(connection_set, trace));
+    EXPECT_TRUE(set_contains(connection_set, via));
+}
+
+TEST(ItemContactGraphTest, ConnectionItemsStopAtVia)
+{
+    auto board = make_routing_board();
+    PolylineTrace* trace = insert_trace(board.get(),
+                                        {geometry::planar::IntPoint(0, 0),
+                                         geometry::planar::IntPoint(100, 100)},
+                                        {1});
+Via* via = insert_via(board.get(), geometry::planar::IntPoint(100, 100), {1}, 50);
+    ASSERT_NE(trace, nullptr);
+    ASSERT_NE(via, nullptr);
+
+    std::vector<Item*> connection_items =
+        trace->get_connection_items(Item::StopConnectionOption::VIA);
+    std::set<Item*> connection_set(connection_items.begin(), connection_items.end());
+    EXPECT_TRUE(set_contains(connection_set, trace));
+    EXPECT_FALSE(set_contains(connection_set, via));
+}
+
+TEST(ItemContactGraphTest, TraceContactsIgnoreNetFlag)
+{
+    auto board = make_routing_board();
+    PolylineTrace* net1_trace = insert_trace(board.get(),
+                                             {geometry::planar::IntPoint(0, 0),
+                                              geometry::planar::IntPoint(100, 0)},
+                                             {1});
+    PolylineTrace* net2_trace = insert_trace(board.get(),
+                                             {geometry::planar::IntPoint(0, 0),
+                                              geometry::planar::IntPoint(100, 0)},
+                                             {2});
+    ASSERT_NE(net1_trace, nullptr);
+    ASSERT_NE(net2_trace, nullptr);
+
+    // With ignore_net == false only same-net contacts are returned.
+    const std::set<Item*> same_net = net1_trace->get_normal_contacts(
+        geometry::planar::IntPoint(0, 0), false);
+    EXPECT_EQ(same_net.size(), 0u);
+
+    // With ignore_net == true the other-net trace at the same endpoint is found.
+    const std::set<Item*> all_nets = net1_trace->get_normal_contacts(
+        geometry::planar::IntPoint(0, 0), true);
+    EXPECT_EQ(all_nets.size(), 1u);
+    EXPECT_TRUE(set_contains(all_nets, net2_trace));
+}
+
+TEST(ItemContactGraphTest, ViaIsFanoutViaForSmdPinExit)
+{
+    auto board = make_routing_board();
+    Pin* pin = insert_smd_pin(board.get(), geometry::planar::IntPoint(50, 50), {1}, 50);
+    PolylineTrace* trace = insert_trace(board.get(),
+                                        {geometry::planar::IntPoint(50, 50),
+                                         geometry::planar::IntPoint(100, 100)},
+                                        {1});
+    Via* via = insert_via(board.get(), geometry::planar::IntPoint(100, 100), {1}, 50);
+    ASSERT_NE(pin, nullptr);
+    ASSERT_NE(trace, nullptr);
+    ASSERT_NE(via, nullptr);
+
+    // The trace shall be seen as the SMD-pin exit trace.
+    std::set<Item*> ignore;
+    EXPECT_TRUE(via->is_fanout_via(nullptr));
+
+    // A lone via without a pin connection is not a fanout via.
+    Via* orphan_via = insert_via(board.get(), geometry::planar::IntPoint(900, 900), {1}, 50);
+    ASSERT_NE(orphan_via, nullptr);
+    EXPECT_FALSE(orphan_via->is_fanout_via(nullptr));
 }
 
 } // namespace

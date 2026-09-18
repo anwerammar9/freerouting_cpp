@@ -14,6 +14,8 @@ public:
     void set_center(const geometry::planar::IntPoint& p_center) { center_ = p_center; }
 
     int get_layer() const override { return from_layer_; }
+    int first_layer() const override { return from_layer_; }
+    int last_layer() const override { return to_layer_; }
     int get_from_layer() const { return from_layer_; }
     int get_to_layer() const { return to_layer_; }
 
@@ -23,7 +25,7 @@ public:
     int tile_shape_count() const override { return 1; }
 
     Padstack* get_padstack() const { return padstack_; }
-    void set_padstack(Padstack* p_padstack) { padstack_ = p_padstack; }
+    void set_padstack(Padstack* p_padstack);
 
     /**
      * Returns the minimum width over all padstack shapes.
@@ -42,6 +44,12 @@ public:
      * Mirrors Java DrillItem.get_ratsnest_corners().
      */
     std::vector<std::shared_ptr<geometry::planar::Point>> get_ratsnest_corners() const override;
+
+    /**
+     * Returns the unique contact point between this drill item and p_other,
+     * or nullptr if there is none. Mirrors Java DrillItem.normal_contact_point.
+     */
+    const geometry::planar::Point* normal_contact_point(const Item* p_other) const override;
 
 protected:
     DrillItem(const geometry::planar::IntPoint& p_center,

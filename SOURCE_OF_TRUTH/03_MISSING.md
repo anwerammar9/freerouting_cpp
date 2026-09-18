@@ -70,18 +70,15 @@ Java uses:
 |--------|-----------|-------|
 | `ShoveTraceAlgo::spring_over()` | ShoveTraceAlgo.cpp:235-246 | Returns input polyline unchanged |
 | `ShoveTraceAlgo::insert()` | ShoveTraceAlgo.cpp:167-212 | No board mutation |
-| `Trace::normalize()` | Trace.cpp:357-362 | Returns false |
-| `Trace::combine()` | Trace.cpp:364-367 | Returns false |
-| `Trace::split()` | Trace.cpp:399-413 | Returns empty |
-| `RoutingBoard::additional_update_after_change()` | RoutingBoard.cpp:44-50 | Empty body |
 | `RoutingBoard::opt_changed_area()` | RoutingBoard.cpp:67-74 | Empty body |
-| `RoutingBoard::combine_traces()` | RoutingBoard.cpp:76-78 | Empty body |
-| `RoutingBoard::get_outline()` | RoutingBoard.cpp:466-469 | Returns nullptr |
-| `RoutingBoard::contains_trace_tails()` | RoutingBoard.cpp:471-477 | Always false |
-| `RoutingBoard::get_trace_tail()` | RoutingBoard.cpp:479-486 | Always nullptr |
-| `Item::get_normal_contacts()` | Item.cpp:43-48 | Returns empty (Trace overrides) |
-| `Item::get_connection_items()` | Item.cpp:348-352 | Returns empty |
-| `Item::first_common_layer()` | Item.cpp:86-91 | Returns -1 |
+| `Item::get_normal_contacts()` | Item.cpp:43-48 | Returns empty (Trace/DrillItem/ConductionArea override) |
+| `Item::first_common_layer()` | Item.cpp:86-91 | WAS returning -1; resolved 2026-09-18 |
+
+**Resolved 2026-09-18:** `RoutingBoard::combine_traces()`, `get_outline()`, `contains_trace_tails()`, `get_trace_tail()` ported (BasicBoard.java:1307 `getTraceTail`, 684 `combineTraces`, RoutingBoard.java:1188 `containsTraceTails`; Java `getOutline` scans the item list for a `BoardOutline`). `BoardOutline` restored as a compilable build member (was excluded from `src/board/CMakeLists.txt` with broken namespace forward-declarations). `additional_update_after_change()` is a faithful no-op until an autoroute engine is wired into the item-change path (Java RoutingBoard.java:96 returns when `autorouteEngine == null`). Note base `Trace::normalize()/combine()/split()` still return false/empty — the `PolylineTrace` overrides are real.
+
+**Resolved 2026-09-18 (WP-1 Contact Graph):** `Item::first_common_layer()` ported (was returning -1 unconditionally); `Item::get_connection_items()` ported (was returning `{}`); `Item::is_fanout_via()` added; `DrillItem::first_layer()/last_layer()` overrides added and layer range now synced from the padstack in the `Via` ctor / `set_padstack` (fixes vias always reporting 0..0); `Trace::normal_contact_point()` extended for DrillItem; `DrillItem::normal_contact_point()` added. Verified by 8 new `ItemContactGraphTest` cases and a diagnostics run (14/14 green, 413/413 ctest + run_tests green).
+
+**Resolved 2026-09-18 (WP-2 NetIncompletes):** `connected_group_count` / `get_connected_group_count()` added (was missing vs `NetIncompletes.java:46,141,155`). Fixed real aliasing bug in `join_connected_sets()`: passed `const shared_ptr<...>&` aliasing `from_item`/`to_item` members that the join reassigns, so from-group items beyond the first were never repointed (3 isolated vias → 3 airlines, expected 2); now takes shared_ptrs by value. 415/415 ctest + run_tests green.
 
 ### 2.2 Missing Board Classes
 

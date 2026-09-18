@@ -222,9 +222,23 @@ const geometry::planar::Point* Trace::normal_contact_point(const Item* p_other) 
         }
         return &last_corner();
     }
-    // Java additionally handles DrillItem contacts via
-    // DrillItem.normal_contact_point(Trace); the C++ DrillItem class is not
-    // compiled into the build yet.
+    if (const DrillItem* other_drill = dynamic_cast<const DrillItem*>(p_other))
+    {
+        // Mirrors Java DrillItem.normal_contact_point(Trace): the drill center
+        // is the unique contact point iff it equals a trace corner on a
+        // shared layer.
+        if (!shares_layer(p_other))
+        {
+            return nullptr;
+        }
+        const geometry::planar::IntPoint& center = other_drill->get_center();
+        if (first_corner().equals(&center) || last_corner().equals(&center))
+        {
+            return &center;
+        }
+        return nullptr;
+    }
+    // ConductionArea and other items have no unique contact point with a trace.
     return nullptr;
 }
 

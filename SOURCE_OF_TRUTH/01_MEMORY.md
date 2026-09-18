@@ -79,6 +79,8 @@ ctest --test-dir build --output-on-failure
 8. **JSON**: hand-rolled; match Java `@SerializedName` exactly
 9. **No JSON serializer** — BoardStatistics needs manual JSON string builder
 10. **`run_tests`** (assert suite) is separate from ctest; both must pass
+11. **DrillItem layer range comes from the padstack** (Java `DrillItem.firstLayer/lastLayer`) — `Via` ctor + `set_padstack` sync `from_layer_`/`to_layer_` from the padstack. `Padstack` is incomplete in `Via.h`, so `set_padstack` must be defined in `Via.cpp`.
+12. **shared_ptr aliasing vs Java reference semantics (NetIncompletes.join_connected_sets)**: Java captures a set reference in a local before a loop that reassigns fields — the captured reference stays valid. Porting this to `const shared_ptr<...>&` params that alias **members the same loop reassigns** breaks: once the from-item is repointed mid-loop, `p_from` reads the new to-set and the rest of the from-group is skipped → too many airlines. **Pass shared_ptrs by value** for such join/union helpers. (3-island MST test would catch: 3 isolated vias must produce 2 airlines, gave 3.)
 
 ## Dependency Graph (What to Migrate Next)
 

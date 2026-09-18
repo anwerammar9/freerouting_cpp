@@ -57,6 +57,12 @@ public:
     rules::Net* get_net() const { return net_; }
     double get_draw_marker_radius() const { return draw_marker_radius_; }
 
+    /**
+     * Returns the number of connected groups used to compute the airlines.
+     * Mirrors Java NetIncompletes.get_connected_group_count().
+     */
+    int get_connected_group_count() const { return connected_group_count_; }
+
     const std::list<std::shared_ptr<RatsNest::AirLine>>& incompletes() const
     {
         return incompletes_;
@@ -76,17 +82,19 @@ private:
 
     /**
      * Joins p_from_connected_set to p_to_connected_set and updates the
-     * connected sets of the items in p_net_items. Mirrors Java
-     * NetIncompletes.join_connected_sets().
+     * connected sets of the items in p_net_items. The set arguments are taken
+     * by value, because they alias NetItem members which this method
+     * reassigns. Mirrors Java NetIncompletes.join_connected_sets().
      */
     void join_connected_sets(const std::vector<std::shared_ptr<NetItem>>& p_net_items,
-                             const std::shared_ptr<std::set<board::Item*>>& p_from_connected_set,
-                             const std::shared_ptr<std::set<board::Item*>>& p_to_connected_set) const;
+                             std::shared_ptr<std::set<board::Item*>> p_from_connected_set,
+                             std::shared_ptr<std::set<board::Item*>> p_to_connected_set) const;
 
     board::RoutingBoard* board_;
     rules::Net* net_;
     double draw_marker_radius_ = 0;
     double length_violation_ = 0;
+    int connected_group_count_ = 0;
     std::list<std::shared_ptr<RatsNest::AirLine>> incompletes_;
 };
 

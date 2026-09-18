@@ -47,6 +47,11 @@ void RoutingBoard::additional_update_after_change(Item* p_item)
     {
         return;
     }
+    // Mirrors Java RoutingBoard.additional_update_after_change. The Java
+    // version first returns when the autoroute engine does not maintain its
+    // database; the headless C++ board has no autoroute engine wired into the
+    // item change path (TODO), so nothing to maintain yet.
+    (void)p_item;
 }
 
 bool RoutingBoard::remove_items_and_pull_tight(const std::vector<Item*>& p_item_list,
@@ -75,6 +80,37 @@ void RoutingBoard::opt_changed_area(const std::vector<int>& p_nets_to_optimize,
 
 void RoutingBoard::combine_traces(int p_net_no)
 {
+    // Mirrors Java BasicBoard.combineTraces: combines connected traces of the
+    // net which have only 1 contact at the connection point. If p_net_no < 0,
+    // traces of all nets are combined.
+    bool something_changed = true;
+    while (something_changed)
+    {
+        something_changed = false;
+        // Snapshot: traces may be removed while iterating.
+        std::vector<Item*> snapshot(items_.begin(), items_.end());
+        for (Item* curr_item : snapshot)
+        {
+            if (curr_item == nullptr)
+            {
+                continue;
+            }
+            if (p_net_no >= 0 && !curr_item->contains_net(p_net_no))
+            {
+                continue;
+            }
+            auto* curr_trace = dynamic_cast<PolylineTrace*>(curr_item);
+            if (curr_trace == nullptr || !curr_trace->is_on_board())
+            {
+                continue;
+            }
+            if (curr_trace->combine())
+            {
+                something_changed = true;
+                break;
+            }
+        }
+    }
 }
 
 void RoutingBoard::add_item(Item* p_item)
@@ -465,23 +501,79 @@ bool RoutingBoard::add_route_connection(Item* p_from_item, int p_from_layer, int
 
 const BoardOutline* RoutingBoard::get_outline() const
 {
+    // Mirrors Java BoardItemRepository.getOutline(): returns the first
+    // BoardOutline item on the board, or nullptr if none is present.
+    for (const Item* curr_item : items_)
+    {
+        if (dynamic_cast<const BoardOutline*>(curr_item) != nullptr)
+        {
+            return static_cast<const BoardOutline*>(curr_item);
+        }
+    }
     return nullptr;
 }
 
 bool RoutingBoard::contains_trace_tails(const std::vector<Item*>& p_obstacles,
                                         const std::vector<int>& p_net_no_arr) const
 {
-    (void)p_obstacles;
-    (void)p_net_no_arr;
+    // Mirrors Java RoutingBoard.containsTraceTails: checks if the list
+    // contains traces which have no contact at their start or end point.
+    // Traces with the excepted net numbers are ignored.
+    for (const Item* curr_item : p_obstacles)
+    {
+        const auto* curr_trace = dynamic_cast<const Trace*>(curr_item);
+        if (curr_trace == nullptr)
+        {
+            continue;
+        }
+        if (!curr_trace->nets_equal(p_net_no_arr) && curr_trace->is_tail())
+        {
+            return true;
+        }
+    }
     return false;
 }
 
 Trace* RoutingBoard::get_trace_tail(const geometry::planar::Point& p_point, int p_layer,
                                     const std::vector<int>& p_net_no_arr)
 {
-    (void)p_point;
-    (void)p_layer;
-    (void)p_net_no_arr;
+    // Mirrors Java BasicBoard.getTraceTail: looks if at p_point ends a trace
+    // with the input net numbers which has no normal contact at that position.
+    using namespace geometry::planar;
+    IntPoint location;
+    if (const auto* int_point = dynamic_cast<const IntPoint*>(&p_point))
+    {
+        location = *int_point;
+    }
+    else
+    {
+        location = p_point.to_float().round();
+    }
+    IntBox point_shape = geometry::planar::TileShape::get_instance(location);
+    std::set<SearchTreeObject*, TreeStorableLess> found_items =
+        overlapping_objects(point_shape, p_layer);
+    for (SearchTreeObject* curr_object : found_items)
+    {
+        auto* curr_trace = dynamic_cast<Trace*>(curr_object);
+        if (curr_trace == nullptr || !curr_trace->nets_equal(p_net_no_arr))
+        {
+            continue;
+        }
+        if (curr_trace->first_corner().equals(&p_point))
+        {
+            if (curr_trace->get_start_contacts().empty())
+            {
+                return curr_trace;
+            }
+        }
+        if (curr_trace->last_corner().equals(&p_point))
+        {
+            if (curr_trace->get_end_contacts().empty())
+            {
+                return curr_trace;
+            }
+        }
+    }
     return nullptr;
 }
 

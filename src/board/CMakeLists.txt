@@ -16,6 +16,7 @@ add_library(freerouting_board STATIC
     Padstack.cpp
     Via.cpp
     ChangedArea.cpp
+    BoardOutline.cpp
     RoutingBoard.cpp
     BoardLoader.cpp
     Trace.cpp

@@ -123,6 +123,7 @@ TEST(NetIncompletesTest, ConnectedNetHasNoIncompletes)
 
     EXPECT_EQ(ni.count(), 0);
     EXPECT_TRUE(ni.empty());
+    EXPECT_EQ(ni.get_connected_group_count(), 1);
     EXPECT_DOUBLE_EQ(ni.get_length_violation(), 0.0);
     EXPECT_NE(ni.get_net(), nullptr);
     EXPECT_EQ(ni.get_net()->get_net_no(), 1);
@@ -140,6 +141,7 @@ TEST(NetIncompletesTest, TwoIsolatedPinsProduceOneAirLine)
     NetIncompletes ni(1, net_items, board.get());
 
     EXPECT_EQ(ni.count(), 1);
+    EXPECT_EQ(ni.get_connected_group_count(), 2);
     ASSERT_EQ(ni.incompletes().size(), 1u);
     const auto& airline = ni.incompletes().front();
     EXPECT_EQ(airline->net, board->get_rules().get_nets().get(1));
@@ -259,8 +261,41 @@ TEST(NetIncompletesTest, NoViolationWhenLengthsOk)
     NetIncompletes ni(1, net_items, board.get());
 
     EXPECT_EQ(ni.count(), 0);
+    EXPECT_EQ(ni.get_connected_group_count(), 1);
     EXPECT_DOUBLE_EQ(ni.get_length_violation(), 0.0);
     EXPECT_FALSE(ni.calc_length_violation());
+}
+
+TEST(NetIncompletesTest, ThreeIsolatedViasProduceTwoAirlines)
+{
+    auto board = make_routing_board();
+    board::Via* v1 = insert_via(board.get(), geometry::planar::IntPoint(200, 200), {1}, 50);
+    board::Via* v2 = insert_via(board.get(), geometry::planar::IntPoint(6000, 200), {1}, 50);
+    board::Via* v3 = insert_via(board.get(), geometry::planar::IntPoint(3000, 8000), {1}, 50);
+    ASSERT_NE(v1, nullptr);
+    ASSERT_NE(v2, nullptr);
+    ASSERT_NE(v3, nullptr);
+
+    std::vector<board::Item*> net_items = {v1, v2, v3};
+    NetIncompletes ni(1, net_items, board.get());
+
+    // 3 isolated groups → 2 airlines (MST).
+    EXPECT_EQ(ni.count(), 2);
+    EXPECT_EQ(ni.get_connected_group_count(), 3);
+    EXPECT_TRUE(ni.incompletes().size() == 2);
+}
+
+TEST(NetIncompletesTest, SingleItemHasNoAirLines)
+{
+    auto board = make_routing_board();
+    board::Via* via1 = insert_via(board.get(), geometry::planar::IntPoint(200, 200), {1}, 50);
+    ASSERT_NE(via1, nullptr);
+
+    std::vector<board::Item*> net_items = {via1};
+    NetIncompletes ni(1, net_items, board.get());
+
+    EXPECT_EQ(ni.count(), 0);
+    EXPECT_EQ(ni.get_connected_group_count(), 1);
 }
 
 } // namespace

@@ -133,8 +133,20 @@ NetIncompletes::NetIncompletes(int p_net_no, const std::vector<board::Item*>& p_
 
     // Create an array of Item-connected_set pairs.
     std::vector<std::shared_ptr<NetItem>> net_items = calculate_net_items(filtered_items, p_net_no);
+
+    // Count the number of distinct connected groups. Items of the same group
+    // share the same connected_set object, so identity is the right check.
+    // Mirrors Java: uniqueConnectedSets over the NetItem connected sets.
+    std::set<const std::set<board::Item*>*> unique_connected_sets;
+    for (const auto& net_item : net_items)
+    {
+        unique_connected_sets.insert(net_item->connected_set.get());
+    }
+    connected_group_count_ = static_cast<int>(unique_connected_sets.size());
+
     if (net_items.size() <= 1)
     {
+        connected_group_count_ = static_cast<int>(net_items.size());
         return;
     }
 
@@ -241,9 +253,14 @@ std::vector<std::shared_ptr<NetIncompletes::NetItem>> NetIncompletes::calculate_
 
 void NetIncompletes::join_connected_sets(
     const std::vector<std::shared_ptr<NetItem>>& p_net_items,
-    const std::shared_ptr<std::set<board::Item*>>& p_from_connected_set,
-    const std::shared_ptr<std::set<board::Item*>>& p_to_connected_set) const
+    std::shared_ptr<std::set<board::Item*>> p_from_connected_set,
+    std::shared_ptr<std::set<board::Item*>> p_to_connected_set) const
 {
+    // Copy the shared_ptrs by value: the parameters alias the NetItem members
+    // they were passed from, and the join reassigns those very members. Holding
+    // a reference would silently follow the reassignment and skip the remaining
+    // from-group items. Java achieves the same by capturing the set references
+    // before the loop.
     for (const auto& curr_net_item : p_net_items)
     {
         if (curr_net_item->connected_set == p_from_connected_set)

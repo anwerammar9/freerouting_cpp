@@ -3,7 +3,7 @@
 **Project:** Freerouting Java → C++20 Migration
 **Goal:** Headless routing parity (load DSN → route → write SES)
 **Java source of truth:** `java/app/freerouting/**/*.java` (Freerouting 2.1.0, pruned to a headless-only subset — GUI, API, analytics and KiCad I/O removed and stubbed; still builds and routes DSN→SES)
-**Last updated:** 2026-09-16
+**Last updated:** 2026-09-18
 
 ---
 
@@ -24,9 +24,9 @@
 | Metric | Value |
 |--------|-------|
 | Total Java files | 289 |
-| Fully migrated | 131 (45%) |
-| Partially migrated | 22 (8%) |
-| Not migrated | 136 (47%) |
+| Fully migrated | 142 (49%) |
+| Partially migrated | 21 (7%) |
+| Not migrated | 126 (44%) |
 | Critical path | DSN → Route → SES |
 | Current headless completion | ~19% (hw48na test) |
 
@@ -36,7 +36,16 @@
 2. **SortedRoomNeighbours** — 1300+ lines, room completion for maze search
 3. **MazeShoveTraceAlgo** — trace shoving during maze search
 4. **BatchOptimizer** — post-route optimization
-5. **PullTightAlgo*** — trace tightening (combine/split/pull_tight)
-6. **ForcedPadAlgo/ForcedViaAlgo** — forced pad/via placement
+5. **DrillPage / expansion rooms** — room/drill infrastructure (Java-only DrillPage excludes DrillPageArray.cpp)
+6. **ShapeSearchTree room creation** — `complete_shape`/`create_complete_room` not ported
 7. **SpecctraDsnStreamReader** — full DSN parsing
 8. **SessionWriter** — full SES output (currently traces-only)
+
+## Recent Progress (2026-09-18)
+
+- **WP-2 NetIncompletes completed**: verified the existing port against `java/app/freerouting/drc/NetIncompletes.java` (398 lines); added the missing `connected_group_count` / `get_connected_group_count()`; **fixed a real aliasing bug** in `join_connected_sets()` (shared_ptrs were passed by const reference aliasing the members the loop reassigns — from-group items past the first were never repointed, giving extra airlines; now passed by value). 3 new tests (`NoViolationWhenLengthsOk`, `ThreeIsolatedViasProduceTwoAirlines`, `SingleItemHasNoAirLines`).
+- **WP-1 Contact Graph completed**: `Item::first_common_layer()` ported (was a -1 stub); `Item::get_connection_items()` + `Item::is_fanout_via()` full ports; `DrillItem::first_layer()/last_layer()` overrides added AND the layer range is now synced from the padstack in the `Via` ctor/`set_padstack` (fixes vias always reporting 0..0); `Trace::normal_contact_point()` extended for DrillItem; `DrillItem::normal_contact_point()` added. 8 new `ItemContactGraphTest` cases.
+- `RoutingBoard` facade stubs ported: `combine_traces`, `get_outline`, `contains_trace_tails`, `get_trace_tail` (Java BasicBoard/RoutingBoard); `additional_update_after_change` confirmed faithful no-op.
+- `BoardOutline` restored to the build (was a stale non-compiling draft excluded from CMake — fixed namespaces, `Item` base ctor, `split_to_convex`-based `get_tile_shape`).
+- Board module 41 → 50 classes done (98% headless); Interactive module 3 → 5 classes done (NetIncompletes, RatsNest now done — 67%).
+- Tests: 415/415 ctest + run_tests green (WP-1: 8 `ItemContactGraphTest`, WP-2: 3 new `NetIncompletesTest` cases).
