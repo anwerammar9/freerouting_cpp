@@ -16,10 +16,10 @@
 | DRC | 7 | 1 | 1 | 5 | 29% |
 | Settings | 21 | 2 | 4 | 15 | 29% |
 | Core | 36 | 6 | 1 | 29 | 19% |
-| Scoring | 12 | 3 | 0 | 9 | 25% |
+| Scoring | 12 | 5 | 0 | 7 | 42% |
 | Management | 18 | 2 | 0 | 16 | 11% |
 | BoardGraphics | 8 | 0 | 0 | 8 | 0% |
-| **TOTAL** | **289** | **142** | **21** | **126** | **49%** |
+| **TOTAL** | **289** | **144** | **21** | **124** | **50%** |
 
 ---
 
@@ -114,32 +114,34 @@ Scanner, Structure, Network, Library, Placement, SessionWriter, Circle, Polygon,
 ### Done: FileFormat, RoutingJob, RoutingStage, StopRequestState, Package, Session
 ### Missing: Padstack/Padstacks, BoardFileDetails (6576 lines), BoardLibrary (4980 lines), Packages, StoppableThread, all 6 event classes
 
-## Module: Scoring (25%)
+## Module: Scoring (42%)
 
-### Compiled & Tested (3 classes)
-BoardStatistics, BoardStatisticsBoard, BoardStatisticsLayers, BoardStatisticsItems, BoardStatisticsComponents, BoardStatisticsPads, BoardStatisticsNets, BoardStatisticsConnections, BoardStatisticsTraces, BoardStatisticsBends, BoardStatisticsVias, BoardStatisticsClearanceViolations
+### Compiled & Tested (14 classes)
+BoardStatistics, BoardStatisticsBoard, BoardStatisticsLayers, BoardStatisticsItems, BoardStatisticsComponents, BoardStatisticsPads, BoardStatisticsNets, BoardStatisticsConnections, BoardStatisticsTraces, BoardStatisticsBends, BoardStatisticsVias, BoardStatisticsClearanceViolations, BoardStatisticsDifficulty, BoardStatisticsFanout
 
 ### Not Migrated (9 classes)
 | Class | Lines | Priority | Notes |
 |-------|-------|----------|-------|
-| BoardStatisticsBoard | 16 | LOW | Data holder, C++ port in progress |
+| BoardStatisticsBoard | 16 | LOW | Data holder (areaCm2 added) |
 | BoardStatisticsLayers | 15 | LOW | Data holder |
 | BoardStatisticsItems | 28 | LOW | Data holder |
 | BoardStatisticsComponents | 13 | LOW | Data holder |
 | BoardStatisticsPads | 13 | LOW | Data holder |
 | BoardStatisticsNets | 15 | LOW | Data holder |
 | BoardStatisticsConnections | 12 | LOW | Data holder |
-| BoardStatisticsTraces | 34 | LOW | Data holder |
+| BoardStatisticsTraces | 34 | LOW | Data holder (totalLengthMm added) |
 | BoardStatisticsBends | 19 | LOW | Data holder |
 
-### Completed (3 classes)
+### Completed (5 classes)
 - BoardStatistics (main class) - full port from Java BoardStatistics.java
 - BoardStatisticsBoard (data holder)
 - BoardStatisticsLayers (data holder)
+- BoardStatisticsDifficulty (data holder)
+- BoardStatisticsFanout (data holder)
 
 ### Critical Missing
-- `BoardStatistics` full implementation needs `init_from_board()` with all item counting, trace analysis, bend calculation, via classification
-- `calculateScore()`, `getMaximumScore()`, `getNormalizedScore()` need proper scoring logic from RouterScoringSettings
+- None — `init_from_board()` (item counting, trace analysis, bends, vias, difficulty, fanout, unit conversion), `calculateScore()/getMaximumScore()/getNormalizedScore()`, and the DSN/SES file constructor are all implemented and tested (11 BoardStatistics gtest cases, 422/422 ctest).
+- Open parity gap: `pin_is_escaped` approximates Java's `clearanceViolations().isEmpty()` check away (DRC module not yet ported).
 
 ## Module: Interactive (67%)
 

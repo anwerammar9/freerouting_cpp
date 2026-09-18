@@ -47,34 +47,28 @@ Each WP is self-contained for parallel agent execution. See `04_IMPLEMENTATION_P
 - Per-net item lists, incomplete count, length violations
 - Airlines, recalculate, filter, hidden nets
 
-## WP-4: BoardStatistics + Scoring
+## WP-4: BoardStatistics + Scoring (COMPLETED 2026-09-18)
 
 **Java refs**: BoardStatistics.java + 11 substructs
-**C++ files**: src/core/scoring/BoardStatistics.{h,cpp} (new)
-**Note:** Must go in separate `freerouting_scoring` lib (layering constraint)
+**C++ files**: src/core/scoring/BoardStatistics.{h,cpp}, src/core/scoring/CMakeLists.txt
+**Note**: lives in separate `freerouting_scoring` lib (layering constraint)
+
+### Completed
+- `BoardStatistics` main class with all sub-structs as nested types; `freerouting_scoring` lib builds
+- 4 gtest tests (CanCreateFromBoard/DSN/SES, ScoreCalculation) + 7 new = 11 green
+- **`init_from_board()` full parity**: host fallback `"Freerouting," + FREEROUTING_VERSION`; unit defaults to MM (Java) when none requested, else unit conversion via `UnitHelper::scale`; `board_.areaCm2` (mm×mm/100); `difficulty_` = {pinCount, signalLayerCount, C=max(1,distance), boardAreaCm2, D=C}; `traces_.totalLengthMm` (mm-normalised); `fanout_` via `pin_is_fully_connected`/`pin_is_escaped` over SMD pins (`first_layer()==last_layer()`)
+- **Scoring parity**: `traceLengthForCost = totalLengthMm != 0 ? totalLengthMm : totalLength`; costs = length×defaultPreferredDirectionTraceCost + vias×via_costs; penalties = incomplete×unroutedNetPenalty + clearance×clearanceViolationPenalty + bends×bendPenalty; `getNormalizedScore` returns 0 when `maxScore <= 0`
+- **File ctor**: DSN scans whole content for `(hostCad)`/`(hostVersion)` quoted values + counts `(layer`/`(component`/`(class`/`(net`/`(wire`/`(via`; SES counts `(path <layer>` layer names + `(component`/`(net`/`(wire`/`(via`
+- Fixed ordering bug: `Pin` branch moved before `DrillItem` branch in item counting (pins were misclassified, pinCount always 0)
+- Tests verified 422/422 ctest + run_tests PASSED
+
+### Key Java parity notes
+- `max_connections = total_item_count - max_net_no` (Java RatsNest) degrades negative on empty boards — mirrored; normalisation clamps to 0
+- `pin_is_escaped` approximates Java's `clearanceViolations().isEmpty()` away (no DRC module yet)
 
 ## WP-5: Core Tests + CMake + Docs
 
 Register gtests for WP-1..4, update docs/migration/INDEX.md, verify ctest green.
-
-## WP-4: BoardStatistics + Scoring (IN PROGRESS)
-
-**Java refs**: BoardStatistics.java + 11 substructs
-**C++ files**: src/core/scoring/BoardStatistics.{h,cpp}, src/core/scoring/CMakeLists.txt
-**Note**: Must go in separate `freerouting_scoring` lib (layering constraint)
-
-### Completed
-- `BoardStatistics` main class created with all sub-structs as nested types
-- `BoardStatistics.h` and `BoardStatistics.cpp` created
-- `freerouting_scoring` library created and builds successfully
-- 4 gtest tests created and passing (CanCreateFromBoard, CanCreateFromDSN, CanCreateFromSES, ScoreCalculation)
-- Test registered in `tests/CMakeLists.txt`
-
-### TODO
-- `init_from_board()` needs full implementation with item counting, trace analysis, bend calculation, via classification
-- `calculateScore()`, `getMaximumScore()`, `getNormalizedScore()` need proper scoring logic
-- File-based constructors need full SES/DSN parsing
-- Unit conversion needs proper implementation
 
 ## WP-6: RoutingJob / Session / BoardFileDetails
 

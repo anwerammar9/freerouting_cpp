@@ -47,11 +47,11 @@
 | BoardUpdatedEventListener | N/A | LOW | Event listener interface |
 | TaskStateChangedEventListener | N/A | LOW | Event listener interface |
 
-### Scoring Submodule (Not Migrated)
+### Scoring Submodule (Fully Migrated: BoardStatistics.java)
 
 | Java Class | Java Lines | Priority | Dependencies / Notes |
 |------------|-----------|----------|---------------------|
-| BoardStatistics | 425 | MED | Board statistics |
+| BoardStatistics | 425 | MED | **MIGRATED (2026-09-18)** → `src/core/scoring/BoardStatistics.{h,cpp}`, lib `freerouting_scoring`. All 12 nested substructs + `BoardStatisticsDifficulty` + `BoardStatisticsFanout` in header. `init_from_board()` (host fallback `"Freerouting,"+VERSION`, MM-default units, areaCm2, difficulty C/D, totalLengthMm, fanout), Java-exact `calculateScore`/`getMaximumScore`/`getNormalizedScore`, DSN/SES file ctor (hostCad/hostVersion + token counting). 11 gtest cases. Wait: `pin_is_escaped` approximates Java's `clearanceViolations().isEmpty()` away (no DRC yet). |
 | BoardStatisticsWithNetInfo | N/A | MED | Per-net statistics |
 | DetailedBoardStatistics | N/A | MED | Detailed stats |
 | EstimatedRouteResult | N/A | LOW | Estimated results |
@@ -66,7 +66,7 @@
 
 ## Summary
 
-- **Done**: 6 classes (17% of Java files)
+- **Done**: 7 classes (19% of Java files)
 - **Partial**: 1 class (3%)
-- **Remaining**: 29 classes (80%), including critical Padstack and BoardFileDetails
+- **Remaining**: 28 classes (78%), including critical Padstack and BoardFileDetails
 - **Blockers**: BoardFileDetails/BoardLibrary are very large (6576/4980 lines) and critical for file I/O; Padstack needed for board item construction; Scoring/events are optional for headless routing

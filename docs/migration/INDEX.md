@@ -1,7 +1,7 @@
 # Migration Status Index
 
 **Project**: Freerouting Java -> C++ Migration
-**Last Updated**: 2026-09-13
+**Last Updated**: 2026-09-18
 
 ---
 
@@ -27,16 +27,16 @@
 ## Totals
 
 - **Total Java Files**: 289
-- **Fully Migrated**: 142 (49%)
+- **Fully Migrated**: 144 (50%)
 - **Partially Migrated**: 21 (7%)
-- **Not Migrated**: 126 (44%)
+- **Not Migrated**: 124 (43%)
 
 ## Critical Path (DSN -> Route -> SES)
 
 1. `geometry/planar` - Foundation primitives (100% by selection: 34/34, incl. rational `IntPoint`-substitutes via `cpp_int`, full `Shape` interface surface, `Area` interface + `PolygonArea`/`PolylineArea`/`TileShape`)
 2. `datastructures` - Supporting data structures (ShapeTree/MinAreaTree complete)
 3. `rules` - Design rules (100% done)
-4. `board` - Board representation (98% headless; 50/51; PullTight/ForcedPad/ForcedVia/MoveDrillItemAlgo/MoveComponent/OptVia compiled (WIP), RoutingBoard facade stubs `combine_traces`/`get_outline`/`contains_trace_tails`/`get_trace_tail` ported, `BoardOutline` restored to build; **WP-1 contact graph done** (2026-09-18): `first_common_layer`, `get_connection_items`, `is_fanout_via`, `DrillItem` padstack-derived layer range, `normal_contact_point` for Trace/DrillItem; **WP-2 NetIncompletes done** (2026-09-18): `connected_group_count`, `join_connected_sets` aliasing fix; **415/415 ctest**, headless `DSN→SES` verified on hw48na at 19%; headless blockers `ShoveTraceAlgo::spring_over`, `PullTight*` quality paths)
+4. `board` - Board representation (98% headless; 50/51; PullTight/ForcedPad/ForcedVia/MoveDrillItemAlgo/MoveComponent/OptVia compiled (WIP), RoutingBoard facade stubs `combine_traces`/`get_outline`/`contains_trace_tails`/`get_trace_tail` ported, `BoardOutline` restored to build; **WP-1 contact graph done** (2026-09-18): `first_common_layer`, `get_connection_items`, `is_fanout_via`, `DrillItem` padstack-derived layer range, `normal_contact_point` for Trace/DrillItem; **WP-2 NetIncompletes done** (2026-09-18): `connected_group_count`, `join_connected_sets` aliasing fix; **WP-3 RatsNest done**; **WP-4 BoardStatistics+Scoring done** (2026-09-18): `init_from_board` (host/units/areaCm2/difficulty/fanout/totalLengthMm), Java-exact scoring, DSN/SES file ctor, 11 BoardStatistics gtests; **422/422 ctest**, headless `DSN→SES` verified on hw48na at 19%; headless blockers `ShoveTraceAlgo::spring_over`, `PullTight*` quality paths)
 5. `autoroute` - Routing engine (21/35 compiled; 413/413 ctest tests pass)
 6. `designforms/specctra` - DSN/SES I/O (32% done) — the missing link for real DSN->route->SES runs
 

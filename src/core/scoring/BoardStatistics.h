@@ -31,6 +31,7 @@ namespace scoring {
 struct BoardStatisticsBoard {
     geometry::planar::FloatPoint boundingBox = {0, 0};
     geometry::planar::FloatPoint size = {0, 0};
+    float areaCm2 = 0;
 };
 
 // Sub-struct mirrors Java BoardStatisticsLayers
@@ -77,6 +78,7 @@ struct BoardStatisticsConnections {
 struct BoardStatisticsTraces {
     int totalCount = 0;
     float totalLength = 0;
+    float totalLengthMm = 0;
     float averageLength = 0;
     int totalSegmentCount = 0;
     float totalHorizontalLength = 0;
@@ -106,6 +108,22 @@ struct BoardStatisticsClearanceViolations {
     int totalCount = 0;
 };
 
+// Sub-struct mirrors Java BoardStatisticsDifficulty
+struct BoardStatisticsDifficulty {
+    int pinCount = 0;
+    int signalLayerCount = 0;
+    int complexityC = 0;
+    float boardAreaCm2 = 0;
+    float difficultyD = 0;
+};
+
+// Sub-struct mirrors Java BoardStatisticsFanout
+struct BoardStatisticsFanout {
+    int totalSmdPins = 0;
+    int pinsToEscape = 0;
+    int escapedCount = 0;
+};
+
 class BoardStatistics
 {
 public:
@@ -125,6 +143,22 @@ public:
     int totalCount() const { return items_.totalCount; }
     int traceCount() const { return items_.traceCount; }
     int viaCount() const { return items_.viaCount; }
+    float board_area_cm2() const { return board_.areaCm2; }
+    float total_length_mm() const { return traces_.totalLengthMm; }
+    int difficulty_pin_count() const { return difficulty_.pinCount; }
+    int difficulty_signal_layer_count() const { return difficulty_.signalLayerCount; }
+    int difficulty_complexity_c() const { return difficulty_.complexityC; }
+    float difficulty_d() const { return difficulty_.difficultyD; }
+    int fanout_total_smd_pins() const { return fanout_.totalSmdPins; }
+    int fanout_pins_to_escape() const { return fanout_.pinsToEscape; }
+    int fanout_escaped_count() const { return fanout_.escapedCount; }
+    const std::string& host() const { return host_; }
+    int total_layers() const { return layers_.totalCount; }
+    int net_count() const { return nets_.totalCount; }
+    int net_class_count() const { return nets_.classCount; }
+    int component_count() const { return components_.totalCount; }
+    int trace_count() const { return traces_.totalCount; }
+    int via_count() const { return vias_.totalCount; }
 
 private:
     void init_from_board(board::RoutingBoard* board, const std::string& unit);
@@ -140,6 +174,8 @@ private:
     BoardStatisticsBends bends_;
     BoardStatisticsVias vias_;
     BoardStatisticsClearanceViolations clearanceViolations_;
+    BoardStatisticsDifficulty difficulty_;
+    BoardStatisticsFanout fanout_;
     std::string host_;
     std::string unit_;
 };
