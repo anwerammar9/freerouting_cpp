@@ -22,6 +22,11 @@ class Stoppable;
 
 namespace freerouting::autoroute {
 
+class IncompleteExpansionRoom;
+class IncompleteFreeSpaceExpansionRoom;
+class CompleteExpansionRoom;
+class CompleteFreeSpaceExpansionRoom;
+
 class AutorouteEngine {
 public:
     AutorouteEngine(board::RoutingBoard* p_board, int p_trace_clearance_class_no, bool p_maintain_database);
@@ -46,7 +51,35 @@ public:
                                                 const std::set<board::Item*>& p_dest_set,
                                                 const AutorouteControl& p_ctrl);
 
-    board::ShapeSearchTree* get_autoroute_search_tree() { return autoroute_search_tree_.get(); }
+    board::ShapeSearchTree* get_autoroute_search_tree()
+    {
+        ensure_search_tree_initialized();
+        return autoroute_search_tree_.get();
+    }
+
+    /** Returns the routing board of this autoroute engine. Mirrors Java AutorouteEngine.board. */
+    board::RoutingBoard* board() { return board_; }
+
+    /**
+     * Adds p_room to the internal database of incomplete expansion rooms of
+     * this engine. Takes ownership of p_room. Mirrors Java
+     * AutorouteEngine.addIncompleteExpansionRoom().
+     */
+    IncompleteFreeSpaceExpansionRoom* add_incomplete_expansion_room(IncompleteFreeSpaceExpansionRoom* p_room);
+
+    /**
+     * Completes the shape of p_room and returns the resulting complete free
+     * space expansion rooms. p_room itself is not modified or retained.
+     * Mirrors Java AutorouteEngine.completeExpansionRoom().
+     *
+     * Note (WP-9): the full ShapeSearchTree.complete_shape() free-space
+     * expansion (Java blocker "MazeSearchAlgo" dependency 6) is not ported
+     * yet. This port completes p_room as a single CompleteFreeSpaceExpansionRoom
+     * with p_room's current 2-dimensional shape and registers it in the engine
+     * database. The result is the exact empty-board behaviour of Java; rooms
+     * that would be split around obstacles need the complete_shape port.
+     */
+    std::vector<CompleteFreeSpaceExpansionRoom*> complete_expansion_room(IncompleteExpansionRoom* p_room);
 
     static constexpr int TRACE_WIDTH_TOLERANCE = 2;
 
@@ -64,9 +97,23 @@ private:
     
     // Lazy initialization of search tree
     void ensure_search_tree_initialized();
-    
-    std::vector<void*> incomplete_expansion_rooms_;
-    std::vector<void*> complete_expansion_rooms_;
+
+    /**
+     * Removes all net dependent complete free space expansion rooms from the
+     * database. Mirrors the net-change handling of Java
+     * AutorouteEngine.initConnection().
+     */
+    void remove_net_dependent_rooms();
+
+    /**
+     * Removes a complete expansion room from the database and the search tree.
+     * Mirrors Java AutorouteEngine.removeCompleteExpansionRoom() without the
+     * neighbour split (C++ rooms currently have no doors).
+     */
+    void remove_complete_expansion_room(CompleteFreeSpaceExpansionRoom* p_room);
+
+    std::vector<std::unique_ptr<IncompleteFreeSpaceExpansionRoom>> incomplete_expansion_rooms_;
+    std::vector<std::unique_ptr<CompleteFreeSpaceExpansionRoom>> complete_expansion_rooms_;
     int expansion_room_instance_count_ = 0;
 };
 

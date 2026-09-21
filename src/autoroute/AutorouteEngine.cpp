@@ -90,6 +90,13 @@ bool AutorouteEngine::is_stop_requested() const
 
 void AutorouteEngine::init_connection(int p_net_no, datastructures::Stoppable* p_stoppable, int64_t p_time_limit_ms)
 {
+    if (maintain_database_ && p_net_no != net_no_)
+    {
+        // When the autorouting database is retained across nets, rooms which
+        // overlap net dependent objects cannot be reused for the new net.
+        // Mirrors Java AutorouteEngine.initConnection().
+        remove_net_dependent_rooms();
+    }
     net_no_ = p_net_no;
     stoppable_ = p_stoppable;
     if (p_time_limit_ms > 0)
@@ -422,14 +429,109 @@ int AutorouteEngine::get_net_no() const
 
 void AutorouteEngine::clear()
 {
+    // Remove the incomplete rooms from the database and the complete rooms
+    // from the database and the search tree. Mirrors Java
+    // AutorouteEngine.clear().
+    if (autoroute_search_tree_)
+    {
+        for (auto& room : complete_expansion_rooms_)
+        {
+            room->remove_from_tree(*autoroute_search_tree_);
+        }
+    }
     incomplete_expansion_rooms_.clear();
     complete_expansion_rooms_.clear();
     expansion_room_instance_count_ = 0;
 }
 
+void AutorouteEngine::remove_net_dependent_rooms()
+{
+    std::vector<CompleteFreeSpaceExpansionRoom*> rooms_to_remove;
+    for (auto& room : complete_expansion_rooms_)
+    {
+        if (room->is_net_dependent())
+        {
+            rooms_to_remove.push_back(room.get());
+        }
+    }
+    for (CompleteFreeSpaceExpansionRoom* room : rooms_to_remove)
+    {
+        remove_complete_expansion_room(room);
+    }
+}
+
+void AutorouteEngine::remove_complete_expansion_room(CompleteFreeSpaceExpansionRoom* p_room)
+{
+    if (p_room == nullptr)
+    {
+        return;
+    }
+    if (autoroute_search_tree_)
+    {
+        p_room->remove_from_tree(*autoroute_search_tree_);
+    }
+    auto it = std::find_if(complete_expansion_rooms_.begin(), complete_expansion_rooms_.end(),
+        [p_room](const std::unique_ptr<CompleteFreeSpaceExpansionRoom>& ptr) { return ptr.get() == p_room; });
+    complete_expansion_rooms_.erase(it);
+}
+
 int AutorouteEngine::generate_room_id_no()
 {
     return ++expansion_room_instance_count_;
+}
+
+IncompleteFreeSpaceExpansionRoom* AutorouteEngine::add_incomplete_expansion_room(
+    IncompleteFreeSpaceExpansionRoom* p_room)
+{
+    if (p_room == nullptr)
+    {
+        return nullptr;
+    }
+    incomplete_expansion_rooms_.push_back(std::unique_ptr<IncompleteFreeSpaceExpansionRoom>(p_room));
+    return p_room;
+}
+
+std::vector<CompleteFreeSpaceExpansionRoom*> AutorouteEngine::complete_expansion_room(
+    IncompleteExpansionRoom* p_room)
+{
+    std::vector<CompleteFreeSpaceExpansionRoom*> result;
+    if (p_room == nullptr)
+    {
+        return result;
+    }
+    geometry::planar::IntBox room_shape = p_room->get_shape();
+    if (room_shape.dimension() < 2)
+    {
+        // A sub-2-dimensional room (e.g. the unit search shape of a drill
+        // location) is inflated to a tiny 2-dimensional box. Java grows the
+        // room to the neighbouring free space via the search tree; that port
+        // (ShapeSearchTree.complete_shape, blocker 6) is not present yet.
+        room_shape = room_shape.offset(1.0);
+    }
+    if (room_shape.dimension() != 2)
+    {
+        return result;
+    }
+    auto completed_room =
+        std::make_unique<CompleteFreeSpaceExpansionRoom>(p_room->get_layer(),
+                                                         generate_room_id_no(),
+                                                         room_shape);
+    CompleteFreeSpaceExpansionRoom* completed_room_ptr = completed_room.get();
+    complete_expansion_rooms_.push_back(std::move(completed_room));
+    // Store the completed room in the autoroute search tree so that later
+    // lookups (e.g. subsequent drills on the same location) find it.
+    // Mirrors Java AutorouteEngine.addCompleteRoom().
+    board::ShapeSearchTree* search_tree = get_autoroute_search_tree();
+    if (search_tree != nullptr)
+    {
+        search_tree->insert(*completed_room_ptr);
+    }
+    result.push_back(completed_room_ptr);
+    logger::FRLogger::instance().trace(
+        "AutorouteEngine.complete_expansion_room: net=" + std::to_string(net_no_)
+        + ", layer=" + std::to_string(completed_room_ptr->get_layer())
+        + ", room_id=" + std::to_string(completed_room_ptr->get_room_id()));
+    return result;
 }
 
 } // namespace freerouting::autoroute

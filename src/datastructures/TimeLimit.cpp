@@ -18,6 +18,10 @@ bool TimeLimit::limit_exceeded() const
 
 void TimeLimit::multiply(double p_factor)
 {
+    if (p_factor <= 0.0)
+    {
+        return;
+    }
     time_limit_ = static_cast<int64_t>(time_limit_ * p_factor);
 }
 

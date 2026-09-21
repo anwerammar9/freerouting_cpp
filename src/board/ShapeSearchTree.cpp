@@ -1,6 +1,7 @@
 #include "board/ShapeSearchTree.h"
 #include "board/BasicBoard.h"
 #include "board/Item.h"
+#include "board/SearchTreeObject.h"
 #include "geometry/planar/FortyfiveDegreeBoundingDirections.h"
 #include "geometry/planar/IntBox.h"
 #include "geometry/planar/IntOctagon.h"
@@ -92,6 +93,11 @@ void ShapeSearchTree::insert(Item* p_item, int p_shape_index)
     std::vector<std::unique_ptr<ShapeTree::Leaf>> entries = p_item->take_search_tree_entries(*this);
     entries.push_back(std::move(new_leaf));
     p_item->set_search_tree_entries(std::move(entries), *this);
+}
+
+void ShapeSearchTree::insert(SearchTreeObject& p_object)
+{
+    ::freerouting::datastructures::ShapeTree::insert(p_object);
 }
 
 void ShapeSearchTree::remove(Item* p_item)
@@ -439,19 +445,11 @@ int ShapeSearchTree::clearance_compensation_value(int p_clearance_class_no, int 
 
 void ShapeSearchTree::clear()
 {
+    // Removes all leaves generically. This also covers non-Item storables
+    // (e.g. complete expansion rooms), which would be an invalid
+    // static_cast to Item otherwise.
     std::vector<ShapeTree::Leaf*> leaves = this->to_array();
-    std::set<Item*> items;
-    for (ShapeTree::Leaf* leaf : leaves)
-    {
-        if (leaf != nullptr && leaf->object != nullptr)
-        {
-            items.insert(static_cast<Item*>(leaf->object));
-        }
-    }
-    for (Item* item : items)
-    {
-        remove(item);
-    }
+    ::freerouting::datastructures::ShapeTree::remove(leaves);
 }
 
 bool ShapeSearchTree::validate_entries(Item* p_item) const

@@ -4,6 +4,8 @@
 #include "board/ShapeSearchTree.h"
 #include "logger/FRLogger.h"
 
+#include <set>
+
 namespace freerouting::autoroute {
 
 ExpansionDrill::ExpansionDrill(const geometry::planar::IntBox& p_shape,
@@ -60,10 +62,57 @@ bool ExpansionDrill::calculate_expansion_rooms(AutorouteEngine* p_autoroute_engi
         return false;
     }
 
+    // Look up all search tree objects overlapping the drill location. The
+    // autoroute search tree is queried without a layer restriction so that
+    // rooms of all layers are found. Mirrors Java
+    // ExpansionDrill.calculateExpansionRooms().
+    const geometry::planar::IntBox search_shape = geometry::planar::TileShape::get_instance(location);
+    std::set<board::SearchTreeObject*, board::TreeStorableLess> overlaps =
+        search_tree->overlapping_objects(search_shape, -1);
+
     for (int i = first_layer; i <= last_layer; ++i)
     {
         int idx = i - first_layer;
-        room_arr[idx] = nullptr;
+        CompleteExpansionRoom* found_room = nullptr;
+
+        for (auto* current_object : overlaps)
+        {
+            auto* current_room = dynamic_cast<CompleteExpansionRoom*>(current_object);
+            if (current_room == nullptr)
+            {
+                continue;
+            }
+            if (current_room->get_layer() == i)
+            {
+                // A stored room is reused only if the drill location lies
+                // inside it. Java relies on complete rooms being maximal free
+                // spaces (the location is always contained). The C++ interim
+                // rooms are tiny boxes around the drill location (complete_shape
+                // is not ported yet), so an explicit containment check prevents
+                // reusing a foreign room for a neighbouring drill location.
+                if (current_room->get_shape().contains(location))
+                {
+                    found_room = current_room;
+                    break;
+                }
+            }
+        }
+
+        if (found_room == nullptr)
+        {
+            // create a new expansion room on this layer
+            IncompleteFreeSpaceExpansionRoom new_incomplete_room(nullptr, i, search_shape);
+            std::vector<CompleteFreeSpaceExpansionRoom*> new_rooms =
+                p_autoroute_engine->complete_expansion_room(&new_incomplete_room);
+            if (new_rooms.size() != 1)
+            {
+                // the size may be 0 because of an obstacle in the compensated
+                // tree at this.location
+                return false;
+            }
+            found_room = new_rooms[0];
+        }
+        room_arr[idx] = found_room;
     }
 
     return true;

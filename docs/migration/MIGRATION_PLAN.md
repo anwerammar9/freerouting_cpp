@@ -192,7 +192,7 @@ Each: port Java → C++, add to module CMake, register gtests, update `docs/migr
 | WP-10 | drc | `DesignRulesChecker`, `DrcReport`, `UnconnectedItems` (needs RatsNest) | depends on WP-1..3 |
 | WP-11 | designforms/specctra | `SpecctraDsnStreamReader` (**top blocker**), `SpecctraSesFileWriter`, `P*` parser support classes, `SessionWriter` uses existing `Session*` | `Scanner.cpp`/`read_dsn` works; biggest impact (DSN→route→SES) |
 | WP-12 | boardgraphics | all 8 (GUI) | low priority until GUI target exists |
-| WP-13 | autoroute | `BatchOptimizer{,MultiThreaded}`, `DrillPage`, `BoardHistory` (entry ported), `CompleteExpansionRoom`, `FreeSpaceExpansionRoom`, `ObstacleExpansionRoom`, `MazeShoveTraceAlgo`, `Sorted*RoomNeighbours`, `RouterOptimizerSettings` dep | |
+| WP-13 | autoroute | `BatchOptimizer{,MultiThreaded}`, `BoardHistory` (entry ported), `CompleteExpansionRoom`, `FreeSpaceExpansionRoom`, `ObstacleExpansionRoom`, `MazeShoveTraceAlgo`, `Sorted*RoomNeighbours`, `RouterOptimizerSettings` dep | DrillPage/DrillPageArray/ExpansionDrill done (WP-9) |
 | WP-14 | interactive | `HeadlessBoardManager`, `Route`, `ThreadActionListener` | depends on routing stack |
 | WP-15 | board | `ForcedViaAlgo`, `MoveDrillItemAlgo`, `OptViaAlgo`, `PullTight*` remainder | headless blockers listed in `MIGRATION_board.md` |
 

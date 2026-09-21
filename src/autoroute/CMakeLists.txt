@@ -9,6 +9,8 @@ add_library(freerouting_autoroute STATIC
     BoardUpdateStrategy.cpp
     Connection.cpp
     DestinationDistance.cpp
+    DrillPage.cpp
+    DrillPageArray.cpp
     ExpansionDrill.cpp
     ExpansionRoom.cpp
     InsertFoundConnectionAlgo.cpp
@@ -28,7 +30,6 @@ add_library(freerouting_autoroute STATIC
 
 # Not yet compiled (blocked on unported Java dependencies or stale drafts):
 #   BoardHistoryEntry.cpp            -> settings/RouterScoringSettings, core/scoring (not ported)
-#   DrillPageArray.cpp               -> DrillPage (Java only)
 #   IncompleteFreeSpaceExpansionRoom.cpp  -> FreeSpaceExpansionRoom draft (canonical lives in ExpansionRoom.h)
 #   OptimizeRouteTask.cpp            -> BatchOptimizer/BatchOptimizerMultiThreaded (Java only)
 #   TargetItemExpansionDoor.cpp      -> shared_ptr-based draft conflicting with ExpansionRoom.h

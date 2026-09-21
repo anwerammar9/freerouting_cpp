@@ -90,6 +90,55 @@ geometry::planar::IntBox CompleteFreeSpaceExpansionRoom::get_shape() const
     return shape_;
 }
 
+int CompleteFreeSpaceExpansionRoom::tree_shape_count(const datastructures::ShapeTree& p_tree) const
+{
+    (void)p_tree;
+    return 1;
+}
+
+const geometry::planar::TileShape* CompleteFreeSpaceExpansionRoom::get_tree_shape(
+    const datastructures::ShapeTree& p_tree, int p_index) const
+{
+    (void)p_tree;
+    if (p_index != 0)
+    {
+        return nullptr;
+    }
+    return &shape_;
+}
+
+void CompleteFreeSpaceExpansionRoom::set_search_tree_entries(
+    std::vector<std::unique_ptr<datastructures::ShapeTree::Leaf>> p_entries, datastructures::ShapeTree& p_tree)
+{
+    (void)p_tree;
+    tree_entries_ = std::move(p_entries);
+}
+
+int CompleteFreeSpaceExpansionRoom::compare_to(const datastructures::ShapeTree::Storable& p_other) const
+{
+    // Mirrors Java CompleteFreeSpaceExpansionRoom.compareTo(): rooms are
+    // ordered by reversed id before any non-room object.
+    const CompleteFreeSpaceExpansionRoom* other =
+        dynamic_cast<const CompleteFreeSpaceExpansionRoom*>(&p_other);
+    if (other == nullptr)
+    {
+        return -1;
+    }
+    return other->room_id_ - room_id_;
+}
+
+void CompleteFreeSpaceExpansionRoom::remove_from_tree(board::ShapeSearchTree& p_tree)
+{
+    std::vector<datastructures::ShapeTree::Leaf*> raw_entries;
+    raw_entries.reserve(tree_entries_.size());
+    for (auto& entry : tree_entries_)
+    {
+        raw_entries.push_back(entry.get());
+    }
+    static_cast<datastructures::ShapeTree&>(p_tree).remove(raw_entries);
+    tree_entries_.clear();
+}
+
 ObstacleExpansionRoom::ObstacleExpansionRoom(board::Item* p_item, int p_index_in_item, int p_layer, const geometry::planar::IntBox& p_shape)
     : CompleteExpansionRoom(p_layer, 0), item_(p_item), index_in_item_(p_index_in_item), shape_(p_shape)
 {

@@ -87,7 +87,7 @@ ctest --test-dir build --output-on-failure
 ## Dependency Graph (What to Migrate Next)
 
 ```
-DONE: geometry, rules, logger, constants, datastructures(core), board(84%), autoroute(60%)
+DONE: geometry, rules, logger, constants, datastructures(core), board(84%), autoroute(66%)
                           │
                           ▼
    WP-1: Contact graph (Item contacts + DrillItem contacts)
@@ -113,7 +113,7 @@ DONE: geometry, rules, logger, constants, datastructures(core), board(84%), auto
 2. `datastructures` — ✅ Core done
 3. `rules` — ✅ Done
 4. `board` — 84% headless (41/49)
-5. `autoroute` — 60% (21/35 compiled)
+5. `autoroute` — 66% (23/35 compiled)
 6. `designforms/specctra` — 32% (DSN load works, SES write partial)
 7. `drc` — 29%
 8. `settings` — 29%

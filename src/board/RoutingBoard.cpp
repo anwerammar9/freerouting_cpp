@@ -10,6 +10,7 @@
 #include "board/SearchTreeManager.h"
 #include "board/Trace.h"
 #include "board/Via.h"
+#include "board/PullTightAlgo.h"
 #include "geometry/planar/IntOctagon.h"
 #include "geometry/planar/LineSegment.h"
 #include "geometry/planar/Simplex.h"
@@ -76,6 +77,29 @@ void RoutingBoard::opt_changed_area(const std::vector<int>& p_nets_to_optimize,
                                     std::function<bool()> p_cancel_callback,
                                     int64_t p_time_limit_ms)
 {
+    if (!changed_area_ || p_tidy_region == nullptr || p_tidy_region->is_empty())
+    {
+        return;
+    }
+
+    // Convert void* p_stoppable to datastructures::Stoppable*
+    auto* stoppable = static_cast<datastructures::Stoppable*>(p_stoppable);
+
+    // Create PullTightAlgo instance and run optimization
+    // Mirrors Java RoutingBoardOperations.optChangedArea
+    auto pull_tight_algo = PullTightAlgo::get_instance(
+        this, p_nets_to_optimize, p_tidy_region, p_pull_tight_accuracy, stoppable,
+        static_cast<int>(p_time_limit_ms), nullptr, -1);
+    if (pull_tight_algo)
+    {
+        pull_tight_algo->opt_changed_area(nullptr);
+    }
+
+    // Notify graphics update (if any)
+    join_graphics_update_box(changed_area_->surrounding_box());
+
+    // Clear the changed area
+    changed_area_->clear();
 }
 
 void RoutingBoard::combine_traces(int p_net_no)
@@ -859,8 +883,18 @@ Via* RoutingBoard::insert_via(Padstack* p_padstack,
     // Register the via in the search tree so traces can connect to it and the
     // autorouter can see it as an obstacle/connection point.
     get_search_tree_manager()->insert(new_via);
-    // TODO: split traces at the via location once split_traces is ported
-    // (Java BasicBoard.insert_via splits traces on layers from_layer..to_layer-1).
+
+    // Split traces on all layers spanned by the via padstack (from_layer .. to_layer-1).
+    // Mirrors Java BasicBoard.insertVia / insertEscapeVia.
+    int from_layer = p_padstack->get_from_layer();
+    int to_layer = p_padstack->get_to_layer();
+    for (int layer = from_layer; layer < to_layer; ++layer)
+    {
+        for (int net_no : p_net_no_arr)
+        {
+            split_traces(center, layer, net_no);
+        }
+    }
     return new_via;
 }
 

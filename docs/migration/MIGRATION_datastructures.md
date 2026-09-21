@@ -12,8 +12,8 @@
 |------------|-----------|----------|------|-----------|-------|
 | Signum | Signum.h | Signum.cpp | - | 69 | Sign function utility |
 | UndoableObjects | UndoableObjects.h | UndoableObjects.cpp | UndoableObjects_test | 338 | Undo system; full port with restore lists in this session |
-| Stoppable | Stoppable.h | Stoppable.cpp | - | 17 | Stop request flag |
-| TimeLimit | TimeLimit.h | TimeLimit.cpp | - | 40 | Time based stop limit |
+| Stoppable | Stoppable.h | Stoppable.cpp | Stoppable_test | 17 | Stop request flag |
+| TimeLimit | TimeLimit.h | TimeLimit.cpp | TimeLimit_test | 40 | Time based stop limit |
 | ShapeTree | ShapeTree.h | ShapeTree.cpp | datastructures_shape_tree_test | 254 | Abstract shape search tree; ported in this session |
 | MinAreaTree | MinAreaTree.h | MinAreaTree.cpp | datastructures_shape_tree_test | 180 | Min area binary search tree; ported in this session |
 | BigIntAux | BigIntAux.h | Header-only | BigIntAux_test | 113 | Determinant, rational coordinate addition, and unsigned binary GCD |

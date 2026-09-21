@@ -17,6 +17,13 @@ public:
 
     bool is_pin() const override { return true; }
 
+    /**
+     * Returns true, if vias through the pads of this pin are allowed, false,
+     * otherwise. Currently, drills are allowed to SMD-pins.
+     * Mirrors Java Pin.drill_allowed().
+     */
+    bool drill_allowed() const { return first_layer() == last_layer(); }
+
     int get_pin_no() const { return pin_no_; }
     Pin* get_changed_to() const { return changed_to_; }
     void set_changed_to(Pin* p_pin) { changed_to_ = p_pin; }

@@ -28,6 +28,12 @@ public:
     geometry::planar::IntOctagon get_area(int p_layer) const;
 
     /**
+     * Returns the bounding box of all marked areas across all layers.
+     * Mirrors Java ChangedArea.surrounding_box().
+     */
+    geometry::planar::IntBox surrounding_box() const;
+
+    /**
      * Resets the marking octagon on layer p_layer to empty.
      * Mirrors Java ChangedArea.set_empty(int) via MutableOctagon.set_empty().
      */

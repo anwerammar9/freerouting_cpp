@@ -72,7 +72,7 @@ UsageAndDiagnosticDataSettings, UserProfileSettings
 See `docs/migration/INDEX.md` and per-module `MIGRATION_*.md` for file-level status.
 
 Key directories with C++ implementations:
-- src/autoroute/ — 21 classes compiled
+- src/autoroute/ — 23 classes compiled
 - src/board/ — 41 classes compiled
 - src/geometry/planar/ — 34 classes (complete)
 - src/rules/ — 10 classes (complete)

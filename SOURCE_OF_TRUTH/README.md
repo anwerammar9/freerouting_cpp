@@ -36,7 +36,7 @@
 2. **SortedRoomNeighbours** — 1300+ lines, room completion for maze search
 3. **MazeShoveTraceAlgo** — trace shoving during maze search
 4. **BatchOptimizer** — post-route optimization
-5. **DrillPage / expansion rooms** — room/drill infrastructure (Java-only DrillPage excludes DrillPageArray.cpp)
+5. **DrillPage / expansion rooms** — room/drill infrastructure (**WP-9 done 2026-09-19**: DrillPage, DrillPageArray, ExpansionDrill::calculate_expansion_rooms, AutorouteEngine.complete_expansion_room; **WP-10 Inc A done 2026-09-19**: rooms are SearchTreeObjects stored in the autoroute search tree — found/reused by drills, net-dependent purge on net change; MazeSearchAlgo not yet wired to drill pages)
 6. **ShapeSearchTree room creation** — `complete_shape`/`create_complete_room` not ported
 7. **SpecctraDsnStreamReader** — full DSN parsing
 8. **SessionWriter** — full SES output (currently traces-only)

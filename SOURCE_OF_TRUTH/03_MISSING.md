@@ -17,7 +17,7 @@
 | `door_is_small()` | 594-618 | Missing | Narrow door detection |
 | Distance calculation | line 174 | Hardcoded `100.0` | Should be `shape_entry_middle.weighted_distance()` |
 
-### 1.2 Missing Autoroute Classes (13 files, ~4500 lines)
+### 1.2 Missing Autoroute Classes (12 files, ~4300 lines)
 
 | Class | Lines | Purpose |
 |-------|-------|---------|
@@ -25,7 +25,6 @@
 | `Sorted45DegreeRoomNeighbours` | 810 | 45° room neighbor calculation |
 | `SortedOrthogonalRoomNeighbours` | 482 | Orthogonal room neighbor calculation |
 | `SortedRoomNeighbours` | 680 | Base room neighbor calculation |
-| `DrillPage` | 189 | Via drill intermediary |
 | `LocateFoundConnectionAlgo45Degree` | 238 | 45° connection location |
 | `LocateFoundConnectionAlgoAnyAngle` | 363 | Any-angle connection location |
 | `BatchAutorouterThread` | 546 | Multi-threaded routing worker |
@@ -34,6 +33,8 @@
 | `BoardHistory` | ~200 | Backtracking/convergence |
 | `MazeListElement` | 130 | Priority queue element pooling |
 | `BatchAutorouterV19` | 490 | Legacy comparison router |
+
+> **Resolved 2026-09-19 (WP-9 + WP-10 Increment A):** `DrillPage`, `DrillPageArray`, and `ExpansionDrill::calculate_expansion_rooms()` are now ported and tested (DrillPage.java:189, DrillPageArray.java, drill/ExpansionDrill.java), and complete free space expansion rooms are now `SearchTreeObject`s stored in the autoroute search tree (rooms are found/reused by overlap queries). What is still missing is the *use* of drill pages inside `MazeSearchAlgo` (Java `expand_to_room_doors`/`expand_to_other_layers` rooms with via doors), `AutorouteEngine.completeExpansionRoom`'s full `ShapeSearchTree.completeShape` free-space expansion (blocker #6), and `CompleteFreeSpaceExpansionRoom::calculateTargetDoors` (needs the `Connectable::get_trace_connection_shape()` analogue).
 
 ### 1.3 BatchAutorouter — Missing Convergence Logic
 

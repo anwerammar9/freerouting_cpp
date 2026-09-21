@@ -89,4 +89,30 @@ void ChangedArea::set_empty(int p_layer)
     bottom_[p_layer] = INT64_MAX;
 }
 
+geometry::planar::IntBox ChangedArea::surrounding_box() const
+{
+    int64_t min_x = INT64_MAX;
+    int64_t min_y = INT64_MAX;
+    int64_t max_x = INT64_MIN;
+    int64_t max_y = INT64_MIN;
+
+    for (int i = 0; i < layer_count_; ++i)
+    {
+        if (right_[i] > left_[i] && top_[i] > bottom_[i])
+        {
+            min_x = std::min(min_x, left_[i]);
+            min_y = std::min(min_y, bottom_[i]);
+            max_x = std::max(max_x, right_[i]);
+            max_y = std::max(max_y, top_[i]);
+        }
+    }
+
+    if (min_x == INT64_MAX || max_x == INT64_MIN)
+    {
+        return geometry::planar::IntBox::EMPTY;
+    }
+
+    return geometry::planar::IntBox(min_x, min_y, max_x, max_y);
+}
+
 } // namespace freerouting::board

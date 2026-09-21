@@ -108,7 +108,9 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/src/autoroute/AutorouteAttemptState_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/BoardUpdateStrategy_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/CompleteExpansionRoom_test.cpp
-        # DrillPageArray_test.cpp: not compiled (DrillPage is Java only, DrillPageArray.cpp excluded)
+        ${CMAKE_SOURCE_DIR}/src/autoroute/CompleteFreeSpaceExpansionRoom_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/autoroute/DrillPage_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/autoroute/DrillPageArray_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/ExpansionDrill_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/ExpandableObject_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/IncompleteFreeSpaceExpansionRoom_test.cpp
@@ -129,7 +131,7 @@ if(BUILD_TESTS)
             ${CMAKE_SOURCE_DIR}/src
         )
         target_link_libraries(${test_name} PRIVATE
-            $<LINK_GROUP:RESCAN,freerouting_autoroute,freerouting_board,freerouting_core,freerouting_datastructures,freerouting_geometry,freerouting_rules,freerouting_logger,freerouting_constants>
+            $<LINK_GROUP:RESCAN,freerouting_autoroute,freerouting_board,freerouting_core,freerouting_datastructures,freerouting_geometry,freerouting_rules,freerouting_logger,freerouting_constants,freerouting_settings>
             GTest::gtest_main
         )
         gtest_discover_tests(${test_name})
@@ -370,4 +372,30 @@ if(BUILD_TESTS)
         GTest::gtest_main
     )
     gtest_discover_tests(UndoableObjects_test)
+
+    add_executable(Stoppable_test
+        ${CMAKE_SOURCE_DIR}/src/datastructures/Stoppable_test.cpp
+    )
+    target_include_directories(Stoppable_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/src
+    )
+    target_link_libraries(Stoppable_test PRIVATE
+        freerouting_datastructures
+        GTest::gtest_main
+    )
+    gtest_discover_tests(Stoppable_test)
+
+    add_executable(TimeLimit_test
+        ${CMAKE_SOURCE_DIR}/src/datastructures/TimeLimit_test.cpp
+    )
+    target_include_directories(TimeLimit_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/src
+    )
+    target_link_libraries(TimeLimit_test PRIVATE
+        freerouting_datastructures
+        GTest::gtest_main
+    )
+    gtest_discover_tests(TimeLimit_test)
 endif()

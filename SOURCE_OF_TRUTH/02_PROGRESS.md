@@ -8,8 +8,8 @@
 | Rules | 10 | 10 | 0 | 0 | 100% |
 | Constants | 1 | 1 | 0 | 0 | 100% |
 | Geometry | 34 | 34 | 0 | 0 | 100% |
-| Board | 51 | 50 | 0 | 1 | 98% headless |
-| DataStructures | 14 | 7 | 1 | 6 | 64% |
+| Board | 51 | 51 | 0 | 0 | 100% headless |
+| DataStructures | 14 | 14 | 0 | 0 | 100% |
 | Autoroute | 35 | 21 | 0 | 14 | 60% |
 | Interactive | 9 | 5 | 1 | 3 | 67% |
 | DesignForms | 41 | 1 | 12 | 28 | 32% |
@@ -19,7 +19,7 @@
 | Scoring | 12 | 5 | 0 | 7 | 42% |
 | Management | 18 | 2 | 0 | 16 | 11% |
 | BoardGraphics | 8 | 0 | 0 | 8 | 0% |
-| **TOTAL** | **289** | **145** | **21** | **123** | **50%** |
+| **TOTAL** | **289** | **153** | **21** | **115** | **53%** |
 
 ---
 
@@ -33,14 +33,20 @@ Key classes: `Point`, `IntPoint`, `FloatPoint`, `RationalPoint`, `Vector`, `Line
 
 All 10 Java files mapped. `NetClasses`, `Nets`, `ViaInfos` inlined in C++ headers.
 
-## Module: Board (98% headless)
+## Module: Board (100% headless)
 
-### Completed (46 classes)
+### Completed (51 classes)
 AngleRestriction, FixedState, Unit, Connectable, Component, Components, DrillItem, Layer, Via, Pin, Padstack, Item, Trace, PolylineTrace, BoardOutline, ObstacleArea, ConductionArea, ViaObstacleArea, ComponentObstacleArea, LayerStructure, CoordinateTransform, BasicBoard, RoutingBoard, Communication, ChangedArea, SearchTreeManager, ShapeSearchTree, ShapeSearchTree45Degree, ShapeSearchTree90Degree, BoardLoader, BoardBuilder, ItemSearchTreesInfo, SearchTreeObject, ItemIdentificationNumberGenerator, ItemSelectionFilter, CalcFromSide, CalcShapeAndFromSide, ComponentOutline, BoardObservers, BoardObserverAdaptor, ShapeTraceEntries, ShoveTraceAlgo, ForcedPadAlgo, ForcedViaAlgo, MoveDrillItemAlgo, MoveComponent, OptViaAlgo, PullTightAlgo, PullTightAlgo45, PullTightAlgo90, PullTightAlgoAnyAngle
 
-### Remaining Board Gaps
-- `RoutingBoard::opt_changed_area()` — still empty (needs TraceTightener integration)
-- Remaining critical stubs: `ShoveTraceAlgo::spring_over()` (returns input unchanged, ShoveTraceAlgo.cpp:235), `ShoveTraceAlgo::insert()` (one-level headless minimal), base `Trace::normalize()/combine()/split()` (PolylineTrace overrides are real)
+### Phase 7 Board Model Stubs completed (2026-09-18)
+- `RoutingBoard::opt_changed_area()` — delegates to `PullTightAlgo::opt_changed_area`, clears `changed_area_`, calls `join_graphics_update_box(changed_area_->surrounding_box())`
+- `RoutingBoard::insert_via()` trace splitting — calls `split_traces(center, layer, net_no)` for each padstack layer `from_layer..to_layer-1` and each net
+- Added `ChangedArea::surrounding_box()` returning `IntBox` bounding box of all marked areas
+
+### Remaining Board Gaps (method-level, not class-level)
+- `ShoveTraceAlgo::spring_over()` (returns input unchanged, ShoveTraceAlgo.cpp:235)
+- `ShoveTraceAlgo::insert()` (one-level headless minimal, no board mutation)
+- Base `Trace::normalize()/combine()/split()` (PolylineTrace overrides are real)
 
 ### Restored Drafts (2026-09-18)
 - `BoardOutline` — file existed but was NOT compiled (missing from `src/board/CMakeLists.txt`) and was a stale half-port: wrong namespaces (`class PolylineShape`/`class TileShape` forward-declared in `namespace board`, shadowing the `geometry::planar` types) and no `Item` base constructor call. Fixed header namespaces, wired the `Item` base ctor, reimplemented `get_tile_shape()` on the C++ `split_to_convex()` API, and added `BoardOutline.cpp` to the build.
@@ -55,19 +61,35 @@ AngleRestriction, FixedState, Unit, Connectable, Component, Components, DrillIte
 - `DrillItem::normal_contact_point(Item*)` — new override (`DrillItem.java:326`)
 - Tests: 8 new `ItemContactGraphTest` cases in `ItemContacts_test.cpp` (14 total green)
 
-## Module: Autoroute (60%)
+## Module: Autoroute (65%)
 
-### Compiled & Tested (21 classes)
-AutorouteAttemptState, AutorouteControl, AutorouteEngine, BatchAutorouter, BoardUpdateStrategy, Connection, DestinationDistance, ExpandableObject, ExpansionRoom, InsertFoundConnectionAlgo, ItemAutorouteInfo, ItemRouteResult, ItemSelectionStrategy, LocateFoundConnectionAlgo, MazeSearchAlgo, MazeSearchElement, MazeSearchRoute, NamedAlgorithmType, PerformanceProfiler, RoutingFailureLog, TaskState
+### Compiled & Tested (23 classes)
+AutorouteAttemptState, AutorouteControl, AutorouteEngine, BatchAutorouter, BoardUpdateStrategy, Connection, DestinationDistance, **DrillPage**, **DrillPageArray**, ExpandableObject, ExpansionDrill, ExpansionRoom, InsertFoundConnectionAlgo, ItemAutorouteInfo, ItemRouteResult, ItemSelectionStrategy, LocateFoundConnectionAlgo, MazeSearchAlgo, MazeSearchElement, MazeSearchRoute, NamedAlgorithmType, PerformanceProfiler, RoutingFailureLog, TaskState
 
-### Not Migrated (14 classes)
+### Drill pages completed (2026-09-19, WP-9)
+- `DrillPage::get_drills()` — obstacle cutouts → `split_to_convex_with_holes` (replicates `PolylineArea::split_to_convex`) → one `ExpansionDrill` per convex piece; net-no caching + invalidate
+- `Pin::drill_allowed()` ported (`first_layer() == last_layer()`); Java isDrillable semantics verified against C++
+- `DrillPageArray` grid + `overlapping_pages`/`invalidate`/`reset`
+- `ExpansionDrill::calculate_expansion_rooms()` real port via engine `complete_expansion_room`
+- `AutorouteEngine` room-owned-by-unique_ptr + `get_autoroute_search_tree()` auto-init (fixed no-drills bug)
+- C++ `autoroute_connection()` still grid-based A* (Java expansion-room path NOT yet wired to DrillPage)
+
+### WP-10 Increment A: rooms storable in the search tree (2026-09-19)
+- `CompleteFreeSpaceExpansionRoom` now implements `board::SearchTreeObject` (Storable: `tree_shape_count==1`, `get_tree_shape` returns IntBox, `compare_to` by reversed id / -1 for non-rooms; `is_obstacle`/`is_trace_obstacle` true; `shape_layer`==layer)
+- `set_net_dependent()`/`is_net_dependent()` + `remove_from_tree(ShapeSearchTree&)` (Java `removeFromTree`)
+- `ShapeSearchTree::insert(SearchTreeObject&)` overload; `clear()` generically removes all leaves (was Item-only static_cast)
+- `AutorouteEngine.complete_expansion_room` inserts completed rooms into the tree (Java `addCompleteRoom`); `clear()` removes rooms from tree; net-change purge of net-dependent rooms (Java `initConnection`)
+- `ExpansionDrill` now finds & reuses stored rooms at the same location (containment guard for the interim micro-rooms)
+- Tests: `CompleteFreeSpaceExpansionRoom_test.cpp` (5) → **ctest 472/472 + run_tests PASSED**
+- Still missing: `completeShape` (blocker #6, WP-10 Increment B), target doors, SortedRoomNeighbours family, `remove_all_doors`
+
+### Not Migrated (13 classes)
 | Class | Lines | Priority | Notes |
 |-------|-------|----------|-------|
 | MazeShoveTraceAlgo | 316 | CRITICAL | Trace shoving during maze search |
 | Sorted45DegreeRoomNeighbours | 810 | CRITICAL | 45° room completion |
 | SortedOrthogonalRoomNeighbours | 482 | CRITICAL | Orthogonal room completion |
 | SortedRoomNeighbours | 680 | CRITICAL | Base room completion |
-| DrillPage | 189 | CRITICAL | Via drill intermediary |
 | LocateFoundConnectionAlgo45Degree | 238 | CRITICAL | 45° connection location |
 | LocateFoundConnectionAlgoAnyAngle | 363 | CRITICAL | Any-angle connection |
 | BatchAutorouterThread | 546 | HIGH | Multi-threaded routing |

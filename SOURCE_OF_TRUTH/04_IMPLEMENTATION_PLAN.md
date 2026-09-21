@@ -45,7 +45,7 @@ Phase 2 (Connectivity) ┘         │
 | 3.1 SortedRoomNeighbours (base) | NEW .h/.cpp | SortedRoomNeighbours.java | ~200 |
 | 3.2 Sorted45DegreeRoomNeighbours | NEW .h/.cpp | Sorted45DegreeRoomNeighbours.java (810) | ~810 |
 | 3.3 SortedOrthogonalRoomNeighbours | NEW .h/.cpp | SortedOrthogonalRoomNeighbours.java (482) | ~482 |
-| 3.4 DrillPage | NEW .h/.cpp | DrillPage.java (189) | ~189 |
+| 3.4 DrillPage (+ DrillPageArray, ExpansionDrill::calculateExpansionRooms) | NEW .h/.cpp | DrillPage.java (189) | ~189 | **DONE 2026-09-19 (WP-9)** |
 | 3.5 MazeShoveTraceAlgo | NEW .h/.cpp | MazeShoveTraceAlgo.java (316) | ~316 |
 | 3.6 MazeListElement | NEW .h/.cpp | MazeListElement.java (130) | ~130 |
 | 3.7 MazeSearchAlgo::init() rewrite | MazeSearchAlgo.cpp | MazeSearchAlgo.java:886-976 | ~90 |
@@ -79,6 +79,7 @@ Phase 2 (Connectivity) ┘         │
 
 | Task | File | Port From | Est. Lines |
 |------|------|-----------|------------|
+| 6.0 Rooms storable in search tree (WP-10 Inc A) | ExpansionRoom.h/cpp, ShapeSearchTree.h/cpp, AutorouteEngine.cpp | CompleteFreeSpaceExpansionRoom.java, SearchTreeObject.java, AutorouteEngine.addCompleteRoom/removeCompleteExpansionRoom | ~150 | **DONE 2026-09-19 (WP-10 Inc A)** |
 | 6.1 ShapeSearchTree90Degree rooms | ShapeSearchTree.cpp | ShapeSearchTree90Degree.java (287) | ~287 |
 | 6.2 ShapeSearchTree45Degree rooms | ShapeSearchTree.cpp | ShapeSearchTree45Degree.java (457) | ~457 |
 
@@ -87,9 +88,9 @@ Phase 2 (Connectivity) ┘         │
 | Task | File | Port From | Est. Lines | Status |
 |------|------|-----------|------------|--------|
 | 7.1 additional_update_after_change() | RoutingBoard.cpp | RoutingBoard.java | ~30 | DONE (no-op — no autoroute engine wired yet) |
-| 7.2 opt_changed_area() | RoutingBoard.cpp | RoutingBoard.java | ~30 | TODO |
+| 7.2 opt_changed_area() | RoutingBoard.cpp | RoutingBoard.java | ~30 | DONE (delegates to PullTightAlgo) |
 | 7.3 combine_traces() | RoutingBoard.cpp | RoutingBoard.java | ~15 | DONE |
-| 7.4 insert_via() trace splitting | RoutingBoard.cpp | BasicBoard.java | ~20 | TODO |
+| 7.4 insert_via() trace splitting | RoutingBoard.cpp | BasicBoard.java | ~20 | DONE (calls split_traces on padstack layers) |
 | 7.5 get_outline() | RoutingBoard.cpp | BasicBoard.java | ~10 | DONE |
 | 7.6 contains_trace_tails/get_trace_tail | RoutingBoard.cpp | BasicBoard.java | ~30 | DONE |
 

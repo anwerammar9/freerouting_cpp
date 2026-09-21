@@ -74,6 +74,13 @@ public:
     void insert(Item* p_item);
     void insert(Item* p_item, int p_shape_index);
 
+    /**
+     * Inserts the shape of p_object into the tree. Mirrors Java
+     * ShapeSearchTree.insert(ShapeTree.Storable), used to store complete
+     * expansion rooms in the autoroute search tree.
+     */
+    void insert(SearchTreeObject& p_object);
+
     void remove(Item* p_item);
 
     std::vector<Item*> find_nearby(const ::freerouting::geometry::planar::IntBox& p_box, int p_layer, int p_from_x, int p_from_y);
