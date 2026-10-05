@@ -1,12 +1,18 @@
 #ifndef AUTOROUTE_AUTOROUTE_CONTROL_H
 #define AUTOROUTE_AUTOROUTE_CONTROL_H
 
-#include <vector>
+#include <optional>
 #include <string>
+#include <vector>
 #include "autoroute/ExpansionCostFactor.h"
+#include "geometry/planar/Point.h"
 
 namespace freerouting::board {
 class RoutingBoard;
+}
+
+namespace freerouting::rules {
+class ViaRule;
 }
 
 namespace freerouting::settings {
@@ -40,6 +46,13 @@ public:
 
     void init_net(int p_net_no, board::RoutingBoard* p_board, int p_via_costs);
 
+    /**
+     * Rebuilds the via info masks, the via radii and the via costs for the
+     * input board, via costs and net. Port of Java
+     * AutorouteControl.rebuildViaInfo().
+     */
+    void rebuild_via_info(board::RoutingBoard* p_board, int p_via_costs, int p_net_no);
+
     void set_layer_count(int p_count);
 
     bool is_layer_active(int p_layer) const;
@@ -47,7 +60,13 @@ public:
     double get_via_cost(int p_from_layer, int p_to_layer) const;
 
     settings::RouterSettings* settings = nullptr;
+
+    /** The horizontal and vertical trace costs on each layer. */
     std::vector<ExpansionCostFactor> trace_costs;
+
+    /** The bend cost on each layer. Port of Java AutorouteControl.bendCosts. */
+    std::vector<double> bend_costs;
+
     bool with_neckdown = false;
     std::vector<bool> layer_active;
     int layer_count = 0;
@@ -55,7 +74,14 @@ public:
     std::vector<int> compensated_trace_half_width;
     std::vector<double> via_radius_arr;
     std::vector<ViaCost> add_via_costs;
+    /** The currently used clearance class for traces in the autoroute algorithm. */
     int trace_clearance_class_no = 1;
+    /**
+     * The possible (partial) vias, which can be used by the autorouter. Not
+     * owned by the control, mirroring the Java reference to the via rule of
+     * the current net class. Port of Java AutorouteControl.viaRule.
+     */
+    const rules::ViaRule* via_rule = nullptr;
     bool vias_allowed = true;
     bool attach_smd_allowed = false;
     double min_normal_via_cost = 1.0;
@@ -63,6 +89,40 @@ public:
     int ripup_costs = 1000;
     int ripup_pass_no = 1;
     bool is_fanout = false;
+    /**
+     * Name of the pin a fanout route starts at. Used only by the fanout
+     * diagnostics of the maze search and the connection inserter.
+     * Port of Java AutorouteControl.fanoutStartPinName.
+     */
+    std::string fanout_start_pin_name;
+    /**
+     * Center of the pin a fanout route starts at. Only used by the fanout
+     * filter of the maze expansion list. Port of Java
+     * AutorouteControl.fanoutStartPinCenter.
+     */
+    std::optional<geometry::planar::FloatPoint> fanout_start_pin_center;
+    /**
+     * First layer of the pin a fanout route starts at. Only used by the
+     * fanout filter of the maze expansion list. Port of Java
+     * AutorouteControl.fanoutStartPinLayer.
+     */
+    int fanout_start_pin_layer = -1;
+    /**
+     * Minimum physical escape wire length of the fanout pass in micrometres.
+     * Vias are not placed closer than this distance from the fanout pin center.
+     * The C++ RouterSettings has no fanout settings yet, so the Java default of
+     * the maze search (500 um) is used when the value is not engaged.
+     * Port of Java MazeSearchEngine `minEscapeLengthMm * 1000`.
+     */
+    std::optional<double> min_escape_length_um;
+    /**
+     * Maximum physical escape wire length of the fanout pass in micrometres.
+     * The search tree expansion and the via placement of a fanout pass are
+     * restricted to this distance. Same default situation as
+     * min_escape_length_um (Java default 3000 um).
+     * Port of Java MazeSearchEngine `maxEscapeLengthMm * 1000`.
+     */
+    std::optional<double> max_escape_length_um;
     bool remove_unconnected_vias = true;
     int net_no = 0;
     int active_layer = 0;

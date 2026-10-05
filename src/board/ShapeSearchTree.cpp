@@ -5,8 +5,10 @@
 #include "geometry/planar/FortyfiveDegreeBoundingDirections.h"
 #include "geometry/planar/IntBox.h"
 #include "geometry/planar/IntOctagon.h"
+#include "geometry/planar/LineSegment.h"
 #include "geometry/planar/OrthogonalBoundingDirections.h"
 #include "geometry/planar/Point.h"
+#include "geometry/planar/RegularTileShape.h"
 #include "geometry/planar/Simplex.h"
 #include "logger/FRLogger.h"
 #include "rules/ClearanceMatrix.h"
@@ -393,6 +395,298 @@ std::unique_ptr<fp::TileShape> ShapeSearchTree::enlarge_tile(const fp::TileShape
     }
     logger::FRLogger::instance().warn("ShapeSearchTree.enlarge_tile: unsupported tile shape type");
     return nullptr;
+}
+
+std::unique_ptr<fp::TileShape> ShapeSearchTree::intersection_of_two_shapes(
+    const fp::TileShape& p_first, const fp::TileShape& p_second)
+{
+    return fp::TileShape::intersection_of(p_first, p_second);
+}
+
+bool ShapeSearchTree::shape_contains(const fp::TileShape& p_outer, const fp::TileShape& p_inner)
+{
+    const auto* outer_regular = dynamic_cast<const fp::RegularTileShape*>(&p_outer);
+    const auto* inner_regular = dynamic_cast<const fp::RegularTileShape*>(&p_inner);
+    if (outer_regular == nullptr || inner_regular == nullptr)
+    {
+        // Conservative: expansion rooms are only ignored when the containment
+        // is exact. For arbitrary shapes (e.g. Simplex) containment is not
+        // verified here.
+        return false;
+    }
+    return outer_regular->contains(*inner_regular);
+}
+
+void ShapeSearchTree::restrain_shape(const CompleteShapePiece& p_room,
+    const fp::TileShape& p_obstacle_shape, std::vector<CompleteShapePiece>& p_result)
+{
+    // Port of Java ShapeSearchTree.restrainShape(...). The obstacle is always
+    // converted to a Simplex to match the Java semantics: "otherwise border_lines
+    // of length 0 for octagons may not be handled correctly".
+    fp::Simplex obstacle_simplex = p_obstacle_shape.to_Simplex();
+
+    const fp::TileShape* shape_to_be_contained = p_room.contained_shape.get();
+    if (shape_to_be_contained == nullptr || shape_to_be_contained->is_empty())
+    {
+        return;
+    }
+    const fp::TileShape* room_shape = p_room.shape.get();
+    if (room_shape == nullptr)
+    {
+        return;
+    }
+
+    // Search the edge line of obstacle_simplex, so that shape_to_be_contained
+    // are on the right side of this line, and that the line segment intersects
+    // with the interior of the room shape. If there are more than 1 such lines
+    // take the line which is furthest away from shape_to_be_contained. Then
+    // intersect the room shape with the halfplane defined by the opposite of
+    // this line.
+    std::optional<fp::Line> cut_line;
+    double cut_line_distance = -1;
+    for (int i = 0; i < obstacle_simplex.border_line_count(); ++i)
+    {
+        fp::LineSegment current_line_segment(obstacle_simplex, i);
+        if (room_shape->is_intersected_interior_by(current_line_segment))
+        {
+            fp::Line current_line = obstacle_simplex.border_line(i);
+            double current_min_distance = shape_to_be_contained->distance_to_the_left(current_line);
+            if (current_min_distance > cut_line_distance)
+            {
+                cut_line_distance = current_min_distance;
+                cut_line = current_line.opposite();
+            }
+        }
+    }
+
+    if (cut_line.has_value())
+    {
+        std::unique_ptr<fp::TileShape> result_piece = fp::TileShape::get_instance(*cut_line);
+        result_piece = intersection_of_two_shapes(*result_piece, *room_shape);
+        if (result_piece->dimension() >= 2)
+        {
+            CompleteShapePiece new_piece;
+            new_piece.shape = std::move(result_piece);
+            new_piece.contained_shape = shape_to_be_contained->clone();
+            p_result.push_back(std::move(new_piece));
+        }
+    }
+    else
+    {
+        // There is no cut line, so that all of shape_to_be_contained is
+        // completely on the right side of that line. Search a cut line, so
+        // that at least part of shape_to_be_contained is on the right side.
+        if (shape_to_be_contained->dimension() < 1)
+        {
+            // There is already a completed expansion room around shape_to_be_contained.
+            return;
+        }
+        for (int i = 0; i < obstacle_simplex.border_line_count(); ++i)
+        {
+            fp::LineSegment current_line_segment(obstacle_simplex, i);
+            if (room_shape->is_intersected_interior_by(current_line_segment))
+            {
+                fp::Line current_line = obstacle_simplex.border_line(i);
+                if (shape_to_be_contained->side_of(current_line) == fp::Side::COLLINEAR)
+                {
+                    // current_line intersects with the interior of shape_to_be_contained
+                    cut_line = current_line.opposite();
+                    break;
+                }
+            }
+        }
+        if (!cut_line.has_value())
+        {
+            // cut line not found, parts or the whole of the shape may be
+            // already occupied from somewhere else.
+            return;
+        }
+        // Calculate the new shape to be contained in the result shape.
+        std::unique_ptr<fp::TileShape> cut_half_plane = fp::TileShape::get_instance(*cut_line);
+        std::unique_ptr<fp::TileShape> new_shape_to_be_contained =
+            intersection_of_two_shapes(*shape_to_be_contained, *cut_half_plane);
+
+        std::unique_ptr<fp::TileShape> result_piece = intersection_of_two_shapes(*room_shape, *cut_half_plane);
+        if (result_piece->dimension() >= 2)
+        {
+            CompleteShapePiece new_piece;
+            new_piece.shape = std::move(result_piece);
+            new_piece.contained_shape = std::move(new_shape_to_be_contained);
+            p_result.push_back(std::move(new_piece));
+        }
+        std::unique_ptr<fp::TileShape> opposite_half_plane = fp::TileShape::get_instance(cut_line->opposite());
+        std::unique_ptr<fp::TileShape> rest_piece = intersection_of_two_shapes(*room_shape, *opposite_half_plane);
+        if (rest_piece->dimension() >= 2)
+        {
+            std::unique_ptr<fp::TileShape> rest_shape_to_be_contained =
+                intersection_of_two_shapes(*shape_to_be_contained, *opposite_half_plane);
+            CompleteShapePiece rest_piece_struct;
+            rest_piece_struct.shape = std::move(rest_piece);
+            rest_piece_struct.contained_shape = std::move(rest_shape_to_be_contained);
+            restrain_shape(rest_piece_struct, p_obstacle_shape, p_result);
+        }
+    }
+}
+
+void ShapeSearchTree::divide_large_room(const fp::IntBox& p_board_box, std::vector<CompleteShapePiece>& p_rooms)
+{
+    // Port of Java ShapeSearchTree.divideLargeRoom(...). Makes sure that on
+    // each layer there will be more than 1 free space room, even if there are
+    // no objects on the layer.
+    if (p_rooms.size() != 1)
+    {
+        return;
+    }
+    CompleteShapePiece& current_room = p_rooms[0];
+    fp::IntBox room_bounding_box = current_room.shape->bounding_box();
+    if (2 * room_bounding_box.height() <= p_board_box.height()
+        || 2 * room_bounding_box.width() <= p_board_box.width())
+    {
+        return;
+    }
+    double max_section_width = 0.5 * std::max(p_board_box.height(), p_board_box.width());
+    std::vector<fp::IntBox> section_boxes = room_bounding_box.divide_into_sections(max_section_width);
+    std::vector<CompleteShapePiece> result;
+    result.reserve(section_boxes.size());
+    for (const fp::IntBox& current_section_box : section_boxes)
+    {
+        CompleteShapePiece current_section;
+        current_section.shape =
+            intersection_of_two_shapes(*current_room.shape, current_section_box);
+        if (current_section.shape->dimension() != 2)
+        {
+            continue;
+        }
+        current_section.contained_shape =
+            intersection_of_two_shapes(*current_room.contained_shape, current_section_box);
+        result.push_back(std::move(current_section));
+    }
+    p_rooms = std::move(result);
+}
+
+std::vector<ShapeSearchTree::CompleteShapePiece> ShapeSearchTree::complete_shape(
+    const CompleteShapeInput& p_input)
+{
+    // Port of Java ShapeSearchTree.completeShapeUnlocked(...).
+    std::vector<CompleteShapePiece> result;
+    if (p_input.contained_shape == nullptr)
+    {
+        logger::FRLogger::instance().warn("ShapeSearchTree.complete_shape: contained shape expected");
+        return result;
+    }
+    // The room to be completed starts as the whole board box (Java
+    // shapeToBeContained = board.getBoundingBox()), intersected with the input
+    // room shape if present.
+    const fp::IntBox board_box = board_ != nullptr ? board_->get_bounding_box() : fp::IntBox::EMPTY;
+    std::unique_ptr<fp::TileShape> start_shape = std::make_unique<fp::IntBox>(board_box);
+    if (p_input.shape != nullptr)
+    {
+        start_shape = intersection_of_two_shapes(*start_shape, *p_input.shape);
+    }
+    fp::IntOctagon bounding_shape = start_shape->bounding_shape(bounding_directions);
+    if (start_shape->dimension() == 2)
+    {
+        CompleteShapePiece new_piece;
+        new_piece.shape = start_shape->clone();
+        new_piece.contained_shape = p_input.contained_shape->clone();
+        result.push_back(std::move(new_piece));
+    }
+
+    // Deviation from Java: Java returns an empty result when the root is null.
+    // Here the whole board is used instead, so that a room is always completed
+    // on an empty tree. This matches the expected drill behaviour for boards
+    // without obstacles.
+    std::vector<Leaf*> overlapping_leaves;
+    if (root != nullptr)
+    {
+        std::vector<TreeNode*> stack;
+        stack.reserve(64);
+        stack.push_back(root);
+        while (!stack.empty())
+        {
+            TreeNode* current_node = stack.back();
+            stack.pop_back();
+            if (current_node->bounding_shape != nullptr
+                && current_node->bounding_shape->intersects(bounding_shape))
+            {
+                if (auto* leaf = dynamic_cast<Leaf*>(current_node))
+                {
+                    overlapping_leaves.push_back(leaf);
+                }
+                else if (auto* inner = dynamic_cast<InnerNode*>(current_node))
+                {
+                    stack.push_back(inner->first_child);
+                    stack.push_back(inner->second_child);
+                }
+            }
+        }
+        // Sort the obstacles by the tree order of their leaves to get a
+        // deterministic room partitioning (mirrors the Java Collections.sort).
+        std::sort(overlapping_leaves.begin(), overlapping_leaves.end(),
+            [](const Leaf* p_a, const Leaf* p_b)
+            {
+                return p_a->compare_to(*p_b) < 0;
+            });
+    }
+
+    for (Leaf* current_leaf : overlapping_leaves)
+    {
+        if (current_leaf == nullptr || current_leaf->object == nullptr)
+        {
+            continue;
+        }
+        SearchTreeObject* current_object = static_cast<SearchTreeObject*>(current_leaf->object);
+        int shape_index = current_leaf->shape_index_in_object;
+        if (current_object->is_trace_obstacle(p_input.net_no)
+            && current_object->shape_layer(shape_index) == p_input.layer
+            && current_object != p_input.ignore_object)
+        {
+            const fp::TileShape* current_object_shape =
+                current_object->get_tree_shape(*this, shape_index);
+            if (current_object_shape == nullptr)
+            {
+                continue;
+            }
+            std::vector<CompleteShapePiece> new_result;
+            fp::IntOctagon new_bounding_shape = fp::IntOctagon::EMPTY;
+            for (const CompleteShapePiece& current_piece : result)
+            {
+                bool something_changed = false;
+                std::unique_ptr<fp::TileShape> intersection =
+                    intersection_of_two_shapes(*current_piece.shape, *current_object_shape);
+                if (intersection->dimension() == 2)
+                {
+                    bool ignore_expansion_room =
+                        current_object->is_free_space_room() && p_input.ignore_shape != nullptr
+                        && shape_contains(*p_input.ignore_shape, *intersection);
+                    if (!ignore_expansion_room)
+                    {
+                        something_changed = true;
+                        restrain_shape(current_piece, *current_object_shape, new_result);
+                        // The bounding shape must include all accumulated rooms.
+                        for (const CompleteShapePiece& tmp_piece : new_result)
+                        {
+                            new_bounding_shape = new_bounding_shape.union_with(
+                                tmp_piece.shape->bounding_shape(bounding_directions));
+                        }
+                    }
+                }
+                if (!something_changed)
+                {
+                    CompleteShapePiece clone_piece;
+                    clone_piece.shape = current_piece.shape->clone();
+                    clone_piece.contained_shape = current_piece.contained_shape->clone();
+                    new_result.push_back(std::move(clone_piece));
+                    new_bounding_shape = new_bounding_shape.union_with(
+                        current_piece.shape->bounding_shape(bounding_directions));
+                }
+            }
+            result = std::move(new_result);
+            bounding_shape = new_bounding_shape;
+        }
+    }
+    divide_large_room(board_box, result);
+    return result;
 }
 
 std::vector<Item*> ShapeSearchTree::find_nearby(const fp::IntBox& p_box, int p_layer, int p_from_x, int p_from_y)

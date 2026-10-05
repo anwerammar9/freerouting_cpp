@@ -14,11 +14,25 @@
 namespace freerouting::board
 {
 
-const CalcFromSide CalcFromSide::NOT_CALCULATED =
-    CalcFromSide(-1, geometry::planar::FloatPoint(0.0, 0.0));
+const CalcFromSide CalcFromSide::NOT_CALCULATED = CalcFromSide(-1);
+
+std::optional<CalcFromSide> CalcFromSide::values(
+    int p_no, const std::optional<geometry::planar::FloatPoint>& p_border_intersection)
+{
+    if (!p_border_intersection.has_value())
+    {
+        return CalcFromSide(p_no);
+    }
+    return CalcFromSide(p_no, *p_border_intersection);
+}
 
 CalcFromSide::CalcFromSide(int p_no, const geometry::planar::FloatPoint& p_border_intersection)
     : no(p_no), border_intersection(p_border_intersection)
+{
+}
+
+CalcFromSide::CalcFromSide(int p_no)
+    : no(p_no), border_intersection(std::nullopt)
 {
 }
 
@@ -26,7 +40,7 @@ CalcFromSide::CalcFromSide(const geometry::planar::Polyline& p_polyline, int p_n
                            const geometry::planar::TileShape& p_shape)
 {
     int fromside_no = -1;
-    geometry::planar::FloatPoint intersection;
+    std::optional<geometry::planar::FloatPoint> intersection;
     bool border_intersection_found = false;
 
     for (int curr_no = p_no; curr_no > 0; curr_no--)
@@ -80,7 +94,7 @@ CalcFromSide::CalcFromSide(const geometry::planar::IntPoint& p_from_point,
     else
     {
         no = -1;
-        border_intersection = geometry::planar::FloatPoint(0.0, 0.0);
+        border_intersection = std::nullopt;
     }
     if (no < 0)
     {

@@ -1,16 +1,20 @@
 #include "board/RoutingBoard.h"
 #include "board/Item.h"
 #include "board/Component.h"
+#include "board/ItemSelectionFilter.h"
 #include "board/Padstack.h"
 #include "board/Pin.h"
 #include "board/PolylineTrace.h"
 #include "board/Communication.h"
 #include "board/ChangedArea.h"
 #include "board/BoardOutline.h"
+#include "board/CalcFromSide.h"
 #include "board/SearchTreeManager.h"
+#include "board/ShoveTraceAlgo.h"
 #include "board/Trace.h"
 #include "board/Via.h"
 #include "board/PullTightAlgo.h"
+#include "datastructures/TimeLimit.h"
 #include "geometry/planar/IntOctagon.h"
 #include "geometry/planar/LineSegment.h"
 #include "geometry/planar/Simplex.h"
@@ -33,7 +37,6 @@ RoutingBoard::RoutingBoard(const geometry::planar::IntBox& p_bounding_box,
                            Communication* p_board_communication)
     : BasicBoard(p_layer_structure, std::move(p_rules))
     , changed_area_(std::make_unique<ChangedArea>(p_layer_structure.layer_count()))
-    , search_tree_manager_(std::make_unique<SearchTreeManager>(this))
     , bounding_box_(p_bounding_box)
     , board_communication_(p_board_communication)
     , components_(std::make_unique<Components>())
@@ -620,7 +623,8 @@ void RoutingBoard::remove_items(const std::vector<Item*>& p_items)
 
 int RoutingBoard::clearance_value(int p_class_1, int p_class_2, int p_layer) const
 {
-    return get_rules().get_clearance_matrix().get_value(p_class_1, p_class_2, p_layer);
+    // Java BasicBoard.clearanceValue() adds the clearance safety margin.
+    return get_rules().get_clearance_matrix().get_value(p_class_1, p_class_2, p_layer, true);
 }
 
 namespace {
@@ -896,6 +900,426 @@ Via* RoutingBoard::insert_via(Padstack* p_padstack,
         }
     }
     return new_via;
+}
+
+void RoutingBoard::clear_shove_failing_obstacle()
+{
+    shove_failing_obstacle_ = nullptr;
+    shove_failing_layer_ = -1;
+}
+
+bool RoutingBoard::check_forced_trace_polyline(const geometry::planar::Polyline& p_polyline,
+                                               int p_half_width,
+                                               int p_layer,
+                                               const std::vector<int>& p_net_no_arr,
+                                               int p_clearance_class_index,
+                                               int p_max_recursion_depth,
+                                               int p_max_via_recursion_depth,
+                                               int p_max_spring_over_recursion_depth)
+{
+    // Port of Java RoutingBoard.checkForcedTracePolyline().
+    ShapeSearchTree* search_tree = search_tree_manager().get_default_tree();
+    const int compensated_half_width =
+        p_half_width + search_tree->clearance_compensation_value(p_clearance_class_index, p_layer);
+    std::vector<std::unique_ptr<geometry::planar::TileShape>> trace_shapes =
+        p_polyline.offset_shapes(compensated_half_width, 0,
+                                 static_cast<int>(p_polyline.arr.size()) - 1);
+    const bool orthogonal_mode =
+        get_rules().get_trace_angle_restriction() == rules::AngleRestriction::RIGHT;
+    ShoveTraceAlgo shove_trace_algo(this);
+    for (std::size_t i = 0; i < trace_shapes.size(); ++i)
+    {
+        std::unique_ptr<geometry::planar::TileShape> current_trace_shape = std::move(trace_shapes[i]);
+        if (orthogonal_mode)
+        {
+            current_trace_shape = std::make_unique<geometry::planar::IntBox>(current_trace_shape->bounding_box());
+        }
+        CalcFromSide from_side(p_polyline, static_cast<int>(i) + 1, *current_trace_shape);
+        const bool check_shove_ok = shove_trace_algo.check(
+            *current_trace_shape, &from_side, nullptr, p_layer, p_net_no_arr, p_clearance_class_index,
+            p_max_recursion_depth, p_max_via_recursion_depth, p_max_spring_over_recursion_depth,
+            nullptr);
+        if (!check_shove_ok)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+std::optional<geometry::planar::IntPoint> RoutingBoard::insert_forced_trace_polyline(
+    const geometry::planar::Polyline& p_polyline,
+    int p_half_width,
+    int p_layer,
+    const std::vector<int>& p_net_no_arr,
+    int p_clearance_class_index,
+    int p_max_recursion_depth,
+    int p_max_via_recursion_depth,
+    int p_max_spring_over_recursion_depth,
+    int p_tidy_width,
+    int p_pull_tight_accuracy,
+    bool p_with_check,
+    const datastructures::TimeLimit* p_time_limit)
+{
+    // Port of Java RoutingBoard.insertForcedTracePolyline() at
+    // RoutingBoard.java:456-873.
+    clear_shove_failing_obstacle();
+    const geometry::planar::IntPoint from_corner = p_polyline.first_corner();
+    const geometry::planar::IntPoint to_corner = p_polyline.last_corner();
+    if (from_corner == to_corner)
+    {
+        return to_corner;
+    }
+    start_marking_changed_area();
+
+    // Check, if there ends an item of the same net at from_corner. If so, its
+    // geometry will be used to cut off dog ears of the check shape.
+    Trace* picked_trace = nullptr;
+    ItemSelectionFilter trace_filter(ItemSelectionFilter::SelectableChoices::TRACES);
+    std::set<Item*> picked_items = pick_items(from_corner, p_layer, &trace_filter);
+    if (picked_items.size() == 1)
+    {
+        auto* current_picked_trace = dynamic_cast<Trace*>(*picked_items.begin());
+        if (current_picked_trace != nullptr && current_picked_trace->nets_equal(p_net_no_arr)
+            && current_picked_trace->get_half_width() == p_half_width
+            && current_picked_trace->get_clearance_class() == p_clearance_class_index)
+        {
+            // can combine with the picked trace
+            picked_trace = current_picked_trace;
+        }
+    }
+
+    ShapeSearchTree* search_tree = search_tree_manager().get_default_tree();
+    const int compensated_half_width =
+        p_half_width + search_tree->clearance_compensation_value(p_clearance_class_index, p_layer);
+    ShoveTraceAlgo shove_trace_algo(this);
+    // Java passes null for the contact pins here, which makes the spring over
+    // ignore own net pins; a nullptr models that exactly.
+    std::optional<geometry::planar::Polyline> spring_over_result = shove_trace_algo.spring_over_obstacles(
+        p_polyline, compensated_half_width, p_layer, p_net_no_arr, p_clearance_class_index, nullptr);
+    if (!spring_over_result.has_value())
+    {
+        return from_corner;
+    }
+    geometry::planar::Polyline new_polyline = std::move(*spring_over_result);
+
+    geometry::planar::Polyline combined_polyline;
+    if (picked_trace == nullptr)
+    {
+        combined_polyline = new_polyline;
+    }
+    else
+    {
+        const auto* combine_trace = dynamic_cast<const PolylineTrace*>(picked_trace);
+        std::unique_ptr<geometry::planar::Polyline> combined =
+            combine_trace != nullptr ? new_polyline.combine(combine_trace->polyline()) : nullptr;
+        if (combined == nullptr)
+        {
+            return from_corner;
+        }
+        combined_polyline = std::move(*combined);
+    }
+    if (combined_polyline.arr.size() < 3)
+    {
+        return from_corner;
+    }
+    const int start_shape_no =
+        static_cast<int>(combined_polyline.arr.size() - new_polyline.arr.size());
+    // calculate the last shapes of combined_polyline for checking
+    std::vector<std::unique_ptr<geometry::planar::TileShape>> trace_shapes = combined_polyline.offset_shapes(
+        compensated_half_width, start_shape_no, static_cast<int>(combined_polyline.arr.size()) - 1);
+    int last_shape_no = static_cast<int>(trace_shapes.size());
+    const bool orthogonal_mode =
+        get_rules().get_trace_angle_restriction() == rules::AngleRestriction::RIGHT;
+    // Mirrors the Java `if (orthogonalMode) currentTraceShape =
+    // currentTraceShape.boundingBox()` reassignment without consuming the
+    // offset shape, so that the shape can be re-used after the loop.
+    geometry::planar::IntBox orthogonal_box;
+    auto shape_at = [&](int p_index) -> const geometry::planar::TileShape& {
+        const geometry::planar::TileShape* shape = trace_shapes[static_cast<size_t>(p_index)].get();
+        if (orthogonal_mode)
+        {
+            orthogonal_box = shape->bounding_box();
+            return orthogonal_box;
+        }
+        return *shape;
+    };
+    for (int i = 0; i < static_cast<int>(trace_shapes.size()); ++i)
+    {
+        const geometry::planar::TileShape& current_trace_shape = shape_at(i);
+        // Java computes combinedPolyline.cornerCount() - traceShapes.length - 1
+        // + i. Without a picked trace this evaluates to i - 2, i.e. the first
+        // two shapes get a negative entry index, which CalcFromSide resolves
+        // through its "first corner inside shape" fallback. Reproduced as is,
+        // because the C++ port must behave like the Java baseline.
+        CalcFromSide from_side(combined_polyline,
+                               combined_polyline.corner_count() - static_cast<int>(trace_shapes.size()) - 1 + i,
+                               current_trace_shape);
+        if (p_with_check)
+        {
+            const bool check_shove_ok = shove_trace_algo.check(
+                current_trace_shape, &from_side, nullptr, p_layer, p_net_no_arr,
+                p_clearance_class_index, p_max_recursion_depth, p_max_via_recursion_depth,
+                p_max_spring_over_recursion_depth, p_time_limit);
+            if (!check_shove_ok)
+            {
+                last_shape_no = i;
+                break;
+            }
+        }
+        const bool insert_ok = shove_trace_algo.insert(
+            current_trace_shape, &from_side, p_layer, p_net_no_arr, p_clearance_class_index,
+            std::vector<Item*>(), p_max_recursion_depth, p_max_via_recursion_depth,
+            p_max_spring_over_recursion_depth);
+        if (!insert_ok)
+        {
+            return std::nullopt;
+        }
+    }
+    geometry::planar::IntPoint new_corner = to_corner;
+
+    if (last_shape_no < static_cast<int>(trace_shapes.size()))
+    {
+        // the shove with index last_shape_no failed.
+        // Sample the shove line to a shorter shove distance and try again.
+        geometry::planar::TileShape* last_trace_shape = nullptr;
+        std::unique_ptr<geometry::planar::TileShape> last_trace_shape_owner;
+        const geometry::planar::TileShape& stored_last_shape = shape_at(last_shape_no);
+        last_trace_shape = const_cast<geometry::planar::TileShape*>(&stored_last_shape);
+        const int sample_width = 2 * get_min_trace_half_width();
+        const geometry::planar::FloatPoint last_corner = new_polyline.corner_approx(last_shape_no + 1);
+        const geometry::planar::FloatPoint prev_last_corner = new_polyline.corner_approx(last_shape_no);
+        const double last_segment_length = last_corner.distance(prev_last_corner);
+        if (last_segment_length > 100 * static_cast<double>(sample_width))
+        {
+            // too many cycles to sample
+            return from_corner;
+        }
+        int shape_index =
+            combined_polyline.corner_count() - static_cast<int>(trace_shapes.size()) - 1 + last_shape_no;
+        if (last_segment_length > static_cast<double>(sample_width))
+        {
+            new_polyline = new_polyline.shorten(
+                static_cast<int>(new_polyline.arr.size())
+                    - (static_cast<int>(trace_shapes.size()) - last_shape_no - 1),
+                static_cast<double>(sample_width));
+            new_corner = new_polyline.last_corner();
+            if (picked_trace == nullptr)
+            {
+                combined_polyline = new_polyline;
+            }
+            else
+            {
+                const auto* combine_trace = dynamic_cast<const PolylineTrace*>(picked_trace);
+                std::unique_ptr<geometry::planar::Polyline> combined =
+                    combine_trace != nullptr ? new_polyline.combine(combine_trace->polyline()) : nullptr;
+                if (combined == nullptr)
+                {
+                    return new_corner;
+                }
+                combined_polyline = std::move(*combined);
+            }
+            if (combined_polyline.arr.size() < 3)
+            {
+                return new_corner;
+            }
+            shape_index = static_cast<int>(combined_polyline.arr.size()) - 3;
+            last_trace_shape_owner = combined_polyline.offset_shape(compensated_half_width, shape_index);
+            if (last_trace_shape_owner == nullptr)
+            {
+                return new_corner;
+            }
+            if (orthogonal_mode)
+            {
+                orthogonal_box = last_trace_shape_owner->bounding_box();
+                last_trace_shape = &orthogonal_box;
+            }
+            else
+            {
+                last_trace_shape = last_trace_shape_owner.get();
+            }
+        }
+        CalcFromSide from_side(combined_polyline, shape_index, *last_trace_shape);
+        const bool check_shove_ok = shove_trace_algo.check(
+            *last_trace_shape, &from_side, nullptr, p_layer, p_net_no_arr, p_clearance_class_index,
+            p_max_recursion_depth, p_max_via_recursion_depth, p_max_spring_over_recursion_depth,
+            p_time_limit);
+        if (!check_shove_ok)
+        {
+            return from_corner;
+        }
+        const bool insert_ok = shove_trace_algo.insert(
+            *last_trace_shape, &from_side, p_layer, p_net_no_arr, p_clearance_class_index,
+            std::vector<Item*>(), p_max_recursion_depth, p_max_via_recursion_depth,
+            p_max_spring_over_recursion_depth);
+        if (!insert_ok)
+        {
+            logger::FRLogger::instance().trace("RoutingBoard.insert_forced_trace_polyline: shove trace failed");
+            return std::nullopt;
+        }
+    }
+
+    // insert the new trace segment
+    for (int i = 0; i < new_polyline.corner_count(); ++i)
+    {
+        join_changed_area(new_polyline.corner_approx(i), p_layer);
+    }
+    auto new_polyline_ptr = std::make_shared<geometry::planar::Polyline>(new_polyline);
+    PolylineTrace* new_trace = insert_trace_without_cleaning(
+        new_polyline_ptr, p_layer, p_half_width, p_net_no_arr, p_clearance_class_index,
+        FixedState::NOT_FIXED);
+    // Divergence: Java dereferences the result of insertTraceWithoutCleaning
+    // without a null check, which would raise an NPE; the C++ port skips the
+    // combine in that case.
+    if (new_trace != nullptr)
+    {
+        new_trace->combine();
+    }
+
+    std::unique_ptr<geometry::planar::IntOctagon> tidy_region;
+    if (p_tidy_width < std::numeric_limits<int>::max())
+    {
+        tidy_region = std::make_unique<geometry::planar::IntOctagon>(
+            new_corner.surrounding_octagon().enlarge(p_tidy_width));
+    }
+    const std::vector<int> opt_net_no_arr =
+        p_max_recursion_depth <= 0 ? p_net_no_arr : std::vector<int>();
+    std::unique_ptr<PullTightAlgo> pull_tight_algo = PullTightAlgo::get_instance(
+        this, opt_net_no_arr, tidy_region.get(), p_pull_tight_accuracy, nullptr, -1, &new_corner, p_layer);
+
+    // Remove evtl. generated cycles because otherwise pull tight may not work correctly.
+    std::unique_ptr<geometry::planar::IntOctagon> changed_layer_area;
+    if (changed_area_ != nullptr)
+    {
+        changed_layer_area = std::make_unique<geometry::planar::IntOctagon>(changed_area_->get_area(p_layer));
+    }
+    const bool normalize_result = new_trace != nullptr && new_trace->normalize(changed_layer_area.get());
+    if (normalize_result)
+    {
+        pull_tight_algo->split_traces_at_keep_point();
+        // otherwise the new corner may no more be contained in the new trace after optimizing
+        std::set<Item*> current_picked_items = pick_items(new_corner, p_layer, &trace_filter);
+        new_trace = nullptr;
+        if (!current_picked_items.empty())
+        {
+            new_trace = dynamic_cast<PolylineTrace*>(*current_picked_items.begin());
+        }
+    }
+
+    // To avoid, that a separate handling for moving backwards in the own trace
+    // line becomes necessary, pull tight is called here.
+    if (p_tidy_width > 0 && new_trace != nullptr)
+    {
+        new_trace->pull_tight(pull_tight_algo.get());
+    }
+    return new_corner;
+}
+
+std::optional<geometry::planar::IntPoint> RoutingBoard::insert_forced_trace_segment(
+    const geometry::planar::IntPoint& p_from_corner,
+    const geometry::planar::IntPoint& p_to_corner,
+    int p_half_width,
+    int p_layer,
+    const std::vector<int>& p_net_no_arr,
+    int p_clearance_class_index,
+    int p_max_recursion_depth,
+    int p_max_via_recursion_depth,
+    int p_max_spring_over_recursion_depth,
+    int p_tidy_width,
+    int p_pull_tight_accuracy,
+    bool p_with_check,
+    const datastructures::TimeLimit* p_time_limit)
+{
+    // Port of Java RoutingBoard.insertForcedTraceSegment().
+    if (p_from_corner == p_to_corner)
+    {
+        return p_to_corner;
+    }
+    geometry::planar::Polyline insert_polyline(p_from_corner, p_to_corner);
+    std::optional<geometry::planar::IntPoint> ok_point = insert_forced_trace_polyline(
+        insert_polyline, p_half_width, p_layer, p_net_no_arr, p_clearance_class_index,
+        p_max_recursion_depth, p_max_via_recursion_depth, p_max_spring_over_recursion_depth, p_tidy_width,
+        p_pull_tight_accuracy, p_with_check, p_time_limit);
+    if (!ok_point.has_value())
+    {
+        return std::nullopt;
+    }
+    if (*ok_point == insert_polyline.first_corner())
+    {
+        return p_from_corner;
+    }
+    if (*ok_point == insert_polyline.last_corner())
+    {
+        return p_to_corner;
+    }
+    return ok_point;
+}
+
+bool RoutingBoard::connect_to_trace(const geometry::planar::IntPoint& p_from_point,
+                                    Trace* p_to_trace,
+                                    int p_pen_half_width,
+                                    int p_clearance_class_index)
+{
+    // Port of Java RoutingBoard.connectToTrace() at RoutingBoard.java:1128-1181.
+    auto* polyline_trace = dynamic_cast<PolylineTrace*>(p_to_trace);
+    if (polyline_trace == nullptr)
+    {
+        return false; // not yet implemented
+    }
+    const geometry::planar::Polyline& trace_polyline = polyline_trace->polyline();
+    if (trace_polyline.contains(p_from_point))
+    {
+        // no connection line necessary
+        return true;
+    }
+    std::optional<geometry::planar::LineSegment> projection_line =
+        trace_polyline.projection_line(p_from_point);
+    if (!projection_line.has_value())
+    {
+        return false;
+    }
+    geometry::planar::Polyline connection_line = projection_line->to_polyline();
+    if (connection_line.arr.size() != 3)
+    {
+        return false;
+    }
+    const int trace_layer = p_to_trace->get_layer();
+    const std::vector<int>& net_nos = p_to_trace->get_net_nos();
+    if (!check_polyline_trace(connection_line, trace_layer, p_pen_half_width, net_nos,
+                              p_clearance_class_index))
+    {
+        return false;
+    }
+    if (changed_area_ != nullptr)
+    {
+        for (int i = 0; i < connection_line.corner_count(); ++i)
+        {
+            join_changed_area(connection_line.corner_approx(i), trace_layer);
+        }
+    }
+    auto connection_line_ptr = std::make_shared<geometry::planar::Polyline>(connection_line);
+    insert_trace(connection_line_ptr, trace_layer, p_pen_half_width, net_nos,
+                 p_clearance_class_index, FixedState::NOT_FIXED);
+
+    const geometry::planar::Point& first_corner = polyline_trace->first_corner();
+    const geometry::planar::Point& last_corner = polyline_trace->last_corner();
+    if (!p_from_point.equals(first_corner))
+    {
+        Trace* tail = get_trace_tail(first_corner, trace_layer, net_nos);
+        if (tail != nullptr && !tail->is_user_fixed())
+        {
+            remove_item(tail);
+        }
+    }
+    if (!p_from_point.equals(last_corner))
+    {
+        Trace* tail = get_trace_tail(last_corner, trace_layer, net_nos);
+        if (tail != nullptr && !tail->is_user_fixed())
+        {
+            remove_item(tail);
+        }
+    }
+    return true;
 }
 
 } // namespace freerouting::board

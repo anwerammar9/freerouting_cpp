@@ -40,6 +40,16 @@ public:
     int get_resolution() const { return resolution_; }
     void set_resolution(int p_resolution) { resolution_ = p_resolution; }
 
+    /**
+     * Returns the board resolution scaled from the unit of this communication
+     * information to p_unit. Mirrors Java
+     * Communication.get_resolution(Unit).
+     */
+    double get_resolution(Unit p_unit) const
+    {
+        return UnitHelper::scale(resolution_, p_unit, unit_);
+    }
+
     Unit get_unit() const { return unit_; }
     void set_unit(Unit p_unit) { unit_ = p_unit; }
 

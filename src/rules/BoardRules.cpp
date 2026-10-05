@@ -191,6 +191,21 @@ void BoardRules::set_use_slow_autoroute_algorithm(bool p_value)
     use_slow_autoroute_algorithm_ = p_value;
 }
 
+const ViaRule* BoardRules::get_default_via_rule() const
+{
+    // Java returns the first entry of the global via rule list. The C++ rules
+    // carry no via rule list yet, so the first net class with a via rule is used.
+    for (int i = 0; i < net_classes_.count(); ++i)
+    {
+        const ViaRule* current_rule = net_classes_.get(i)->get_via_rule();
+        if (current_rule != nullptr)
+        {
+            return current_rule;
+        }
+    }
+    return nullptr;
+}
+
 std::string BoardRules::to_string() const
 {
     std::ostringstream ss;

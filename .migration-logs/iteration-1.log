@@ -1,2229 +1,256 @@
 [0m
-> build · nemotron-3-ultra-free
+> build · big-pickle
 [0m
+I'll start by inspecting the repository state and migration tracking.
 [0m→ [0mRead SOURCE_OF_TRUTH/README.md
-[0m→ [0mRead SOURCE_OF_TRUTH/01_MEMORY.md
+[0m
+[0m$ [0mgit log --oneline -15 && git status --short | head -30
+5a56645 docs: add deterministic Java->C++ class mapping CSV
+cf0ef9f feat: port BoardFileDetails with format detection (WP-6)
+a929f98 feat: complete BoardStatistics and Scoring port (WP-4)
+b94fc31 feat: complete contact graph and NetIncompletes ports (WP-1, WP-2)
+cc28781 refactor: prune Java baseline to headless-only subset with stubs
+e7c370a chore: consolidate Java baseline under java/, make src/ C++-only
+ea4839e build: make Java and C++ builds green
+88bc58e feat: port BoardStatistics and scoring system (WP-4)
+ec93e50 test: add Java baseline test script
+c29ca08 build: add Gradle build for Java baseline
+d678a36 fix: board viewer and DSN↔JSON converter bugs
+d4381e1 feat: major migration progress — source-of-truth framework, board model, autoroute, and specctra I/O
+e91ae79 feat: complete Simplex cutout, port BoundingDirections, correct geometry migration status
+e5cf023 feat: systematic migration progress - core enums, geometry, and autoroute components
+016f3ae Create comprehensive Java to C++20 migration framework
+MM .migration-logs/iteration-1.log
+AM .migration-logs/iteration-2.log
+A  .migration-logs/iteration-3.log
+MM JavaToCppClassMap.csv
+MM SOURCE_OF_TRUTH/01_MEMORY.md
+MM SOURCE_OF_TRUTH/02_PROGRESS.md
+MM SOURCE_OF_TRUTH/03_MISSING.md
+MM SOURCE_OF_TRUTH/04_IMPLEMENTATION_PLAN.md
+MM SOURCE_OF_TRUTH/05_WORK_PACKAGES.md
+M  SOURCE_OF_TRUTH/README.md
+A  bin/main/app/freerouting/gui/GUIDefaultsDescription.flex
+A  bin/main/app/freerouting/gui/interactive/LogfileDescription.flex
+A  bin/main/app/freerouting/io/specctra/parser/SpecctraFileDescription.flex
+MM docs/migration/INDEX.md
+MM docs/migration/MIGRATION_autoroute.md
+MM docs/migration/MIGRATION_board.md
+M  docs/migration/MIGRATION_drc.md
+M  docs/migration/MIGRATION_geometry.md
+ M docs/migration/MIGRATION_rules.md
+M  src/autoroute/AutorouteControl.cpp
+M  src/autoroute/AutorouteControl.h
+M  src/autoroute/AutorouteEngine.cpp
+M  src/autoroute/AutorouteEngine.h
+A  src/autoroute/AutorouteEngine_test.cpp
+MM src/autoroute/CMakeLists.txt
+M  src/autoroute/CompleteFreeSpaceExpansionRoom_test.cpp
+M  src/autoroute/DrillPage.cpp
+M  src/autoroute/DrillPage.h
+M  src/autoroute/ExpandableObject.h
+M  src/autoroute/ExpandableObject_test.cpp
+[0m
+[0m⚙ [0magentmemory_memory_recall {"query":"freerouting cpp migration FoundConnectionInserter maze connection route autoroute_connection","limit":10}
 [0m→ [0mRead SOURCE_OF_TRUTH/05_WORK_PACKAGES.md
-[0m→ [0mRead docs/migration/INDEX.md
-[0m→ [0mRead SOURCE_OF_TRUTH/02_PROGRESS.md
+[0m→ [0mRead SOURCE_OF_TRUTH/05_WORK_PACKAGES.md[90m [offset=276][0m
+[0m
+[0m$ [0mgit diff --stat | tail -20 && ls .migration-logs/
+src/board/CalcFromSide.h                       |    22 +-
+ src/board/CalcFromSide_test.cpp                |    52 +-
+ src/board/Communication.h                      |    10 +
+ src/board/Item.cpp                             |    38 +
+ src/board/Item.h                               |    22 +
+ src/board/Pin.cpp                              |   160 +
+ src/board/Pin.h                                |    32 +
+ src/board/PolylineTrace.cpp                    |    44 +-
+ src/board/PolylineTrace.h                      |     7 +
+ src/board/RoutingBoard.cpp                     |     3 +-
+ src/board/RoutingBoard.h                       |    24 +
+ src/board/ShapeTraceEntries.cpp                |   218 +-
+ src/board/ShapeTraceEntries.h                  |     8 +-
+ src/board/ShoveTraceAlgo_test.cpp              |    60 +-
+ src/board/Via.h                                |    28 +-
+ src/rules/ClearanceMatrix.cpp                  |     2 +-
+ src/settings/RouterSettings.h                  |    11 +
+ templates/ClassName_test.cpp                   |   172 -
+ tests/CMakeLists.txt                           |     2 +
+ 38 files changed, 10489 insertions(+), 19703 deletions(-)
+iteration-1.log
+iteration-2.log
+iteration-3.log
+[0m
+[0m$ [0mgit status --short | wc -l && git status --short | head -60 && echo "--- STAGED ---" && git diff --cached --stat | tail -5
+151
+MM .migration-logs/iteration-1.log
+AM .migration-logs/iteration-2.log
+A  .migration-logs/iteration-3.log
+MM JavaToCppClassMap.csv
+MM SOURCE_OF_TRUTH/01_MEMORY.md
+MM SOURCE_OF_TRUTH/02_PROGRESS.md
+MM SOURCE_OF_TRUTH/03_MISSING.md
+MM SOURCE_OF_TRUTH/04_IMPLEMENTATION_PLAN.md
+MM SOURCE_OF_TRUTH/05_WORK_PACKAGES.md
+M  SOURCE_OF_TRUTH/README.md
+A  bin/main/app/freerouting/gui/GUIDefaultsDescription.flex
+A  bin/main/app/freerouting/gui/interactive/LogfileDescription.flex
+A  bin/main/app/freerouting/io/specctra/parser/SpecctraFileDescription.flex
+MM docs/migration/INDEX.md
+MM docs/migration/MIGRATION_autoroute.md
+MM docs/migration/MIGRATION_board.md
+M  docs/migration/MIGRATION_drc.md
+M  docs/migration/MIGRATION_geometry.md
+ M docs/migration/MIGRATION_rules.md
+M  src/autoroute/AutorouteControl.cpp
+M  src/autoroute/AutorouteControl.h
+M  src/autoroute/AutorouteEngine.cpp
+M  src/autoroute/AutorouteEngine.h
+A  src/autoroute/AutorouteEngine_test.cpp
+MM src/autoroute/CMakeLists.txt
+M  src/autoroute/CompleteFreeSpaceExpansionRoom_test.cpp
+M  src/autoroute/DrillPage.cpp
+M  src/autoroute/DrillPage.h
+M  src/autoroute/ExpandableObject.h
+M  src/autoroute/ExpandableObject_test.cpp
+M  src/autoroute/ExpansionDrill.cpp
+M  src/autoroute/ExpansionDrill.h
+M  src/autoroute/ExpansionRoom.cpp
+M  src/autoroute/ExpansionRoom.h
+A  src/autoroute/FoundConnectionInserter.cpp
+A  src/autoroute/FoundConnectionInserter.h
+AM src/autoroute/FoundConnectionInserter_test.cpp
+A  src/autoroute/FoundConnectionLocator.cpp
+A  src/autoroute/FoundConnectionLocator.h
+A  src/autoroute/FoundConnectionLocator45Degree.cpp
+A  src/autoroute/FoundConnectionLocator45Degree.h
+A  src/autoroute/FoundConnectionLocatorAnyAngle.cpp
+A  src/autoroute/FoundConnectionLocatorAnyAngle.h
+A  src/autoroute/FoundConnectionLocator_test.cpp
+M  src/autoroute/IncompleteFreeSpaceExpansionRoom_test.cpp
+D  src/autoroute/InsertFoundConnectionAlgo.cpp
+D  src/autoroute/InsertFoundConnectionAlgo.h
+M  src/autoroute/ItemAutorouteInfo.cpp
+A  src/autoroute/ItemAutorouteInfo_test.cpp
+AM src/autoroute/MazeExpansionEngine.cpp
+A  src/autoroute/MazeExpansionEngine.h
+A  src/autoroute/MazeExpansionEngine_test.cpp
+A  src/autoroute/MazeFanoutDiagnostics.cpp
+A  src/autoroute/MazeFanoutDiagnostics.h
+A  src/autoroute/MazeRandom.h
+A  src/autoroute/MazeRipupResolver.cpp
+A  src/autoroute/MazeRipupResolver.h
+A  src/autoroute/MazeRipupResolver_test.cpp
+MM src/autoroute/MazeSearchAlgo.cpp
+MM src/autoroute/MazeSearchAlgo.h
+--- STAGED ---
+ src/rules/ViaRule.cpp                              |    16 +
+ src/rules/ViaRule.h                                |     7 +
+ src/settings/RouterSettings.h                      |    17 +
+ tests/CMakeLists.txt                               |    36 +
+ 139 files changed, 48962 insertions(+), 3347 deletions(-)
+[0m
+[0m$ [0mls build/ 2>/dev/null | head -20; echo "---"; nproc
+CMakeCache.txt
+CMakeFiles
+CTestTestfile.cmake
+Makefile
+Testing
+build
+classes
+cmake_install.cmake
+freerouting
+resources
+src
+test_main
+tests
+---
+12
+[0m
 [0m→ [0mRead SOURCE_OF_TRUTH/03_MISSING.md
-[0m→ [0mRead SOURCE_OF_TRUTH/04_IMPLEMENTATION_PLAN.md
 [0m
-[0m$ [0mcmake --build build --target freerouting_board -j$(nproc) 2>&1 | tail -30
-[  5%] Built target freerouting_core
-[ 13%] Built target freerouting_rules
-[ 27%] Built target freerouting_datastructures
-[ 55%] Built target freerouting_geometry
-[100%] Built target freerouting_board
+[0m$ [0mcmake --build build -j12 2>&1 | tail -20
+[ 89%] Built target ItemSelectionFilter_test
+[ 89%] Built target SortedOrthogonalRoomNeighbours_test
+[ 90%] Built target SortedRoomNeighbours_test
+[ 92%] Built target ObstacleArea_test
+[ 92%] Built target CalcFromSide_test
+[ 93%] Built target ShapeSearchTree_complete_shape_test
+[ 94%] Built target ObstacleAreaSubclass_test
+[ 94%] Built target CalcShapeAndFromSide_test
+[ 95%] Built target ComponentOutline_test
+[ 95%] Built target OptViaAlgo_test
+[ 95%] Built target Pin_center_test
+[ 96%] Built target PullTightAlgo_test
+[ 97%] Built target RoutingBoard_stubs_test
+[ 98%] Built target Trace_test
+[ 98%] Built target ItemContacts_test
+[ 98%] Built target ShoveTraceAlgo_test
+[100%] Built target RoutingBoardForcedTrace_test
+[100%] Built target BoardStatistics_test
+[100%] Built target BoardFileDetails_test
+[100%] Built target DesignRulesChecker_test
 [0m
-[0m$ [0mctest --test-dir build --output-on-failure 2>&1 | tail -50
-Start 436: UndoableObjectsTest.DeleteMissingObjectReturnsFalse
-436/458 Test #436: UndoableObjectsTest.DeleteMissingObjectReturnsFalse ..............................   Passed    0.01 sec
-        Start 437: UndoableObjectsTest.DeleteThenUndoRestores
-437/458 Test #437: UndoableObjectsTest.DeleteThenUndoRestores .......................................   Passed    0.01 sec
-        Start 438: UndoableObjectsTest.SaveForUndoThenUndoRestoresOldState
-438/458 Test #438: UndoableObjectsTest.SaveForUndoThenUndoRestoresOldState ..........................   Passed    0.01 sec
-        Start 439: UndoableObjectsTest.InsertedOnCurrentLevelIsRemovedByUndo
-439/458 Test #439: UndoableObjectsTest.InsertedOnCurrentLevelIsRemovedByUndo ........................   Passed    0.01 sec
-        Start 440: UndoableObjectsTest.RedoReappliesInsertion
-440/458 Test #440: UndoableObjectsTest.RedoReappliesInsertion .......................................   Passed    0.01 sec
-        Start 441: UndoableObjectsTest.RedoReappliesInPlaceModification
-441/458 Test #441: UndoableObjectsTest.RedoReappliesInPlaceModification .............................   Passed    0.01 sec
-        Start 442: UndoableObjectsTest.RedoNotPossibleAfterNewSnapshot
-442/458 Test #442: UndoableObjectsTest.RedoNotPossibleAfterNewSnapshot ..............................   Passed    0.01 sec
-        Start 443: UndoableObjectsTest.UndoNotPossibleAtLevelZero
-443/458 Test #443: UndoableObjectsTest.UndoNotPossibleAtLevelZero ...................................   Passed    0.01 sec
-        Start 444: UndoableObjectsTest.DeletedOnCurrentLevelStaysDeletedAfterUndo
-444/458 Test #444: UndoableObjectsTest.DeletedOnCurrentLevelStaysDeletedAfterUndo ...................   Passed    0.01 sec
-        Start 445: UndoableObjectsTest.PopSnapshotDropsTopLevel
-445/458 Test #445: UndoableObjectsTest.PopSnapshotDropsTopLevel .....................................   Passed    0.01 sec
-        Start 446: UndoableObjectsTest.PopSnapshotNotPossibleAtLevelZero
-446/458 Test #446: UndoableObjectsTest.PopSnapshotNotPossibleAtLevelZero ............................   Passed    0.01 sec
-        Start 447: UndoableObjectsTest.SaveForUndoOnlySnapshotsStoredObjects
-447/458 Test #447: UndoableObjectsTest.SaveForUndoOnlySnapshotsStoredObjects ........................   Passed    0.01 sec
-        Start 448: UndoableObjectsTest.DeleteObjectCountsShrink
-448/458 Test #448: UndoableObjectsTest.DeleteObjectCountsShrink .....................................   Passed    0.01 sec
-        Start 449: StoppableTest.InitiallyNotStopped
-449/458 Test #449: StoppableTest.InitiallyNotStopped ................................................   Passed    0.03 sec
-        Start 450: StoppableTest.RequestStopSetsFlag
-450/458 Test #450: StoppableTest.RequestStopSetsFlag ................................................   Passed    0.01 sec
-        Start 451: StoppableTest.MultipleRequestsIdempotent
-451/458 Test #451: StoppableTest.MultipleRequestsIdempotent .........................................   Passed    0.01 sec
-        Start 452: TimeLimitTest.InitiallyNotExceeded
-452/458 Test #452: TimeLimitTest.InitiallyNotExceeded ...............................................   Passed    0.02 sec
-        Start 453: TimeLimitTest.LimitExceededAfterDuration
-453/458 Test #453: TimeLimitTest.LimitExceededAfterDuration .........................................   Passed    0.07 sec
-        Start 454: TimeLimitTest.MultiplyIncreasesLimit
-454/458 Test #454: TimeLimitTest.MultiplyIncreasesLimit .............................................   Passed    0.01 sec
-        Start 455: TimeLimitTest.MultiplyByZeroOrNegativeNoOp
-455/458 Test #455: TimeLimitTest.MultiplyByZeroOrNegativeNoOp .......................................   Passed    0.01 sec
-        Start 456: TimeLimitTest.SetLimitResetsTimer
-456/458 Test #456: TimeLimitTest.SetLimitResetsTimer ................................................   Passed    0.03 sec
-        Start 457: TimeLimitTest.InheritsFromStoppable
-457/458 Test #457: TimeLimitTest.InheritsFromStoppable ..............................................   Passed    0.01 sec
-        Start 458: AllTests
-458/458 Test #458: AllTests .........................................................................   Passed    0.04 sec
+[0m$ [0mctest --test-dir build -j12 2>&1 | tail -20
+Start 700: IdentificationNumberGeneratorTest.GeneratesSequentialNumbers
+        Start 701: IdentificationNumberGeneratorTest.SatisfiesInterfaceContract
+        Start 678: ArrayStackTest.ResetMakesStackEmpty
+        Start 677: ArrayStackTest.ZeroCapacityStackCanGrow
+715/726 Test #245: PerformanceProfilerTest.MismatchedSectionNames ...........................................   Passed    0.25 sec
+716/726 Test #319: TaskStateTest.PracticalUsage .............................................................   Passed    0.22 sec
+717/726 Test #246: PerformanceProfilerTest.PassInfoStruct ...................................................   Passed    0.11 sec
+718/726 Test #244: PerformanceProfilerTest.EdgeCases ........................................................   Passed    0.10 sec
+719/726 Test #684: IdentifierTypeTest.QuotesReservedCharactersAndNumericPrefixes ............................   Passed    0.10 sec
+720/726 Test #680: BigIntAuxTest.BinaryGcdFindsCommonDivisor ................................................   Passed    0.09 sec
+721/726 Test #685: IdentifierTypeTest.RemovesExistingQuotesBeforeWriting ....................................   Passed    0.08 sec
+722/726 Test #676: ArrayStackTest.GrowsBeyondInitialCapacity ................................................   Passed    0.09 sec
+723/726 Test #678: ArrayStackTest.ResetMakesStackEmpty ......................................................   Passed    0.06 sec
+724/726 Test #677: ArrayStackTest.ZeroCapacityStackCanGrow ..................................................   Passed    0.06 sec
+725/726 Test #701: IdentificationNumberGeneratorTest.SatisfiesInterfaceContract .............................   Passed    0.08 sec
+726/726 Test #700: IdentificationNumberGeneratorTest.GeneratesSequentialNumbers .............................   Passed    0.10 sec
 
-100% tests passed, 0 tests failed out of 458
+100% tests passed, 0 tests failed out of 726
 
-Total Test time (real) =  12.21 sec
+Total Test time (real) =  20.56 sec
+[0m
+[0m$ [0mgrep -n "Phase\|Task 4\.\|Task 5\." SOURCE_OF_TRUTH/04_IMPLEMENTATION_PLAN.md | head -60
+10:Phase 1 (Trace Ops) ──┐
+11:                       ├──→ Phase 3 (Maze Search) ──→ Phase 4 (Connection) ──→ Phase 5 (Batch)
+12:Phase 2 (Connectivity) ┘         │
+13:                                  ├──→ Phase 6 (Search Trees)
+14:                                  └──→ Phase 7 (Board Stubs)
+19:## Phase 1: Trace Operations Foundation (Week 1-2)
+29:## Phase 2: Item Connectivity (Week 2-3)
+41:## Phase 3: Maze Search Engine (Week 3-5)
+62:## Phase 4: Connection Location & Insertion (Week 5-6)
+71:## Phase 5: Batch Router & Convergence (Week 6-7)
+82:## Phase 6: Search Tree Room Creation (Parallel with Phase 3)
+91:## Phase 7: Board Model Stubs (Parallel)
+108:| Phase | Tasks | New Files | Est. Lines | Effort | Dependencies |
+112:| 3: Maze Search | 12 | 5 | ~2500 | 10-14 days | Phase 1+2 |
+113:| 4: Connection | 4 | 2 | ~1000 | 4-5 days | Phase 3 |
+114:| 5: Batch Router | 6 | 1 | ~800 | 4-5 days | Phase 3+4 |
+[0m
+[0m→ [0mRead SOURCE_OF_TRUTH/04_IMPLEMENTATION_PLAN.md[90m [offset=60, limit=70][0m
+[0m
+[0m$ [0mfind java -name "ForcedViaInserter.java" -o -name "ForcedViaAlgo.java" | head; echo "---"; find src -name "ForcedVia*" 
+java/app/freerouting/board/actions/ForcedViaInserter.java
+---
+src/board/ForcedViaAlgo.cpp
+src/board/ForcedViaAlgo.h
+[0m
+[0m$ [0mwc -l java/app/freerouting/board/actions/ForcedViaInserter.java && grep -n "class\|public \|private \|static " java/app/freerouting/board/actions/ForcedViaInserter.java | head -50
+462 java/app/freerouting/board/actions/ForcedViaInserter.java
+21:/** Class with static functions for checking and inserting forced vias. */
+22:public final class ForcedViaInserter {
+24:  private ForcedViaInserter() {}
+30:  public static ForcedPadRouter.CheckDrillResult checkLayer(
+131:  public static boolean check(
+249:  public static boolean insert(
+363:  private static Shape holeCheckShape(Padstack padstack, Point location, RoutingBoard board) {
+372:    // Inflate by the hole clearance itself and check with the null clearance class (0), so
+373:    // the requirement is exact hole-to-copper spacing regardless of the neighbor's class.
+377:  private static ShapeEntrySide calculateFromSide(
+[0m
+[0m$ [0mgrep -rn "ForcedViaInserter\|forced_via_inserter" src/ --include=*.h --include=*.cpp | head -20
+src/board/ForcedViaAlgo.cpp:210:        // location. Port of Java ForcedViaInserter.check() lines 209-235.
 [0m
-[0m$ [0mcmake --build build --target run_tests -j$(nproc) 2>&1 | tail -20
-[  4%] Built target freerouting_core
-[  8%] Built target freerouting_logger
-[ 15%] Built target freerouting_rules
-[ 26%] Built target freerouting_datastructures
-[ 48%] Built target freerouting_geometry
-[ 84%] Built target freerouting_board
-[ 88%] Built target freerouting_drc
-[ 97%] Built target freerouting_designforms
-[100%] Built target run_tests
-[0m
-[0m$ [0m./build/tests/run_tests 2>&1
-/bin/bash: line 1: ./build/tests/run_tests: No such file or directory
-[0m
-[0m$ [0mfind build -name "run_tests" -type f 2>/dev/null
-build/tests/data/run_tests
-[0m
-[0m$ [0m./build/tests/data/run_tests 2>&1
-Running DSN Scanner tests...
-  empty_board.dsn: layers=0 width=0 height=0
-test_scanner_empty_board PASSED
-DBG component footprint='Mars-64:BBD_Logo_33x33mm'
-DBG place refdes='G***' x=78740 y=-60960 rot=0 pkg='LOGO'
-DBG component footprint='Mars-64:PinHeader_2x06_P2.54mm_Vertical_SMD_TopBottom_Mirrored'
-DBG place refdes='PmodM' x=93980 y=-53340 rot=180 pkg='Conn_02x06_Top_Bottom'
-DBG component footprint='Mars-64:PinHeader_2x06_P2.54mm_Vertical_SMD_TopBottom'
-DBG place refdes='PmodF' x=68580 y=-53340 rot=180 pkg='Conn_02x06_Top_Bottom'
-DBG component footprint='TestPoint:TestPoint_Pad_4.0x4.0mm'
-DBG place refdes='TP101' x=60960 y=-83820 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP103' x=71120 y=-83820 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP105' x=81280 y=-83820 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP106' x=86360 y=-83820 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP107' x=91440 y=-83820 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP109' x=60960 y=-88900 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP111' x=71120 y=-88900 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP113' x=81280 y=-88900 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP117' x=60960 y=-93980 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP119' x=71120 y=-93980 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP121' x=81280 y=-93980 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP123' x=91440 y=-93980 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP125' x=60960 y=-99060 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP127' x=71120 y=-99060 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP129' x=81280 y=-99060 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP131' x=91440 y=-99060 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP201' x=60960 y=-104140 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP203' x=71120 y=-104140 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP205' x=81280 y=-104140 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP209' x=60960 y=-109220 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP211' x=71120 y=-109220 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP213' x=81280 y=-109220 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP215' x=91440 y=-109220 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP216' x=96520 y=-109220 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP218' x=66040 y=-114300 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP220' x=76200 y=-114300 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP222' x=86360 y=-114300 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP224' x=96520 y=-114300 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP226' x=66040 y=-119380 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP228' x=76200 y=-119380 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP230' x=86360 y=-119380 rot=0 pkg='TestPoint_Small'
-DBG component footprint='TestPoint:TestPoint_Pad_4.0x4.0mm::1'
-DBG place refdes='TP102' x=66040 y=-83820 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP104' x=76200 y=-83820 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP108' x=96520 y=-83820 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP110' x=66040 y=-88900 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP112' x=76200 y=-88900 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP114' x=86360 y=-88900 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP115' x=91440 y=-88900 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP116' x=96520 y=-88900 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP118' x=66040 y=-93980 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP120' x=76200 y=-93980 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP122' x=86360 y=-93980 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP124' x=96520 y=-93980 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP126' x=66040 y=-99060 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP128' x=76200 y=-99060 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP130' x=86360 y=-99060 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP132' x=96520 y=-99060 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP202' x=66040 y=-104140 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP204' x=76200 y=-104140 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP206' x=86360 y=-104140 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP207' x=91440 y=-104140 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP208' x=96520 y=-104140 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP210' x=66040 y=-109220 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP212' x=76200 y=-109220 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP214' x=86360 y=-109220 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP217' x=60960 y=-114300 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP219' x=71120 y=-114300 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP221' x=81280 y=-114300 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP223' x=91440 y=-114300 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP225' x=60960 y=-119380 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP227' x=71120 y=-119380 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP229' x=81280 y=-119380 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP231' x=91440 y=-119380 rot=0 pkg='TestPoint_Small'
-DBG place refdes='TP232' x=96520 y=-119380 rot=0 pkg='TestPoint_Small'
-DBG component footprint='Connector_Coaxial:SMA_Amphenol_132134-10_Vertical'
-DBG place refdes='JA' x=93980 y=-76200 rot=180 pkg='Conn_Coaxial'
-DBG component footprint='Connector_Coaxial:SMA_Amphenol_132134-10_Vertical::1'
-DBG place refdes='JB' x=93980 y=-137160 rot=180 pkg='Conn_Coaxial'
-DBG component footprint='TestPoint:TestPoint_Pad_1.0x1.0mm'
-DBG place refdes='TPAGND1' x=64770 y=-76200 rot=180 pkg='TestPoint_Small'
-DBG component footprint='Jumper:SolderJumper-3_P1.3mm_Bridged2Bar12_Pad1.0x1.5mm_NumberLabels'
-DBG place refdes='JP4' x=63500 y=-73660 rot=0 pkg='Jumper_NC_Dual'
-DBG component footprint='Package_QFP:TQFP-48_7x7mm_P0.5mm'
-DBG place refdes='U101' x=78740 y=-68580 rot=0 pkg='ADG731'
-DBG component footprint='Package_QFP:TQFP-48_7x7mm_P0.5mm::1'
-DBG place refdes='U102' x=76200 y=-137160 rot=0 pkg='ADG731'
-DBG component footprint='Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm'
-DBG place refdes='JP5' x=60960 y=-134620 rot=180 pkg='SolderJumper_2_Bridged'
-DBG component footprint='Capacitor_SMD:C_1206_3216Metric_Pad1.42x1.75mm_HandSolder'
-DBG place refdes='C1' x=64770 y=-64770 rot=180 pkg='100 nF'
-DBG component footprint='Capacitor_SMD:C_1206_3216Metric_Pad1.42x1.75mm_HandSolder::1'
-DBG place refdes='C2' x=60960 y=-139700 rot=180 pkg='100 nF'
-DBG component footprint='MountingHole:MountingHole_2.7mm_M2.5'
-DBG place refdes='H1' x=59690 y=-68580 rot=0 pkg='MountingHole'
-DBG place refdes='H4' x=97790 y=-127000 rot=0 pkg='MountingHole'
-DBG component footprint='MountingHole:MountingHole_2.7mm_M2.5::1'
-DBG place refdes='H2' x=97790 y=-68580 rot=0 pkg='MountingHole'
-DBG place refdes='H3' x=59690 y=-127000 rot=0 pkg='MountingHole'
-  BBD_Mars-64.dsn: layers=2 nets=94 vias=1
-test_scanner_bbd_mars64 PASSED
-DBG component footprint='TE_1888019-6:TE_1888019-6'
-DBG place refdes='J2' x=135255 y=-85725 rot=90 pkg='1888019-6'
-DBG component footprint='TE_1-84953-5:TE_1-84953-5'
-DBG place refdes='U1' x=111410 y=-85550 rot=90 pkg='1-84953-5'
-  Issue026-J2_reference.dsn: layers=2 nets=24
-test_scanner_issue026 PASSED
-DBG component footprint='Connector_JST:JST_PH_B16B-PH-K_1x16_P2.00mm_Vertical'
-DBG place refdes='J1' x=20165 y=-158750 rot=0 pkg='Conn_01x16'
-DBG component footprint='Package_DIP:DIP-20_W7.62mm'
-DBG place refdes='U3' x=62103 y=-66890 rot=0 pkg='74HC245'
-DBG place refdes='U6' x=47701 y=-99618 rot=0 pkg='74HC688'
-DBG place refdes='U7' x=33401 y=-99669 rot=0 pkg='74HC688'
-DBG place refdes='U31' x=19050 y=-66890 rot=0 pkg='74HC245'
-DBG place refdes='U33' x=19050 y=-99669 rot=0 pkg='74HC245'
-DBG place refdes='U34' x=62049 y=-99568 rot=0 pkg='74AHC374'
-DBG place refdes='U39' x=33401 y=-66890 rot=0 pkg='74HC245'
-DBG place refdes='U40' x=103861 y=-66954 rot=0 pkg='74HC245'
-DBG place refdes='U50' x=47752 y=-66890 rot=0 pkg='74AHC374'
-DBG place refdes='U51' x=90652 y=-66878 rot=0 pkg='74AHC374'
-DBG place refdes='U53' x=76327 y=-66890 rot=0 pkg='74HC245'
-DBG place refdes='U52' x=62103 y=-34080 rot=0 pkg='74HC245'
-DBG place refdes='U48' x=143165 y=-34080 rot=0 pkg='74HC245'
-DBG place refdes='U47' x=154381 y=-34086 rot=0 pkg='74HC245'
-DBG place refdes='U44' x=129921 y=-34086 rot=0 pkg='74HC245'
-DBG place refdes='U43' x=76327 y=-34086 rot=0 pkg='74HC245'
-DBG place refdes='U35' x=116840 y=-34086 rot=0 pkg='74AHC374'
-DBG place refdes='U32' x=103759 y=-34086 rot=0 pkg='74HC245'
-DBG place refdes='U30' x=90678 y=-34086 rot=0 pkg='74HC245'
-DBG place refdes='U4' x=19050 y=-34080 rot=0 pkg='74HC245'
-DBG place refdes='U2' x=33401 y=-34080 rot=0 pkg='74HC245'
-DBG place refdes='U1' x=47752 y=-34080 rot=0 pkg='74HC245'
-DBG component footprint='Package_DIP:DIP-16_W7.62mm'
-DBG place refdes='U11' x=76276 y=-99568 rot=0 pkg='74LS161'
-DBG place refdes='U22' x=129955 y=-67026 rot=0 pkg='74LS161'
-DBG place refdes='U23' x=103810 y=-99568 rot=0 pkg='74LS161'
-DBG place refdes='U12' x=96570 y=-132537 rot=0 pkg='74LS161'
-DBG place refdes='U13' x=90576 y=-99568 rot=0 pkg='74LS161'
-DBG place refdes='U14' x=108585 y=-132537 rot=0 pkg='74LS161'
-DBG place refdes='U16' x=128685 y=-99595 rot=0 pkg='74LS283'
-DBG place refdes='U17' x=83032 y=-132537 rot=0 pkg='74LS283'
-DBG place refdes='U18' x=120430 y=-132520 rot=0 pkg='74LS283'
-DBG place refdes='U19' x=31064 y=-132537 rot=0 pkg='74LS283'
-DBG place refdes='U24' x=56464 y=-132537 rot=0 pkg='74LS161'
-DBG place refdes='U25' x=71069 y=-132537 rot=0 pkg='74LS161'
-DBG place refdes='U26' x=116840 y=-67005 rot=0 pkg='74LS283'
-DBG place refdes='U27' x=115824 y=-99568 rot=0 pkg='74LS283'
-DBG place refdes='U28' x=19050 y=-132561 rot=0 pkg='74LS283'
-DBG place refdes='U29' x=44399 y=-132537 rot=0 pkg='74LS283'
-DBG place refdes='U37' x=153717 y=-66962 rot=0 pkg='74LS161'
-DBG component footprint='Package_DIP:DIP-14_W7.62mm'
-DBG place refdes='U9' x=142519 y=-67005 rot=0 pkg='74LS08'
-DBG place refdes='U5' x=141199 y=-99568 rot=0 pkg='74AHC04'
-DBG place refdes='U8' x=133629 y=-132486 rot=0 pkg='74AHC04'
-DBG place refdes='U10' x=145415 y=-132486 rot=0 pkg='74AHC04'
-DBG place refdes='U15' x=164869 y=-66997 rot=0 pkg='74AHC04'
-DBG place refdes='U21' x=176225 y=-67032 rot=0 pkg='74LS08'
-DBG place refdes='U20' x=187681 y=-67005 rot=0 pkg='74LS32'
-DBG place refdes='U45' x=186411 y=-99568 rot=0 pkg='74LS32'
-DBG place refdes='U36' x=174920 y=-99563 rot=0 pkg='74LS32'
-DBG place refdes='U38' x=152463 y=-99563 rot=0 pkg='74LS11'
-DBG place refdes='U42' x=163666 y=-99598 rot=0 pkg='74LS11'
-DBG place refdes='U49' x=188468 y=-34036 rot=0 pkg='74LS08'
-DBG place refdes='U46' x=165504 y=-34059 rot=0 pkg='74LS11'
-DBG place refdes='U41' x=176860 y=-34043 rot=0 pkg='74HC74'
-DBG component footprint='Connector_PCBEdge:Samtec_MECF-30-0_-NP-L-DV_2x30_P1.27mm_Edge'
-DBG place refdes='J2' x=34290 y=-19050 rot=180 pkg='Conn_02x30_Odd_Even'
-  Issue103-Board-Unrouted.dsn: layers=2 nets=282
-test_scanner_issue103 PASSED
-test_intpoint_projections_and_corners PASSED
-test_line_geometry_ops PASSED
-test_line_segment_basics PASSED
-test_polyline_core_ops PASSED
-All tests PASSED!
-[0m
-[0m→ [0mRead src/board/Trace.h
-[0m→ [0mRead src/board/Trace.cpp
-[0m→ [0mRead src/board/PolylineTrace.h
-[0m→ [0mRead src/board/PolylineTrace.cpp
-[0m✗ [0mRead java/app/freerouting/board/Trace.java failed
-[91m[1mError: [0mFile not found: /mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/board/Trace.java
-
-Did you mean one of these?
-/mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/board/trace
-[0m
-[0m$ [0mls -la /mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/board/trace/
-total 64
-drwxrwxrwx 1 anwer anwer  4096 Sep 17 12:26 .
-drwxrwxrwx 1 anwer anwer  4096 Sep 17 12:26 ..
--rwxrwxrwx 1 anwer anwer 48870 Sep 17 12:26 PolylineTrace.java
--rwxrwxrwx 1 anwer anwer  2054 Sep 17 12:26 PolylineTraceGeometry.java
--rwxrwxrwx 1 anwer anwer  5390 Sep 17 12:26 PolylineTraceNormalization.java
--rwxrwxrwx 1 anwer anwer  2441 Sep 17 12:26 PolylineTraceSearchTreeAdapter.java
-[0m
-[0m$ [0mfind /mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting -name "Trace.java" 2>/dev/null
-/mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/board/model/items/Trace.java
-[0m
-[0m→ [0mRead java/app/freerouting/board/model/items/Trace.java
-[0m→ [0mRead java/app/freerouting/board/trace/PolylineTrace.java
-[0m→ [0mRead java/app/freerouting/board/trace/PolylineTraceNormalization.java
-[0m
-[0m$ [0mgrep -r "normalize\|combine" /mnt/d/projects/EDA/freerouting_cpp/tests/ --include="*.cpp" | head -30
-(no output)
-[0m
-[0m$ [0mls /mnt/d/projects/EDA/freerouting_cpp/tests/
-CMakeLists.txt
-data
-[0m
-[0m→ [0mRead tests/CMakeLists.txt
-[0m→ [0mRead src/board/Trace_test.cpp
-[0m→ [0mRead src/board/ShoveTraceAlgo.h
-[0m→ [0mRead src/board/ShoveTraceAlgo.cpp
-[0m
-[0m$ [0mcd /mnt/d/projects/EDA/freerouting_cpp && ctest --test-dir build -R TraceCombineTest --output-on-failure 2>&1
-Test project /mnt/d/projects/EDA/freerouting_cpp/build
-    Start 251: TraceCombineTest.CollinearTracesCombineEndToEnd
-1/2 Test #251: TraceCombineTest.CollinearTracesCombineEndToEnd ...   Passed    0.05 sec
-    Start 252: TraceCombineTest.DifferentNetsDoNotCombine
-2/2 Test #252: TraceCombineTest.DifferentNetsDoNotCombine ........   Passed    0.29 sec
-
-100% tests passed, 0 tests failed out of 2
-
-Total Test time (real) =   0.86 sec
-[0m
-Now I understand the current state. The Trace/PolylineTrace combine/normalize/split are ported but the `ShoveTraceAlgo::spring_over()` is a stub (returns input unchanged), which is a blocker for headless routing. Let me first fix the `PolylineTrace::combine()` to match Java's iterative approach, then work on `ShoveTraceAlgo::spring_over()`.
-[0m→ [0mRead java/app/freerouting/board/trace/PolylineTrace.java[90m [offset=170, limit=100][0m
-[0m✗ [0mEdit src/board/PolylineTrace.cpp failed
-[91m[1mError: [0mCould not find oldString in the file. It must match exactly, including whitespace, indentation, and line endings.
-Now let me fix the `PolylineTrace::combine()` to match Java's iterative approach and fix the `normalize_impl` early exit issue.
-[0m→ [0mRead src/board/PolylineTrace.cpp[90m [limit=50, offset=560][0m
-[0m
-[0m← [0mEdit src/board/PolylineTrace.cpp
-Index: /mnt/d/projects/EDA/freerouting_cpp/src/board/PolylineTrace.cpp
-===================================================================
---- /mnt/d/projects/EDA/freerouting_cpp/src/board/PolylineTrace.cpp
-+++ /mnt/d/projects/EDA/freerouting_cpp/src/board/PolylineTrace.cpp
-@@ -567,20 +567,11 @@
- {
-     return false;
- }
- bool something_changed = false;
--if (combine_at_start(true))
-+while (is_on_board() && (combine_at_start(true) || combine_at_end(true)))
- {
-     something_changed = true;
--    combine();
--}
--else if (combine_at_end(true))
--{
--    something_changed = true;
--    combine();
--}
--if (something_changed)
--{
-     // Java notifies board observers here; the C++ headless port has no
-     // observer bus yet.
-     if (auto* routing_board = dynamic_cast<RoutingBoard*>(get_board()))
-     {
-
-[0m
-[0m→ [0mRead src/board/PolylineTrace.cpp[90m [offset=875, limit=60][0m
-[0m
-[0m← [0mEdit src/board/PolylineTrace.cpp
-Index: /mnt/d/projects/EDA/freerouting_cpp/src/board/PolylineTrace.cpp
-===================================================================
---- /mnt/d/projects/EDA/freerouting_cpp/src/board/PolylineTrace.cpp
-+++ /mnt/d/projects/EDA/freerouting_cpp/src/board/PolylineTrace.cpp
-@@ -881,14 +881,8 @@
-         "Max normalization depth reached with trace '" + std::to_string(get_id()) + "'");
-     return false;
- }
- 
--// Early exit if trace is very simple (only 2 points)
--if (corner_count() <= 2)
--{
--    return false;
--}
--
- // Java notifies observers here; skipped in the C++ headless port.
- std::vector<PolylineTrace*> split_pieces = split(p_clip_shape);
- bool result = split_pieces.size() != 1;
- for (PolylineTrace* curr_split_trace : split_pieces)
-
-[0m
-[0m$ [0mcmake --build build --target freerouting_board -j$(nproc) 2>&1 | tail -20
-|                  ^~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/Item.h: In member function ‘virtual const freerouting::geometry::planar::Point* freerouting::board::Item::normal_contact_point(const freerouting::board::Item*) const’:
-/mnt/d/projects/EDA/freerouting_cpp/src/board/Item.h:93:92: warning: unused parameter ‘p_other’ [-Wunused-parameter]
-   93 |     virtual const ::freerouting::geometry::planar::Point* normal_contact_point(const Item* p_other) const { return nullptr; }
-      |                                                                                ~~~~~~~~~~~~^~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/Item.h: In member function ‘virtual bool freerouting::board::Item::is_drillable(int) const’:
-/mnt/d/projects/EDA/freerouting_cpp/src/board/Item.h:118:35: warning: unused parameter ‘p_net_no’ [-Wunused-parameter]
-  118 |     virtual bool is_drillable(int p_net_no) const { return false; }
-      |                               ~~~~^~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/Item.h: At global scope:
-/mnt/d/projects/EDA/freerouting_cpp/src/board/Item.h:70:57: warning: ‘virtual freerouting::geometry::planar::IntOctagon freerouting::board::Item::get_tile_shape(int) const’ was hidden [-Woverloaded-virtual=]
-   70 |     virtual ::freerouting::geometry::planar::IntOctagon get_tile_shape(int p_index) const;
-      |                                                         ^~~~~~~~~~~~~~
-In file included from /mnt/d/projects/EDA/freerouting_cpp/src/board/RoutingBoard.h:11,
-                 from /mnt/d/projects/EDA/freerouting_cpp/src/board/PolylineTrace.cpp:7:
-/mnt/d/projects/EDA/freerouting_cpp/src/board/BoardOutline.h:31:50: note:   by ‘std::shared_ptr<freerouting::geometry::planar::TileShape> freerouting::board::BoardOutline::get_tile_shape() const’
-   31 |     std::shared_ptr<geometry::planar::TileShape> get_tile_shape() const;
-      |                                                  ^~~~~~~~~~~~~~
-[ 58%] Linking CXX static library libfreerouting_board.a
-[100%] Built target freerouting_board
-[0m
-[0m$ [0mctest --test-dir build -R TraceCombineTest --output-on-failure 2>&1
-Test project /mnt/d/projects/EDA/freerouting_cpp/build
-    Start 251: TraceCombineTest.CollinearTracesCombineEndToEnd
-1/2 Test #251: TraceCombineTest.CollinearTracesCombineEndToEnd ...   Passed    0.04 sec
-    Start 252: TraceCombineTest.DifferentNetsDoNotCombine
-2/2 Test #252: TraceCombineTest.DifferentNetsDoNotCombine ........   Passed    0.33 sec
-
-100% tests passed, 0 tests failed out of 2
-
-Total Test time (real) =   1.49 sec
-[0m
-[0m$ [0mctest --test-dir build -R TraceNormalizeTest --output-on-failure 2>&1
-Test project /mnt/d/projects/EDA/freerouting_cpp/build
-    Start 253: TraceNormalizeTest.SimpleTraceReturnsFalse
-1/2 Test #253: TraceNormalizeTest.SimpleTraceReturnsFalse ...   Passed    0.06 sec
-    Start 254: TraceNormalizeTest.CrossingTracesNormalize
-2/2 Test #254: TraceNormalizeTest.CrossingTracesNormalize ...   Passed    0.04 sec
-
-100% tests passed, 0 tests failed out of 2
-
-Total Test time (real) =   2.26 sec
-[0m
-[0m$ [0mctest --test-dir build --output-on-failure 2>&1 | tail -50
-Start 436: UndoableObjectsTest.DeleteMissingObjectReturnsFalse
-436/458 Test #436: UndoableObjectsTest.DeleteMissingObjectReturnsFalse ..............................   Passed    0.02 sec
-        Start 437: UndoableObjectsTest.DeleteThenUndoRestores
-437/458 Test #437: UndoableObjectsTest.DeleteThenUndoRestores .......................................   Passed    0.01 sec
-        Start 438: UndoableObjectsTest.SaveForUndoThenUndoRestoresOldState
-438/458 Test #438: UndoableObjectsTest.SaveForUndoThenUndoRestoresOldState ..........................   Passed    0.02 sec
-        Start 439: UndoableObjectsTest.InsertedOnCurrentLevelIsRemovedByUndo
-439/458 Test #439: UndoableObjectsTest.InsertedOnCurrentLevelIsRemovedByUndo ........................   Passed    0.02 sec
-        Start 440: UndoableObjectsTest.RedoReappliesInsertion
-440/458 Test #440: UndoableObjectsTest.RedoReappliesInsertion .......................................   Passed    0.02 sec
-        Start 441: UndoableObjectsTest.RedoReappliesInPlaceModification
-441/458 Test #441: UndoableObjectsTest.RedoReappliesInPlaceModification .............................   Passed    0.02 sec
-        Start 442: UndoableObjectsTest.RedoNotPossibleAfterNewSnapshot
-442/458 Test #442: UndoableObjectsTest.RedoNotPossibleAfterNewSnapshot ..............................   Passed    0.02 sec
-        Start 443: UndoableObjectsTest.UndoNotPossibleAtLevelZero
-443/458 Test #443: UndoableObjectsTest.UndoNotPossibleAtLevelZero ...................................   Passed    0.02 sec
-        Start 444: UndoableObjectsTest.DeletedOnCurrentLevelStaysDeletedAfterUndo
-444/458 Test #444: UndoableObjectsTest.DeletedOnCurrentLevelStaysDeletedAfterUndo ...................   Passed    0.02 sec
-        Start 445: UndoableObjectsTest.PopSnapshotDropsTopLevel
-445/458 Test #445: UndoableObjectsTest.PopSnapshotDropsTopLevel .....................................   Passed    0.01 sec
-        Start 446: UndoableObjectsTest.PopSnapshotNotPossibleAtLevelZero
-446/458 Test #446: UndoableObjectsTest.PopSnapshotNotPossibleAtLevelZero ............................   Passed    0.02 sec
-        Start 447: UndoableObjectsTest.SaveForUndoOnlySnapshotsStoredObjects
-447/458 Test #447: UndoableObjectsTest.SaveForUndoOnlySnapshotsStoredObjects ........................   Passed    0.02 sec
-        Start 448: UndoableObjectsTest.DeleteObjectCountsShrink
-448/458 Test #448: UndoableObjectsTest.DeleteObjectCountsShrink .....................................   Passed    0.02 sec
-        Start 449: StoppableTest.InitiallyNotStopped
-449/458 Test #449: StoppableTest.InitiallyNotStopped ................................................   Passed    0.02 sec
-        Start 450: StoppableTest.RequestStopSetsFlag
-450/458 Test #450: StoppableTest.RequestStopSetsFlag ................................................   Passed    0.02 sec
-        Start 451: StoppableTest.MultipleRequestsIdempotent
-451/458 Test #451: StoppableTest.MultipleRequestsIdempotent .........................................   Passed    0.01 sec
-        Start 452: TimeLimitTest.InitiallyNotExceeded
-452/458 Test #452: TimeLimitTest.InitiallyNotExceeded ...............................................   Passed    0.01 sec
-        Start 453: TimeLimitTest.LimitExceededAfterDuration
-453/458 Test #453: TimeLimitTest.LimitExceededAfterDuration .........................................   Passed    0.08 sec
-        Start 454: TimeLimitTest.MultiplyIncreasesLimit
-454/458 Test #454: TimeLimitTest.MultiplyIncreasesLimit .............................................   Passed    0.12 sec
-        Start 455: TimeLimitTest.MultiplyByZeroOrNegativeNoOp
-455/458 Test #455: TimeLimitTest.MultiplyByZeroOrNegativeNoOp .......................................   Passed    0.12 sec
-        Start 456: TimeLimitTest.SetLimitResetsTimer
-456/458 Test #456: TimeLimitTest.SetLimitResetsTimer ................................................   Passed    0.14 sec
-        Start 457: TimeLimitTest.InheritsFromStoppable
-457/458 Test #457: TimeLimitTest.InheritsFromStoppable ..............................................   Passed    0.12 sec
-        Start 458: AllTests
-458/458 Test #458: AllTests .........................................................................   Passed    0.28 sec
-
-100% tests passed, 0 tests failed out of 458
-
-Total Test time (real) =  21.60 sec
-[0m
-[0m$ [0m./build/tests/data/run_tests 2>&1 | tail -20
-DBG place refdes='U10' x=145415 y=-132486 rot=0 pkg='74AHC04'
-DBG place refdes='U15' x=164869 y=-66997 rot=0 pkg='74AHC04'
-DBG place refdes='U21' x=176225 y=-67032 rot=0 pkg='74LS08'
-DBG place refdes='U20' x=187681 y=-67005 rot=0 pkg='74LS32'
-DBG place refdes='U45' x=186411 y=-99568 rot=0 pkg='74LS32'
-DBG place refdes='U36' x=174920 y=-99563 rot=0 pkg='74LS32'
-DBG place refdes='U38' x=152463 y=-99563 rot=0 pkg='74LS11'
-DBG place refdes='U42' x=163666 y=-99598 rot=0 pkg='74LS11'
-DBG place refdes='U49' x=188468 y=-34036 rot=0 pkg='74LS08'
-DBG place refdes='U46' x=165504 y=-34059 rot=0 pkg='74LS11'
-DBG place refdes='U41' x=176860 y=-34043 rot=0 pkg='74HC74'
-DBG component footprint='Connector_PCBEdge:Samtec_MECF-30-0_-NP-L-DV_2x30_P1.27mm_Edge'
-DBG place refdes='J2' x=34290 y=-19050 rot=180 pkg='Conn_02x30_Odd_Even'
-  Issue103-Board-Unrouted.dsn: layers=2 nets=282
-test_scanner_issue103 PASSED
-test_intpoint_projections_and_corners PASSED
-test_line_geometry_ops PASSED
-test_line_segment_basics PASSED
-test_polyline_core_ops PASSED
-All tests PASSED!
-[0m
-[0m$ [0mfind /mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting -name "ShoveTraceAlgo.java" 2>/dev/null
-(no output)
-[0m
-[0m$ [0mfind /mnt/d/projects/EDA/freerouting_cpp/java -name "*ShoveTraceAlgo*" 2>/dev/null
-(no output)
-[0m
-[0m$ [0mgrep -r "springOver\|spring_over" /mnt/d/projects/EDA/freerouting_cpp/java --include="*.java" | head -20
-/mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/autoroute/path/FoundConnectionInserter.java:          // a spring_over obstacle (if clearance compensation is off).
-/mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/board/facade/RoutingBoard.java:        shoveTraceAlgo.springOverObstacles(
-/mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/board/facade/RoutingBoard.java:            "spring_over_obstacles returned null",
-/mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/board/optimize/TraceShover.java:            springOver(
-/mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/board/optimize/TraceShover.java:          // spring_over did not work
-/mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/board/optimize/TraceShover.java:          // spring_over changed something
-/mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/board/optimize/TraceShover.java:            springOver(
-/mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/board/optimize/TraceShover.java:          // spring_over did not work
-/mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/board/optimize/TraceShover.java:          // spring_over changed something
-/mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/board/optimize/TraceShover.java:  private Polyline springOver(
-/mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/board/optimize/TraceShover.java:    return springOver(
-/mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/board/optimize/TraceShover.java:  public Polyline springOverObstacles(
-/mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/board/optimize/TraceShover.java:        springOver(
-/mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/board/optimize/TraceShover.java:        springOver(
-/mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/board/optimize/TraceTightener.java:        shoveTraceAlgo.springOverObstacles(
-/mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/geometry/planar/Circle.java:    // the following caused problems with the spring_over algorithm in routing.
-[0m
-[0m→ [0mRead java/app/freerouting/board/optimize/TraceShover.java
-[0m
-[0m$ [0mgrep -r "entrancePoints\|cutout\|enlarge" /mnt/d/projects/EDA/freerouting_cpp/src/geometry --include="*.h" | head -20
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/ConvexShape.h:     * the shape will be enlarged, else the result shape will be smaller.
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/IntBox.h:    std::vector<IntBox> cutout_from(const IntBox& p_d) const;
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/IntBox.h:    std::vector<Simplex> cutout_from(const Simplex& p_simplex) const;
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/IntBox.h:    std::vector<IntOctagon> cutout_from(const IntOctagon& p_oct) const;
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/IntBox.h:    IntOctagon enlarge(double p_offset) const;
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/IntOctagon.h:    std::vector<IntOctagon> cutout_from(const IntOctagon& p_d) const;
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/IntOctagon.h:    std::vector<IntOctagon> cutout_from(const IntBox& p_d) const;
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/IntOctagon.h:    std::vector<Simplex> cutout_from(const Simplex& p_simplex) const;
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/IntOctagon.h:    IntOctagon enlarge(double p_offset) const { return offset(p_offset); }
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/PolygonShape.h:    std::unique_ptr<Shape> enlarge(double p_offset) const override;
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/PolygonShape.h:    std::vector<std::unique_ptr<Polyline>> cutout(const Polyline& p_polyline) const override;
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/PolylineArea.h:    static void cutout_hole_piece(const TileShape& p_divide_piece,
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/Shape.h:    virtual std::unique_ptr<Shape> enlarge(double p_offset) const;
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/Shape.h:    virtual std::vector<std::unique_ptr<Polyline>> cutout(const Polyline& p_polyline) const;
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/Shape.h:    std::unique_ptr<Shape> enlarge(double p_offset) const override;
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/Shape.h:     * Port of Circle.cutout(Polyline).
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/Shape.h:    std::vector<std::unique_ptr<Polyline>> cutout(const Polyline& p_polyline) const override;
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/Simplex.h:    Simplex enlarge(double p_offset) const;
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/Simplex.h:    std::vector<Simplex> cutout_from(const Simplex& p_outer_simplex) const;
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/Simplex.h:    std::vector<Simplex> cutout_from(const IntOctagon& p_oct) const;
-[0m
-[0m$ [0mgrep -r "entrancePoints" /mnt/d/projects/EDA/freerouting_cpp/src --include="*.h" --include="*.cpp"
-(no output)
-[0m
-[0m$ [0mgrep -r "entrancePoints" /mnt/d/projects/EDA/freerouting_cpp/java --include="*.java" | head -20
-/mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/board/model/items/Pin.java:    int[][] entries = offsetPinShape.entrancePoints(tracePolyline);
-/mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/board/optimize/TraceShover.java:    int[][] entries = offsetShape.entrancePoints(polyline);
-/mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/board/searchtree/ShapeTraceEntries.java:    int[][] entries = offsetShape.entrancePoints(trace.polyline());
-/mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/board/trace/PolylineTrace.java:    int[][] entries = offsetPinShape.entrancePoints(tracePolyline);
-/mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/geometry/planar/TileShape.java:    int[][] intersectionNo = this.entrancePoints(polyline);
-/mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/geometry/planar/TileShape.java:  public int[][] entrancePoints(Polyline polyline) {
-[0m
-[0m$ [0mgrep -A 100 "public int\[\]\[\] entrancePoints" /mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/geometry/planar/TileShape.java
-public int[][] entrancePoints(Polyline polyline) {
-    int[][] result = new int[2 * polyline.lines.length][2];
-    int intersectionCount = 0;
-    int prevIntersectionLineNo = -1;
-    int prevIntersectionEdgeNo = -1;
-    for (int lineIndex = 1; lineIndex < polyline.lines.length - 1; lineIndex++) {
-      LineSegment currentLineSeg = new LineSegment(polyline, lineIndex);
-      int[] currentIntersections = currentLineSeg.borderIntersections(this);
-      for (int i = 0; i < currentIntersections.length; i++) {
-        int edgeIndex = currentIntersections[i];
-        if (lineIndex != prevIntersectionLineNo || edgeIndex != prevIntersectionEdgeNo) {
-          result[intersectionCount][0] = lineIndex;
-          result[intersectionCount][1] = edgeIndex;
-          ++intersectionCount;
-          prevIntersectionLineNo = lineIndex;
-          prevIntersectionEdgeNo = edgeIndex;
-        }
-      }
-    }
-    return Arrays.copyOf(result, intersectionCount);
-  }
-
-  @Override
-  public TileShape[] splitToConvex() {
-    TileShape[] result = new TileShape[1];
-    result[0] = this;
-    return result;
-  }
-
-  /**
-   * Divides this shape into sections with width and height at most maxSectionWidth of about equal
-   * size.
-   */
-  public TileShape[] divideIntoSections(double maxSectionWidth) {
-    if (this.isEmpty()) {
-      TileShape[] result = new TileShape[1];
-      result[0] = this;
-      return result;
-    }
-    TileShape[] sectionBoxes = this.boundingBox().divideIntoSections(maxSectionWidth);
-    Collection<TileShape> sectionList = new LinkedList<>();
-    for (int i = 0; i < sectionBoxes.length; i++) {
-      TileShape currentSection = this.intersectionWithSimplify(sectionBoxes[i]);
-      if (currentSection.dimension() == 2) {
-        sectionList.add(currentSection);
-      }
-    }
-    TileShape[] result = new TileShape[sectionList.size()];
-    Iterator<TileShape> it = sectionList.iterator();
-    for (int i = 0; i < result.length; i++) {
-      result[i] = it.next();
-    }
-    return result;
-  }
-
-  /** Checks, if lineSegment has a common point with the interior of this shape. */
-  public boolean isIntersectedInteriorBy(LineSegment lineSegment) {
-    return isIntersectedInteriorBy(
-        lineSegment.startPoint(), lineSegment.endPoint(), lineSegment.getLine());
-  }
-
-  /**
-   * Checks if the line segment defined by startPoint, endPoint and line has a common point with the
-   * interior of this shape.
-   */
-  public boolean isIntersectedInteriorBy(Point startPoint, Point endPoint, Line line) {
-    FloatPoint floatStartPoint = startPoint.toFloat();
-    FloatPoint floatEndPoint = endPoint.toFloat();
-
-    Side[] borderLineSideOfStartPointArr = new Side[this.borderLineCount()];
-    Side[] borderLineSideOfEndPointArr = new Side[borderLineSideOfStartPointArr.length];
-    for (int i = 0; i < borderLineSideOfStartPointArr.length; i++) {
-      Line currentBorderLine = this.borderLine(i);
-      Side borderLineSideOfStartPoint = currentBorderLine.sideOf(floatStartPoint, 1);
-      if (borderLineSideOfStartPoint == Side.COLLINEAR) {
-        borderLineSideOfStartPoint = currentBorderLine.sideOf(startPoint);
-      }
-      Side borderLineSideOfEndPoint = currentBorderLine.sideOf(floatEndPoint, 1);
-      if (borderLineSideOfEndPoint == Side.COLLINEAR) {
-        borderLineSideOfEndPoint = currentBorderLine.sideOf(endPoint);
-      }
-      if (borderLineSideOfStartPoint != Side.ON_THE_RIGHT
-          && borderLineSideOfEndPoint != Side.ON_THE_RIGHT) {
-        // both endpoints are outside the borderLine,
-        // no intersection possible
-        return false;
-      }
-      borderLineSideOfStartPointArr[i] = borderLineSideOfStartPoint;
-      borderLineSideOfEndPointArr[i] = borderLineSideOfEndPoint;
-    }
-    boolean startPointIsInside = true;
-    for (int i = 0; i < borderLineSideOfStartPointArr.length; i++) {
-      if (borderLineSideOfStartPointArr[i] != Side.ON_THE_RIGHT) {
-        startPointIsInside = false;
-        break;
-      }
-    }
-    if (startPointIsInside) {
-      return true;
-    }
-    boolean endPointIsInside = true;
-[0m
-[0m$ [0mgrep -r "borderIntersections" /mnt/d/projects/EDA/freerouting_cpp/java --include="*.java" | head -10
-/mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/board/model/structure/ShapeEntrySide.java:      int[] intersections = currentSeg.borderIntersections(shape);
-/mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/geometry/planar/LineSegment.java:  public int[] borderIntersections(TileShape shape) {
-/mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/geometry/planar/TileShape.java:      int[] currentIntersections = currentLineSeg.borderIntersections(this);
-[0m
-[0m$ [0mgrep -A 50 "public int\[\] borderIntersections" /mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/geometry/planar/LineSegment.java
-public int[] borderIntersections(TileShape shape) {
-    int[] emptyResult = new int[0];
-    if (!this.boundingBox().intersects(shape.boundingBox())) {
-      return emptyResult;
-    }
-
-    int edgeCount = shape.borderLineCount();
-    Line prevLine = shape.borderLine(edgeCount - 1);
-    Line currentLine = shape.borderLine(0);
-    int[] result = new int[2];
-    Point[] intersection = new Point[2];
-    int intersectionCount = 0;
-    Point lineStart = this.startPoint();
-    Point lineEnd = this.endPoint();
-
-    for (int edgeLineNo = 0; edgeLineNo < edgeCount; edgeLineNo++) {
-      Line nextLine;
-      if (edgeLineNo == edgeCount - 1) {
-        nextLine = shape.borderLine(0);
-      } else {
-        nextLine = shape.borderLine(edgeLineNo + 1);
-      }
-
-      Side startPointSide = currentLine.sideOf(lineStart);
-      Side endPointSide = currentLine.sideOf(lineEnd);
-      if (startPointSide == Side.ON_THE_LEFT && endPointSide == Side.ON_THE_LEFT) {
-        // both endpoints are outside the borderLine,
-        // no intersection possible
-        return emptyResult;
-      }
-
-      if (startPointSide == Side.COLLINEAR) {
-        // the start is on currentLine, check that the end point is inside
-        // the halfplane, because touches count only, if the interior
-        // is entered
-        if (endPointSide != Side.ON_THE_RIGHT) {
-          return emptyResult;
-        }
-      }
-
-      if (endPointSide == Side.COLLINEAR) {
-        // the end is on currentLine, check that the start point is inside
-        // the halfplane, because touches count only, if the interior
-        // is entered
-        if (startPointSide != Side.ON_THE_RIGHT) {
-          return emptyResult;
-        }
-      }
-
-      if (startPointSide != Side.ON_THE_RIGHT || endPointSide != Side.ON_THE_RIGHT) {
-        // not both points are inside the halplane defined by currentLine
-[0m
-[0m→ [0mRead src/geometry/planar/TileShape.h
-[0m
-[0m$ [0mgrep -r "entrance_points" /mnt/d/projects/EDA/freerouting_cpp/src/geometry --include="*.cpp"
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:std::vector<std::pair<int, int>> TileShape::entrance_points(const Polyline& p_polyline) const
-[0m
-[0m→ [0mRead src/geometry/planar/TileShape.cpp
-[0m
-[0m$ [0mgrep -r "border_intersections" /mnt/d/projects/EDA/freerouting_cpp/src --include="*.h" --include="*.cpp"
-/mnt/d/projects/EDA/freerouting_cpp/src/board/CalcFromSide.cpp:        const std::vector<int> intersections = curr_seg.border_intersections(p_shape);
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/LineSegment.cpp:std::vector<int> LineSegment::border_intersections(const TileShape& p_shape) const
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/LineSegment.h:    std::vector<int> border_intersections(const TileShape& p_shape) const;
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:        std::vector<int> curr_intersections = curr_seg.border_intersections(*this);
-[0m
-[0m$ [0mgrep -A 80 "std::vector<int> LineSegment::border_intersections" /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/LineSegment.cpp
-std::vector<int> LineSegment::border_intersections(const TileShape& p_shape) const
-{
-    if (!bounding_box().intersects(p_shape.bounding_box()))
-    {
-        return {};
-    }
-
-    const int edge_count = p_shape.border_line_count();
-    Line prev_line = p_shape.border_line(edge_count - 1);
-    Line curr_line = p_shape.border_line(0);
-    std::vector<int> result;
-    std::vector<std::unique_ptr<Point>> intersection_pts;
-    IntPoint line_start = start_point();
-    IntPoint line_end = end_point();
-
-    for (int edge_line_no = 0; edge_line_no < edge_count; ++edge_line_no)
-    {
-        Line next_line = (edge_line_no == edge_count - 1) ? p_shape.border_line(0) : p_shape.border_line(edge_line_no + 1);
-
-        Side start_point_side = curr_line.side_of(line_start);
-        Side end_point_side = curr_line.side_of(line_end);
-        if (start_point_side == Side::ON_THE_LEFT && end_point_side == Side::ON_THE_LEFT)
-        {
-            return {};
-        }
-
-        if (start_point_side == Side::COLLINEAR)
-        {
-            if (end_point_side != Side::ON_THE_RIGHT)
-            {
-                return {};
-            }
-        }
-
-        if (end_point_side == Side::COLLINEAR)
-        {
-            if (start_point_side != Side::ON_THE_RIGHT)
-            {
-                return {};
-            }
-        }
-
-        if (start_point_side != Side::ON_THE_RIGHT || end_point_side != Side::ON_THE_RIGHT)
-        {
-            std::unique_ptr<Point> is = middle_.intersection(curr_line);
-            if (is)
-            {
-                Side prev_line_side_of_is = prev_line.side_of(*is);
-                Side next_line_side_of_is = next_line.side_of(*is);
-                if (prev_line_side_of_is != Side::ON_THE_LEFT && next_line_side_of_is != Side::ON_THE_LEFT)
-                {
-                    if (prev_line_side_of_is == Side::COLLINEAR)
-                    {
-                        IntPoint prev_prev_corner = (edge_line_no == 0) ? p_shape.corner(edge_count - 1) : p_shape.corner(edge_line_no - 1);
-                        IntPoint next_corner = (edge_line_no == edge_count - 1) ? p_shape.corner(0) : p_shape.corner(edge_line_no + 1);
-                        Side prev_prev_corner_side = middle_.side_of(prev_prev_corner);
-                        Side next_corner_side = middle_.side_of(next_corner);
-                        if (prev_prev_corner_side == Side::COLLINEAR || next_corner_side == Side::COLLINEAR || prev_prev_corner_side == next_corner_side)
-                        {
-                            return {};
-                        }
-                    }
-                    if (next_line_side_of_is == Side::COLLINEAR)
-                    {
-                        IntPoint prev_corner = p_shape.corner(edge_line_no);
-                        IntPoint next_next_corner;
-                        if (edge_line_no == edge_count - 2)
-                        {
-                            next_next_corner = p_shape.corner(0);
-                        }
-                        else if (edge_line_no == edge_count - 1)
-                        {
-                            next_next_corner = p_shape.corner(1);
-                        }
-                        else
-                        {
-                            next_next_corner = p_shape.corner(edge_line_no + 2);
-                        }
-                        Side prev_corner_side = middle_.side_of(prev_corner);
-                        Side next_next_corner_side = middle_.side_of(next_next_corner);
-                        if (prev_corner_side == Side::COLLINEAR || next_next_corner_side == Side::COLLINEAR || prev_corner_side == next_next_corner_side)
-[0m
-[0m$ [0mgrep -r "cutout" /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar --include="*.h" | grep -i polyline
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/PolygonShape.h:    std::vector<std::unique_ptr<Polyline>> cutout(const Polyline& p_polyline) const override;
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/PolylineArea.h:    static void cutout_hole_piece(const TileShape& p_divide_piece,
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/Shape.h:    virtual std::vector<std::unique_ptr<Polyline>> cutout(const Polyline& p_polyline) const;
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/Shape.h:     * Port of Circle.cutout(Polyline).
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/Shape.h:    std::vector<std::unique_ptr<Polyline>> cutout(const Polyline& p_polyline) const override;
-[0m
-[0m$ [0mgrep -A 50 "public Polyline\[\] cutout" /mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/geometry/planar/TileShape.java
-public Polyline[] cutout(Polyline polyline) {
-    int[][] intersectionNo = this.entrancePoints(polyline);
-    Point firstCorner = polyline.firstCorner();
-    boolean firstCornerIsInside = this.containsInside(firstCorner);
-    if (intersectionNo.length == 0) {
-      // no intersections
-      if (firstCornerIsInside) {
-        // polyline is contained completely in this shape
-        return new Polyline[0];
-      }
-      // polyline is completely outside
-      Polyline[] result = new Polyline[1];
-      result[0] = polyline;
-      return result;
-    }
-    Collection<Polyline> pieces = new LinkedList<>();
-    int currentIntersectionNo = 0;
-    int[] currentIntersectionTuple = intersectionNo[currentIntersectionNo];
-    Point firstIntersection =
-        polyline.lines[currentIntersectionTuple[0]].intersection(
-            this.borderLine(currentIntersectionTuple[1]));
-    if (!firstCornerIsInside) {
-      // calculate outside piece at start
-      if (!firstCorner.equals(firstIntersection)) {
-        // otherwise skip 1 point outside polyline at the start
-        int currentPolylineIntersectionNo = currentIntersectionTuple[0];
-        Line[] currentLines = new Line[currentPolylineIntersectionNo + 2];
-        System.arraycopy(polyline.lines, 0, currentLines, 0, currentPolylineIntersectionNo + 1);
-        // close the polyline piece with the intersected edge line.
-        currentLines[currentPolylineIntersectionNo + 1] =
-            this.borderLine(currentIntersectionTuple[1]);
-        Polyline currentPiece = new Polyline(currentLines);
-        if (!currentPiece.isEmpty()) {
-          pieces.add(currentPiece);
-        }
-      }
-      ++currentIntersectionNo;
-    }
-    while (currentIntersectionNo < intersectionNo.length - 1) {
-      // calculate the next outside polyline piece
-      currentIntersectionTuple = intersectionNo[currentIntersectionNo];
-      int[] nextIntersectionTuple = intersectionNo[currentIntersectionNo + 1];
-      int currentIntersectionNoOfPolyline = currentIntersectionTuple[0];
-      int nextIntersectionNoOfPolyline = nextIntersectionTuple[0];
-      // check that at least 1 corner of polyline with number
-      // between currentIntersectionNoOfPolyline and
-      // nextIntersectionNoOfPolyline
-      // is not contained in this shape. Otherwise, the part of polyline
-      // between this intersections is completely contained in the border
-      // and can be ignored
-      boolean insertPiece = false;
-[0m
-[0m→ [0mRead java/app/freerouting/geometry/planar/TileShape.java[90m [limit=100, offset=1][0m
-[0m
-[0m$ [0mgrep -n "cutout" /mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/geometry/planar/TileShape.java
-756:  public abstract TileShape[] cutout(TileShape shape);
-764:  public Polyline[] cutout(Polyline polyline) {
-1014:  /** Auxiliary function to implement cutout(TileShape shape). */
-1015:  abstract TileShape[] cutoutFrom(IntBox shape);
-1017:  /** Auxiliary function to implement cutout(TileShape shape). */
-1018:  abstract TileShape[] cutoutFrom(IntOctagon shape);
-1020:  /** Auxiliary function to implement cutout(TileShape shape). */
-1021:  abstract TileShape[] cutoutFrom(Simplex shape);
-[0m
-[0m→ [0mRead java/app/freerouting/geometry/planar/TileShape.java[90m [limit=100, offset=760][0m
-[0m
-[0m$ [0mgrep -n "firstCorner\|corner\|arr\|isEmpty" /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/Polyline.h | head -30
-21:    std::vector<Line> arr;
-24:    explicit Polyline(const std::vector<Line>& p_line_arr);
-26:    Polyline(const IntPoint& p_from_corner, const IntPoint& p_to_corner);
-29:     * Copies the line array; derived caches are recomputed lazily.
-39:    static Polyline from_corners(const std::vector<IntPoint>& p_points);
-41:    int corner_count() const;
-47:    IntPoint first_corner() const;
-48:    IntPoint last_corner() const;
-50:    std::vector<IntPoint> corner_arr() const;
-51:    std::vector<FloatPoint> corner_approx_arr() const;
-52:    FloatPoint corner_approx(int p_no) const;
-53:    IntPoint corner(int p_no) const;
-57:    double length_approx(int p_from_corner, int p_to_corner) const;
-84:    IntBox bounding_box(int p_from_corner_no, int p_to_corner_no) const;
-86:    IntOctagon bounding_octagon(int p_from_corner_no, int p_to_corner_no) const;
-103:    mutable std::vector<FloatPoint> precalculated_float_corners;
-104:    mutable std::vector<IntPoint> precalculated_corners;
-107:    static std::vector<Line> remove_consecutive_parallel_lines(const std::vector<Line>& p_line_arr);
-108:    static std::vector<Line> remove_overlaps(const std::vector<Line>& p_line_arr);
-[0m
-[0m← [0mEdit src/geometry/planar/TileShape.h
-Index: /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.h
-===================================================================
---- /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.h
-+++ /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.h
-@@ -125,8 +125,16 @@
-  * mix of the concrete tile types.
-  */
- std::vector<std::unique_ptr<TileShape>> cutout(const TileShape& p_shape) const;
- 
-+/**
-+ * Cuts this shape out of p_polyline and returns the pieces of p_polyline
-+ * that lie outside this shape. Port of Java TileShape.cutout(Polyline).
-+ * Returns empty vector if p_polyline is completely inside this shape.
-+ * Returns vector with original p_polyline if completely outside.
-+ */
-+std::vector<std::unique_ptr<Polyline>> cutout(const Polyline& p_polyline) const;
-+
- // ---- static factories ----------------------------------------------------
- 
- /**
-  * Creates the convex shape defined by the half-planes of p_line_arr and
-
-[0m
-[0m→ [0mRead src/geometry/planar/TileShape.cpp[90m [limit=20][0m
-[0m→ [0mRead src/geometry/planar/TileShape.cpp[90m [offset=620][0m
-[0m
-[0m← [0mEdit src/geometry/planar/TileShape.cpp
-Index: /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp
-===================================================================
---- /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp
-+++ /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp
-@@ -683,5 +683,106 @@
- }
- 
- } // namespace planar
- } // namespace geometry
--} // namespace freerouting
-\ No newline at end of file
-+} // namespace freerouting
-+
-+std::vector<std::unique_ptr<Polyline>> TileShape::cutout(const Polyline& p_polyline) const
-+{
-+    std::vector<std::pair<int, int>> intersection_no = entrance_points(p_polyline);
-+    const IntPoint first_corner = p_polyline.first_corner();
-+    const bool first_corner_is_inside = contains_inside(first_corner);
-+
-+    std::vector<std::unique_ptr<Polyline>> pieces;
-+
-+    if (intersection_no.empty())
-+    {
-+        if (first_corner_is_inside)
-+        {
-+            return {};
-+        }
-+        pieces.emplace_back(std::make_unique<Polyline>(p_polyline));
-+        return pieces;
-+    }
-+
-+    size_t current_intersection_no = 0;
-+    const auto& current_intersection_tuple = intersection_no[current_intersection_no];
-+    std::unique_ptr<Point> first_intersection =
-+        p_polyline.arr[current_intersection_tuple.first].intersection(border_line(current_intersection_tuple.second));
-+
-+    if (!first_corner_is_inside)
-+    {
-+        if (!first_corner.equals(first_intersection.get()))
-+        {
-+            int current_polyline_intersection_no = current_intersection_tuple.first;
-+            std::vector<Line> current_lines;
-+            current_lines.reserve(current_polyline_intersection_no + 2);
-+            for (int i = 0; i <= current_polyline_intersection_no; ++i)
-+            {
-+                current_lines.push_back(p_polyline.arr[i]);
-+            }
-+            current_lines.push_back(border_line(current_intersection_tuple.second));
-+            Polyline current_piece(current_lines);
-+            if (!current_piece.arr.empty())
-+            {
-+                pieces.emplace_back(std::make_unique<Polyline>(std::move(current_piece)));
-+            }
-+        }
-+        ++current_intersection_no;
-+    }
-+
-+    while (current_intersection_no + 1 < intersection_no.size())
-+    {
-+        const auto& curr_tuple = intersection_no[current_intersection_no];
-+        const auto& next_tuple = intersection_no[current_intersection_no + 1];
-+        int current_intersection_no_of_polyline = curr_tuple.first;
-+        int next_intersection_no_of_polyline = next_tuple.first;
-+
-+        bool insert_piece = false;
-+        for (int i = current_intersection_no_of_polyline + 1; i < next_intersection_no_of_polyline; ++i)
-+        {
-+            if (is_outside(p_polyline.corner(i)))
-+            {
-+                insert_piece = true;
-+                break;
-+            }
-+        }
-+
-+        if (insert_piece)
-+        {
-+            std::vector<Line> current_lines;
-+            current_lines.reserve(next_intersection_no_of_polyline - current_intersection_no_of_polyline + 3);
-+            current_lines.push_back(border_line(curr_tuple.second));
-+            for (int i = current_intersection_no_of_polyline; i <= next_intersection_no_of_polyline; ++i)
-+            {
-+                current_lines.push_back(p_polyline.arr[i]);
-+            }
-+            current_lines.push_back(border_line(next_tuple.second));
-+            Polyline current_piece(current_lines);
-+            if (!current_piece.arr.empty())
-+            {
-+                pieces.emplace_back(std::make_unique<Polyline>(std::move(current_piece)));
-+            }
-+        }
-+        current_intersection_no += 2;
-+    }
-+
-+    if (current_intersection_no < intersection_no.size())
-+    {
-+        const auto& current_tuple = intersection_no[current_intersection_no];
-+        int current_polyline_intersection_no = current_tuple.first;
-+        std::vector<Line> current_lines;
-+        current_lines.reserve(p_polyline.arr.size() - current_polyline_intersection_no + 1);
-+        current_lines.push_back(border_line(current_tuple.second));
-+        for (size_t i = current_polyline_intersection_no; i < p_polyline.arr.size(); ++i)
-+        {
-+            current_lines.push_back(p_polyline.arr[i]);
-+        }
-+        Polyline current_piece(current_lines);
-+        if (!current_piece.arr.empty())
-+        {
-+            pieces.emplace_back(std::make_unique<Polyline>(std::move(current_piece)));
-+        }
-+    }
-+
-+    return pieces;
-+}
-\ No newline at end of file
-
-[0m
-[0m$ [0mcmake --build build --target freerouting_geometry -j$(nproc) 2>&1 | tail -30
-from /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/Polyline.cpp:2:
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.h:52:18: warning: ‘virtual bool freerouting::geometry::planar::TileShape::contains(const freerouting::geometry::planar::IntPoint&) const’ was hidden [-Woverloaded-virtual=]
-   52 |     virtual bool contains(const IntPoint& p_point) const = 0;
-      |                  ^~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/RegularTileShape.h:48:18: note:   by ‘virtual bool freerouting::geometry::planar::RegularTileShape::contains(const freerouting::geometry::planar::RegularTileShape&) const’
-   48 |     virtual bool contains(const RegularTileShape& p_other) const = 0;
-      |                  ^~~~~~~~
-In file included from /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/RegularTileShape.h:5,
-                 from /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/IntBox.h:7,
-                 from /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/PolygonShape.h:8,
-                 from /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/PolygonShape.cpp:1:
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.h:52:18: warning: ‘virtual bool freerouting::geometry::planar::TileShape::contains(const freerouting::geometry::planar::IntPoint&) const’ was hidden [-Woverloaded-virtual=]
-   52 |     virtual bool contains(const IntPoint& p_point) const = 0;
-      |                  ^~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/RegularTileShape.h:48:18: note:   by ‘virtual bool freerouting::geometry::planar::RegularTileShape::contains(const freerouting::geometry::planar::RegularTileShape&) const’
-   48 |     virtual bool contains(const RegularTileShape& p_other) const = 0;
-      |                  ^~~~~~~~
-In file included from /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/PolylineArea.h:9,
-                 from /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/PolylineArea.cpp:1:
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.h:52:18: warning: ‘virtual bool freerouting::geometry::planar::TileShape::contains(const freerouting::geometry::planar::IntPoint&) const’ was hidden [-Woverloaded-virtual=]
-   52 |     virtual bool contains(const IntPoint& p_point) const = 0;
-      |                  ^~~~~~~~
-In file included from /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/IntOctagon.h:7,
-                 from /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/PolylineArea.cpp:8:
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/RegularTileShape.h:48:18: note:   by ‘virtual bool freerouting::geometry::planar::RegularTileShape::contains(const freerouting::geometry::planar::RegularTileShape&) const’
-   48 |     virtual bool contains(const RegularTileShape& p_other) const = 0;
-      |                  ^~~~~~~~
-gmake[2]: *** [CMakeFiles/Makefile2:848: src/geometry/CMakeFiles/freerouting_geometry.dir/all] Error 2
-gmake[1]: *** [CMakeFiles/Makefile2:855: src/geometry/CMakeFiles/freerouting_geometry.dir/rule] Error 2
-gmake: *** [Makefile:225: freerouting_geometry] Error 2
-[0m
-[0m$ [0mcmake --build build --target freerouting_geometry -j$(nproc) 2>&1 | grep -A 20 "error:"
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:689:29: error: ‘Polyline’ was not declared in this scope; did you mean ‘freerouting::geometry::planar::Polyline’?
-  689 | std::vector<std::unique_ptr<Polyline>> TileShape::cutout(const Polyline& p_polyline) const
-      |                             ^~~~~~~~
-      |                             freerouting::geometry::planar::Polyline
-In file included from /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:12:
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/Polyline.h:19:7: note: ‘freerouting::geometry::planar::Polyline’ declared here
-   19 | class Polyline {
-      |       ^~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:689:29: error: template argument 1 is invalid
-  689 | std::vector<std::unique_ptr<Polyline>> TileShape::cutout(const Polyline& p_polyline) const
-      |                             ^~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:689:29: error: template argument 2 is invalid
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:689:37: error: template argument 1 is invalid
-  689 | std::vector<std::unique_ptr<Polyline>> TileShape::cutout(const Polyline& p_polyline) const
-      |                                     ^~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:689:37: error: template argument 2 is invalid
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:689:40: error: ‘TileShape’ has not been declared
-  689 | std::vector<std::unique_ptr<Polyline>> TileShape::cutout(const Polyline& p_polyline) const
-      |                                        ^~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:689:64: error: ‘Polyline’ does not name a type
-  689 | std::vector<std::unique_ptr<Polyline>> TileShape::cutout(const Polyline& p_polyline) const
-      |                                                                ^~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:689:86: error: non-member function ‘int cutout(const int&)’ cannot have cv-qualifier
-  689 | std::vector<std::unique_ptr<Polyline>> TileShape::cutout(const Polyline& p_polyline) const
-      |                                                                                      ^~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp: In function ‘int cutout(const int&)’:
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:691:56: error: ‘entrance_points’ was not declared in this scope
-  691 |     std::vector<std::pair<int, int>> intersection_no = entrance_points(p_polyline);
-      |                                                        ^~~~~~~~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:692:11: error: ‘IntPoint’ does not name a type
-  692 |     const IntPoint first_corner = p_polyline.first_corner();
-      |           ^~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:693:57: error: ‘first_corner’ was not declared in this scope
-  693 |     const bool first_corner_is_inside = contains_inside(first_corner);
-      |                                                         ^~~~~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:693:41: error: ‘contains_inside’ was not declared in this scope
-  693 |     const bool first_corner_is_inside = contains_inside(first_corner);
-      |                                         ^~~~~~~~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:695:33: error: ‘Polyline’ was not declared in this scope; did you mean ‘freerouting::geometry::planar::Polyline’?
-  695 |     std::vector<std::unique_ptr<Polyline>> pieces;
-      |                                 ^~~~~~~~
-      |                                 freerouting::geometry::planar::Polyline
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/Polyline.h:19:7: note: ‘freerouting::geometry::planar::Polyline’ declared here
-   19 | class Polyline {
-      |       ^~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:695:33: error: template argument 1 is invalid
-  695 |     std::vector<std::unique_ptr<Polyline>> pieces;
-      |                                 ^~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:695:33: error: template argument 2 is invalid
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:695:41: error: template argument 1 is invalid
-  695 |     std::vector<std::unique_ptr<Polyline>> pieces;
-      |                                         ^~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:695:41: error: template argument 2 is invalid
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:703:16: error: request for member ‘emplace_back’ in ‘pieces’, which is of non-class type ‘int’
-  703 |         pieces.emplace_back(std::make_unique<Polyline>(p_polyline));
-      |                ^~~~~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:703:55: error: no matching function for call to ‘make_unique<Polyline>(const int&)’
-  703 |         pieces.emplace_back(std::make_unique<Polyline>(p_polyline));
-      |                             ~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:703:55: note: there are 3 candidates
-In file included from /usr/include/c++/15/memory:80,
-                 from /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.h:3:
-/usr/include/c++/15/bits/unique_ptr.h:1083:5: note: candidate 1: ‘template<class _Tp, class ... _Args> std::__detail::__unique_ptr_t<_Tp> std::make_unique(_Args&& ...)’
- 1083 |     make_unique(_Args&&... __args)
-      |     ^~~~~~~~~~~
-/usr/include/c++/15/bits/unique_ptr.h:1083:5: note: template argument deduction/substitution failed:
-/usr/include/c++/15/bits/unique_ptr.h:1098:5: note: candidate 2: ‘template<class _Tp> std::__detail::__unique_ptr_array_t<_Tp> std::make_unique(size_t)’
- 1098 |     make_unique(size_t __num)
-      |     ^~~~~~~~~~~
-/usr/include/c++/15/bits/unique_ptr.h:1098:5: note: template argument deduction/substitution failed:
-/usr/include/c++/15/bits/unique_ptr.h:1108:5: note: candidate 3: ‘template<class _Tp, class ... _Args> std::__detail::__invalid_make_unique_t<_Tp> std::make_unique(_Args&& ...)’ (deleted)
- 1108 |     make_unique(_Args&&...) = delete;
-      |     ^~~~~~~~~~~
-/usr/include/c++/15/bits/unique_ptr.h:1108:5: note: template argument deduction/substitution failed:
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:709:21: error: ‘Point’ was not declared in this scope; did you mean ‘freerouting::geometry::planar::Point’?
-  709 |     std::unique_ptr<Point> first_intersection =
-      |                     ^~~~~
-      |                     freerouting::geometry::planar::Point
-In file included from /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.h:7:
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/Point.h:29:7: note: ‘freerouting::geometry::planar::Point’ declared here
-   29 | class Point
-      |       ^~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:709:26: error: template argument 1 is invalid
-  709 |     std::unique_ptr<Point> first_intersection =
-      |                          ^
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:709:26: error: template argument 2 is invalid
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:710:20: error: request for member ‘arr’ in ‘p_polyline’, which is of non-class type ‘const int’
-  710 |         p_polyline.arr[current_intersection_tuple.first].intersection(border_line(current_intersection_tuple.second));
-      |                    ^~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:710:71: error: ‘border_line’ was not declared in this scope
-  710 |         p_polyline.arr[current_intersection_tuple.first].intersection(border_line(current_intersection_tuple.second));
-      |                                                                       ^~~~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:714:53: error: request for member ‘get’ in ‘first_intersection’, which is of non-class type ‘int’
-  714 |         if (!first_corner.equals(first_intersection.get()))
-      |                                                     ^~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:717:25: error: ‘Line’ was not declared in this scope; did you mean ‘freerouting::geometry::planar::Line’?
-  717 |             std::vector<Line> current_lines;
-      |                         ^~~~
-      |                         freerouting::geometry::planar::Line
-In file included from /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.h:8:
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/Vector.h:97:7: note: ‘freerouting::geometry::planar::Line’ declared here
-   97 | class Line
-      |       ^~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:717:29: error: template argument 1 is invalid
-  717 |             std::vector<Line> current_lines;
-      |                             ^
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:717:29: error: template argument 2 is invalid
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:718:27: error: request for member ‘reserve’ in ‘current_lines’, which is of non-class type ‘int’
-  718 |             current_lines.reserve(current_polyline_intersection_no + 2);
-      |                           ^~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:721:31: error: request for member ‘push_back’ in ‘current_lines’, which is of non-class type ‘int’
-  721 |                 current_lines.push_back(p_polyline.arr[i]);
-      |                               ^~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:721:52: error: request for member ‘arr’ in ‘p_polyline’, which is of non-class type ‘const int’
-  721 |                 current_lines.push_back(p_polyline.arr[i]);
-      |                                                    ^~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:723:27: error: request for member ‘push_back’ in ‘current_lines’, which is of non-class type ‘int’
-  723 |             current_lines.push_back(border_line(current_intersection_tuple.second));
-      |                           ^~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:724:21: error: expected ‘;’ before ‘current_piece’
-  724 |             Polyline current_piece(current_lines);
-      |                     ^~~~~~~~~~~~~~
-      |                     ;
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:725:18: error: ‘current_piece’ was not declared in this scope; did you mean ‘current_lines’?
-  725 |             if (!current_piece.arr.empty())
-      |                  ^~~~~~~~~~~~~
-      |                  current_lines
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:727:24: error: request for member ‘emplace_back’ in ‘pieces’, which is of non-class type ‘int’
-  727 |                 pieces.emplace_back(std::make_unique<Polyline>(std::move(current_piece)));
-      |                        ^~~~~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:743:39: error: request for member ‘corner’ in ‘p_polyline’, which is of non-class type ‘const int’
-  743 |             if (is_outside(p_polyline.corner(i)))
-      |                                       ^~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:743:17: error: ‘is_outside’ was not declared in this scope
-  743 |             if (is_outside(p_polyline.corner(i)))
-      |                 ^~~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:752:25: error: ‘Line’ was not declared in this scope; did you mean ‘freerouting::geometry::planar::Line’?
-  752 |             std::vector<Line> current_lines;
-      |                         ^~~~
-      |                         freerouting::geometry::planar::Line
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/Vector.h:97:7: note: ‘freerouting::geometry::planar::Line’ declared here
-   97 | class Line
-      |       ^~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:752:29: error: template argument 1 is invalid
-  752 |             std::vector<Line> current_lines;
-      |                             ^
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:752:29: error: template argument 2 is invalid
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:753:27: error: request for member ‘reserve’ in ‘current_lines’, which is of non-class type ‘int’
-  753 |             current_lines.reserve(next_intersection_no_of_polyline - current_intersection_no_of_polyline + 3);
-      |                           ^~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:754:27: error: request for member ‘push_back’ in ‘current_lines’, which is of non-class type ‘int’
-  754 |             current_lines.push_back(border_line(curr_tuple.second));
-      |                           ^~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:757:31: error: request for member ‘push_back’ in ‘current_lines’, which is of non-class type ‘int’
-  757 |                 current_lines.push_back(p_polyline.arr[i]);
-      |                               ^~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:757:52: error: request for member ‘arr’ in ‘p_polyline’, which is of non-class type ‘const int’
-  757 |                 current_lines.push_back(p_polyline.arr[i]);
-      |                                                    ^~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:759:27: error: request for member ‘push_back’ in ‘current_lines’, which is of non-class type ‘int’
-  759 |             current_lines.push_back(border_line(next_tuple.second));
-      |                           ^~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:760:21: error: expected ‘;’ before ‘current_piece’
-  760 |             Polyline current_piece(current_lines);
-      |                     ^~~~~~~~~~~~~~
-      |                     ;
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:761:18: error: ‘current_piece’ was not declared in this scope; did you mean ‘current_lines’?
-  761 |             if (!current_piece.arr.empty())
-      |                  ^~~~~~~~~~~~~
-      |                  current_lines
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:763:24: error: request for member ‘emplace_back’ in ‘pieces’, which is of non-class type ‘int’
-  763 |                 pieces.emplace_back(std::make_unique<Polyline>(std::move(current_piece)));
-      |                        ^~~~~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:773:21: error: ‘Line’ was not declared in this scope; did you mean ‘freerouting::geometry::planar::Line’?
-  773 |         std::vector<Line> current_lines;
-      |                     ^~~~
-      |                     freerouting::geometry::planar::Line
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/Vector.h:97:7: note: ‘freerouting::geometry::planar::Line’ declared here
-   97 | class Line
-      |       ^~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:773:25: error: template argument 1 is invalid
-  773 |         std::vector<Line> current_lines;
-      |                         ^
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:773:25: error: template argument 2 is invalid
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:774:23: error: request for member ‘reserve’ in ‘current_lines’, which is of non-class type ‘int’
-  774 |         current_lines.reserve(p_polyline.arr.size() - current_polyline_intersection_no + 1);
-      |                       ^~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:774:42: error: request for member ‘arr’ in ‘p_polyline’, which is of non-class type ‘const int’
-  774 |         current_lines.reserve(p_polyline.arr.size() - current_polyline_intersection_no + 1);
-      |                                          ^~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:775:23: error: request for member ‘push_back’ in ‘current_lines’, which is of non-class type ‘int’
-  775 |         current_lines.push_back(border_line(current_tuple.second));
-      |                       ^~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:776:74: error: request for member ‘arr’ in ‘p_polyline’, which is of non-class type ‘const int’
-  776 |         for (size_t i = current_polyline_intersection_no; i < p_polyline.arr.size(); ++i)
-      |                                                                          ^~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:778:27: error: request for member ‘push_back’ in ‘current_lines’, which is of non-class type ‘int’
-  778 |             current_lines.push_back(p_polyline.arr[i]);
-      |                           ^~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:778:48: error: request for member ‘arr’ in ‘p_polyline’, which is of non-class type ‘const int’
-  778 |             current_lines.push_back(p_polyline.arr[i]);
-      |                                                ^~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:780:17: error: expected ‘;’ before ‘current_piece’
-  780 |         Polyline current_piece(current_lines);
-      |                 ^~~~~~~~~~~~~~
-      |                 ;
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:781:14: error: ‘current_piece’ was not declared in this scope; did you mean ‘current_lines’?
-  781 |         if (!current_piece.arr.empty())
-      |              ^~~~~~~~~~~~~
-      |              current_lines
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:783:20: error: request for member ‘emplace_back’ in ‘pieces’, which is of non-class type ‘int’
-  783 |             pieces.emplace_back(std::make_unique<Polyline>(std::move(current_piece)));
-      |                    ^~~~~~~~~~~~
-gmake[3]: *** [src/geometry/CMakeFiles/freerouting_geometry.dir/build.make:331: src/geometry/CMakeFiles/freerouting_geometry.dir/planar/TileShape.cpp.o] Error 1
-gmake[2]: *** [CMakeFiles/Makefile2:848: src/geometry/CMakeFiles/freerouting_geometry.dir/all] Error 2
-gmake[1]: *** [CMakeFiles/Makefile2:855: src/geometry/CMakeFiles/freerouting_geometry.dir/rule] Error 2
-gmake: *** [Makefile:225: freerouting_geometry] Error 2
-[0m
-[0m→ [0mRead src/geometry/planar/TileShape.cpp[90m [offset=680][0m
-[0m
-[0m← [0mEdit src/geometry/planar/TileShape.cpp
-Index: /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp
-===================================================================
---- /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp
-+++ /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp
-@@ -681,12 +681,8 @@
-     }
-     return result;
- }
- 
--} // namespace planar
--} // namespace geometry
--} // namespace freerouting
--
- std::vector<std::unique_ptr<Polyline>> TileShape::cutout(const Polyline& p_polyline) const
- {
-     std::vector<std::pair<int, int>> intersection_no = entrance_points(p_polyline);
-     const IntPoint first_corner = p_polyline.first_corner();
-@@ -784,5 +780,9 @@
-         }
-     }
- 
-     return pieces;
--}
-\ No newline at end of file
-+}
-+
-+} // namespace planar
-+} // namespace geometry
-+} // namespace freerouting
-\ No newline at end of file
-
-[0m
-[0m$ [0mcmake --build build --target freerouting_geometry -j$(nproc) 2>&1 | tail -20
-[ 11%] Built target freerouting_core
-[ 41%] Built target freerouting_datastructures
-[ 41%] Building CXX object src/geometry/CMakeFiles/freerouting_geometry.dir/planar/TileShape.cpp.o
-In file included from /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:1:
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.h:52:18: warning: ‘virtual bool freerouting::geometry::planar::TileShape::contains(const freerouting::geometry::planar::IntPoint&) const’ was hidden [-Woverloaded-virtual=]
-   52 |     virtual bool contains(const IntPoint& p_point) const = 0;
-      |                  ^~~~~~~~
-In file included from /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/IntBox.h:7,
-                 from /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp:9:
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/RegularTileShape.h:48:18: note:   by ‘virtual bool freerouting::geometry::planar::RegularTileShape::contains(const freerouting::geometry::planar::RegularTileShape&) const’
-   48 |     virtual bool contains(const RegularTileShape& p_other) const = 0;
-      |                  ^~~~~~~~
-[ 47%] Linking CXX static library libfreerouting_geometry.a
-[100%] Built target freerouting_geometry
-[0m
-[0m$ [0mcmake --build build --target freerouting_board -j$(nproc) 2>&1 | tail -20
-/mnt/d/projects/EDA/freerouting_cpp/src/board/Item.h: At global scope:
-/mnt/d/projects/EDA/freerouting_cpp/src/board/Item.h:70:57: warning: ‘virtual freerouting::geometry::planar::IntOctagon freerouting::board::Item::get_tile_shape(int) const’ was hidden [-Woverloaded-virtual=]
-   70 |     virtual ::freerouting::geometry::planar::IntOctagon get_tile_shape(int p_index) const;
-      |                                                         ^~~~~~~~~~~~~~
-In file included from /mnt/d/projects/EDA/freerouting_cpp/src/board/RoutingBoard.h:11,
-                 from /mnt/d/projects/EDA/freerouting_cpp/src/board/PullTightAlgoAnyAngle.cpp:8:
-/mnt/d/projects/EDA/freerouting_cpp/src/board/BoardOutline.h:31:50: note:   by ‘std::shared_ptr<freerouting::geometry::planar::TileShape> freerouting::board::BoardOutline::get_tile_shape() const’
-   31 |     std::shared_ptr<geometry::planar::TileShape> get_tile_shape() const;
-      |                                                  ^~~~~~~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/PullTightAlgo.cpp:34:28: warning: ‘freerouting::geometry::planar::IntPoint freerouting::board::{anonymous}::to_int_point(const freerouting::geometry::planar::Point&)’ defined but not used [-Wunused-function]
-   34 | geometry::planar::IntPoint to_int_point(const geometry::planar::Point& p_point)
-      |                            ^~~~~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/PullTightAlgo45.cpp:36:25: warning: ‘std::optional<freerouting::geometry::planar::Line> freerouting::board::{anonymous}::line_through_point(const freerouting::geometry::planar::IntPoint&, const freerouting::geometry::planar::Direction&)’ defined but not used [-Wunused-function]
-   36 | std::optional<gp::Line> line_through_point(const gp::IntPoint& p_point,
-      |                         ^~~~~~~~~~~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/PullTightAlgo45.cpp:22:14: warning: ‘freerouting::geometry::planar::IntPoint freerouting::board::{anonymous}::to_int_point(const freerouting::geometry::planar::Point&)’ defined but not used [-Wunused-function]
-   22 | gp::IntPoint to_int_point(const gp::Point& p_point)
-      |              ^~~~~~~~~~~~
-[ 88%] Linking CXX static library libfreerouting_board.a
-[100%] Built target freerouting_board
-[0m
-[0m$ [0mctest --test-dir build --output-on-failure 2>&1 | tail -30
-Start 446: UndoableObjectsTest.PopSnapshotNotPossibleAtLevelZero
-446/458 Test #446: UndoableObjectsTest.PopSnapshotNotPossibleAtLevelZero ............................   Passed    0.02 sec
-        Start 447: UndoableObjectsTest.SaveForUndoOnlySnapshotsStoredObjects
-447/458 Test #447: UndoableObjectsTest.SaveForUndoOnlySnapshotsStoredObjects ........................   Passed    0.02 sec
-        Start 448: UndoableObjectsTest.DeleteObjectCountsShrink
-448/458 Test #448: UndoableObjectsTest.DeleteObjectCountsShrink .....................................   Passed    0.02 sec
-        Start 449: StoppableTest.InitiallyNotStopped
-449/458 Test #449: StoppableTest.InitiallyNotStopped ................................................   Passed    0.19 sec
-        Start 450: StoppableTest.RequestStopSetsFlag
-450/458 Test #450: StoppableTest.RequestStopSetsFlag ................................................   Passed    0.12 sec
-        Start 451: StoppableTest.MultipleRequestsIdempotent
-451/458 Test #451: StoppableTest.MultipleRequestsIdempotent .........................................   Passed    0.12 sec
-        Start 452: TimeLimitTest.InitiallyNotExceeded
-452/458 Test #452: TimeLimitTest.InitiallyNotExceeded ...............................................   Passed    0.20 sec
-        Start 453: TimeLimitTest.LimitExceededAfterDuration
-453/458 Test #453: TimeLimitTest.LimitExceededAfterDuration .........................................   Passed    0.18 sec
-        Start 454: TimeLimitTest.MultiplyIncreasesLimit
-454/458 Test #454: TimeLimitTest.MultiplyIncreasesLimit .............................................   Passed    0.12 sec
-        Start 455: TimeLimitTest.MultiplyByZeroOrNegativeNoOp
-455/458 Test #455: TimeLimitTest.MultiplyByZeroOrNegativeNoOp .......................................   Passed    0.12 sec
-        Start 456: TimeLimitTest.SetLimitResetsTimer
-456/458 Test #456: TimeLimitTest.SetLimitResetsTimer ................................................   Passed    0.13 sec
-        Start 457: TimeLimitTest.InheritsFromStoppable
-457/458 Test #457: TimeLimitTest.InheritsFromStoppable ..............................................   Passed    0.11 sec
-        Start 458: AllTests
-458/458 Test #458: AllTests .........................................................................   Passed    0.35 sec
-
-100% tests passed, 0 tests failed out of 458
-
-Total Test time (real) =  62.70 sec
-[0m
-[0m$ [0m./build/tests/data/run_tests 2>&1 | tail -20
-DBG place refdes='U10' x=145415 y=-132486 rot=0 pkg='74AHC04'
-DBG place refdes='U15' x=164869 y=-66997 rot=0 pkg='74AHC04'
-DBG place refdes='U21' x=176225 y=-67032 rot=0 pkg='74LS08'
-DBG place refdes='U20' x=187681 y=-67005 rot=0 pkg='74LS32'
-DBG place refdes='U45' x=186411 y=-99568 rot=0 pkg='74LS32'
-DBG place refdes='U36' x=174920 y=-99563 rot=0 pkg='74LS32'
-DBG place refdes='U38' x=152463 y=-99563 rot=0 pkg='74LS11'
-DBG place refdes='U42' x=163666 y=-99598 rot=0 pkg='74LS11'
-DBG place refdes='U49' x=188468 y=-34036 rot=0 pkg='74LS08'
-DBG place refdes='U46' x=165504 y=-34059 rot=0 pkg='74LS11'
-DBG place refdes='U41' x=176860 y=-34043 rot=0 pkg='74HC74'
-DBG component footprint='Connector_PCBEdge:Samtec_MECF-30-0_-NP-L-DV_2x30_P1.27mm_Edge'
-DBG place refdes='J2' x=34290 y=-19050 rot=180 pkg='Conn_02x30_Odd_Even'
-  Issue103-Board-Unrouted.dsn: layers=2 nets=282
-test_scanner_issue103 PASSED
-test_intpoint_projections_and_corners PASSED
-test_line_geometry_ops PASSED
-test_line_segment_basics PASSED
-test_polyline_core_ops PASSED
-All tests PASSED!
-[0m
-Now let me implement the `spring_over` algorithm in ShoveTraceAlgo. This is the core blocker for headless routing.
-[0m→ [0mRead src/board/ShoveTraceAlgo.cpp[90m [limit=50, offset=230][0m
-[0m
-[0m$ [0mgrep -n "containsInside\|isOutside\|is_outside\|contains_inside" /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.cpp
-20:bool TileShape::is_outside(const IntPoint& p_point) const
-37:bool TileShape::contains_inside(const IntPoint& p_point) const
-182:    if (!is_outside(p_from_point))
-689:    const bool first_corner_is_inside = contains_inside(first_corner);
-739:            if (is_outside(p_polyline.corner(i)))
-[0m
-[0m$ [0mgrep -n "treeShapeCount\|getTreeShape\|reverse\|lengthApprox" /mnt/d/projects/EDA/freerouting_cpp/src/board/PolylineTrace.h
-(no output)
-[0m
-[0m$ [0mgrep -n "treeShapeCount\|getTreeShape\|reverse\|lengthApprox" /mnt/d/projects/EDA/freerouting_cpp/src/board/Item.h
-(no output)
-[0m
-[0m$ [0mgrep -n "treeShapeCount\|getTreeShape" /mnt/d/projects/EDA/freerouting_cpp/java/app/freerouting/board/model/items/Item.java | head -20
-200:    return getTreeShape(this.board.searchTreeManager.getDefaultTree(), index);
-204:  public int treeShapeCount(ShapeTree tree) {
-213:  public TileShape getTreeShape(ShapeTree tree, int index) {
-[0m
-[0m$ [0mgrep -n "virtual.*shape\|tree_shape\|get_tile" /mnt/d/projects/EDA/freerouting_cpp/src/board/Item.h
-69:    virtual int tile_shape_count() const { return 0; }
-70:    virtual ::freerouting::geometry::planar::IntOctagon get_tile_shape(int p_index) const;
-71:    virtual int shape_layer(int p_index) const override { (void)p_index; return get_layer(); }
-171:    int tree_shape_count(const datastructures::ShapeTree& p_tree) const override;
-172:    const ::freerouting::geometry::planar::TileShape* get_tree_shape(const datastructures::ShapeTree& p_tree, int p_index) const override;
-197:    virtual std::vector<std::shared_ptr<::freerouting::geometry::planar::TileShape>> calculate_tree_shapes(const ShapeSearchTree& p_search_tree) const;
-217:    const std::vector<std::shared_ptr<::freerouting::geometry::planar::TileShape>>& ensure_tree_shapes(const datastructures::ShapeTree& p_tree) const;
-[0m
-[0m$ [0mgrep -n "reverse\|lengthApprox\|length_approx" /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/Polyline.h
-55:    Polyline reverse() const;
-57:    double length_approx(int p_from_corner, int p_to_corner) const;
-58:    double length_approx() const;
-[0m
-[0m$ [0mfind /mnt/d/projects/EDA/freerouting_cpp/src -name "*DrillItemMover*" -o -name "*drill_item_mover*"
-(no output)
-[0m
-[0m$ [0mgrep -n "get_tree_shape\|tree_shape" /mnt/d/projects/EDA/freerouting_cpp/src/board/Via.h
-90:    const geometry::planar::TileShape* get_tree_shape_on_layer(ShapeSearchTree* p_search_tree, int p_layer);
-93:    const geometry::planar::TileShape* get_tree_shape_on_layer(const ShapeSearchTree* p_search_tree, int p_layer) const;
-[0m
-[0m$ [0mgrep -n "AngleRestriction\|getTraceAngleRestriction\|getPinEdgeToTurnDist" /mnt/d/projects/EDA/freerouting_cpp/src/rules/*.h
-/mnt/d/projects/EDA/freerouting_cpp/src/rules/BoardRules.h:50:enum class AngleRestriction
-/mnt/d/projects/EDA/freerouting_cpp/src/rules/BoardRules.h:74:    AngleRestriction get_trace_angle_restriction() const { return trace_angle_restriction_; }
-/mnt/d/projects/EDA/freerouting_cpp/src/rules/BoardRules.h:75:    void set_trace_angle_restriction(AngleRestriction p_angle);
-/mnt/d/projects/EDA/freerouting_cpp/src/rules/BoardRules.h:106:    AngleRestriction trace_angle_restriction_ = AngleRestriction::FORTY_FIVE;
-[0m
-[0m$ [0mgrep -n "PinEdgeToTurn\|pin_edge_to_turn" /mnt/d/projects/EDA/freerouting_cpp/src/rules/*.h
-/mnt/d/projects/EDA/freerouting_cpp/src/rules/BoardRules.h:92:    double get_pin_edge_to_turn_dist() const { return pin_edge_to_turn_dist_; }
-/mnt/d/projects/EDA/freerouting_cpp/src/rules/BoardRules.h:93:    void set_pin_edge_to_turn_dist(double p_value);
-/mnt/d/projects/EDA/freerouting_cpp/src/rules/BoardRules.h:110:    double pin_edge_to_turn_dist_ = 0;
-[0m
-[0m$ [0mgrep -n "clearanceValue\|clearance_value" /mnt/d/projects/EDA/freerouting_cpp/src/rules/BoardRules.h
-61:               int p_default_clearance_value);
-[0m
-[0m$ [0mgrep -n "clearanceValue\|clearance_value" /mnt/d/projects/EDA/freerouting_cpp/src/board/BasicBoard.h
-(no output)
-[0m
-[0m$ [0mgrep -rn "clearanceValue\|clearance_value" /mnt/d/projects/EDA/freerouting_cpp/src/board/*.h | head -20
-/mnt/d/projects/EDA/freerouting_cpp/src/board/RoutingBoard.h:148:    int clearance_value(int p_class_1, int p_class_2, int p_layer) const;
-/mnt/d/projects/EDA/freerouting_cpp/src/board/SearchTreeManager.h:29:    void clearance_value_changed();
-[0m
-[0m$ [0mgrep -n "class BoardOutline" /mnt/d/projects/EDA/freerouting_cpp/src/board/BoardOutline.h
-21:class BoardOutline : public Item
-[0m
-Now let me implement the `spring_over` algorithm. This is a complex but critical piece for headless routing.
-[0m← [0mEdit src/board/ShoveTraceAlgo.cpp
-Index: /mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp
-===================================================================
---- /mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp
-+++ /mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp
-@@ -231,19 +231,398 @@
-     }
-     return result;
- }
- 
-+namespace {
-+using geometry::planar::Direction;
-+using geometry::planar::FloatPoint;
-+using geometry::planar::IntBox;
-+using geometry::planar::IntPoint;
-+using geometry::planar::Line;
-+using geometry::planar::LineSegment;
-+using geometry::planar::Point;
-+using geometry::planar::Polyline;
-+using geometry::planar::Side;
-+using geometry::planar::TileShape;
-+using rules::BoardRules;
-+
-+Item* find_first_obstacle(const ShoveTraceAlgo* p_this,
-+                          const Polyline& p_polyline,
-+                          int p_half_width,
-+                          int p_layer,
-+                          const std::vector<int>& p_net_no_arr,
-+                          int p_cl_type,
-+                          bool p_over_connected_pins,
-+                          const std::set<Pin*>* p_contact_pins,
-+                          IntBox* p_out_obstacle_bbox)
-+{
-+    auto* search_tree = p_this->board_->get_search_tree_manager()->get_default_tree();
-+    std::vector<int> check_net_no_arr;
-+    if (p_contact_pins == nullptr)
-+    {
-+        check_net_no_arr = p_net_no_arr;
-+    }
-+    for (size_t i = 1; i + 1 < p_polyline.arr.size(); ++i)
-+    {
-+        TileShape* current_shape = p_polyline.offset_shape(p_half_width, static_cast<int>(i));
-+        if (!current_shape)
-+        {
-+            continue;
-+        }
-+        std::vector<Item*> obstacles = search_tree->overlapping_items_with_clearance(
-+            *current_shape, p_layer, check_net_no_arr, p_cl_type);
-+        for (Item* current_item : obstacles)
-+        {
-+            bool is_obstacle = false;
-+            if (current_item->shares_net_no(p_net_no_arr))
-+            {
-+                if (auto* pin = dynamic_cast<Pin*>(current_item))
-+                {
-+                    is_obstacle = (p_contact_pins != nullptr && p_contact_pins->find(pin) == p_contact_pins->end());
-+                }
-+            }
-+            else if (auto* conduction = dynamic_cast<ConductionArea*>(current_item))
-+            {
-+                is_obstacle = conduction->get_is_obstacle();
-+            }
-+            else if (dynamic_cast<ViaObstacleArea*>(current_item) || dynamic_cast<ComponentObstacleArea*>(current_item))
-+            {
-+                is_obstacle = false;
-+            }
-+            else if (auto* trace = dynamic_cast<PolylineTrace*>(current_item))
-+            {
-+                if (trace->is_shove_fixed())
-+                {
-+                    is_obstacle = true;
-+                    for (Item* contact : trace->get_normal_contacts())
-+                    {
-+                        if (contact->shares_net_no(p_net_no_arr))
-+                        {
-+                            is_obstacle = false;
-+                            break;
-+                        }
-+                    }
-+                }
-+                else
-+                {
-+                    is_obstacle = false;
-+                }
-+            }
-+            else
-+            {
-+                is_obstacle = !current_item->is_routable();
-+            }
-+
-+            if (is_obstacle)
-+            {
-+                if (p_out_obstacle_bbox)
-+                {
-+                    *p_out_obstacle_bbox = current_item->bounding_box();
-+                }
-+                return current_item;
-+            }
-+        }
-+    }
-+    return nullptr;
-+}
-+
-+std::unique_ptr<TileShape> get_obstacle_shape(Item* p_obstacle,
-+                                              ShapeSearchTree* p_search_tree,
-+                                              int p_layer)
-+{
-+    if (auto* obstacle_area = dynamic_cast<ObstacleArea*>(p_obstacle))
-+    {
-+        if (obstacle_area->tree_shape_count(*p_search_tree) == 1)
-+        {
-+            return std::unique_ptr<TileShape>(obstacle_area->get_tree_shape(*p_search_tree, 0)->clone());
-+        }
-+    }
-+    else if (auto* trace = dynamic_cast<PolylineTrace*>(p_obstacle))
-+    {
-+        if (trace->tree_shape_count(*p_search_tree) == 1)
-+        {
-+            return std::unique_ptr<TileShape>(trace->get_tree_shape(*p_search_tree, 0)->clone());
-+        }
-+    }
-+    else if (auto* drill_item = dynamic_cast<DrillItem*>(p_obstacle))
-+    {
-+        return std::unique_ptr<TileShape>(drill_item->get_tree_shape_on_layer(p_search_tree, p_layer)->clone());
-+    }
-+    return nullptr;
-+}
-+
-+bool try_spring_over_obstacle(const ShoveTraceAlgo* p_this,
-+                              Polyline& p_polyline,
-+                              int p_half_width,
-+                              int p_layer,
-+                              const std::vector<int>& p_net_no_arr,
-+                              int p_cl_type,
-+                              bool p_over_connected_pins,
-+                              int p_recursion_depth,
-+                              const std::set<Pin*>* p_contact_pins,
-+                              Item* p_obstacle)
-+{
-+    auto* search_tree = p_this->board_->get_search_tree_manager()->get_default_tree();
-+    if (!p_over_connected_pins)
-+    {
-+        std::vector<Item*> contacts_on_layer = p_obstacle->get_all_contacts(p_layer);
-+        for (Item* contact : contacts_on_layer)
-+        {
-+            if (dynamic_cast<Trace*>(contact))
-+            {
-+                return false;
-+            }
-+        }
-+    }
-+
-+    auto obstacle_shape = get_obstacle_shape(p_obstacle, search_tree, p_layer);
-+    if (!obstacle_shape)
-+    {
-+        return false;
-+    }
-+
-+    int offset = p_half_width + 1;
-+    std::unique_ptr<TileShape> offset_shape;
-+    if (search_tree->is_clearance_compensation_used())
-+    {
-+        offset_shape = obstacle_shape->offset(offset);
-+    }
-+    else
-+    {
-+        double half_cl_offset = 0.5 * p_this->board_->clearance_value(
-+            p_obstacle->get_clearance_class(), p_cl_type, p_layer);
-+        offset_shape = obstacle_shape->offset(offset + half_cl_offset);
-+        offset_shape = offset_shape->offset(half_cl_offset);
-+    }
-+
-+    const BoardRules& rules = p_this->board_->get_rules();
-+    if (rules.get_trace_angle_restriction() == AngleRestriction::NINETY_DEGREE)
-+    {
-+        if (auto* box = dynamic_cast<IntBox*>(offset_shape.get()))
-+        {
-+            // already a box
-+        }
-+        else
-+        {
-+            offset_shape = std::make_unique<IntBox>(offset_shape->bounding_box());
-+        }
-+    }
-+    else if (rules.get_trace_angle_restriction() == AngleRestriction::FORTY_FIVE_DEGREE)
-+    {
-+        if (auto* oct = dynamic_cast<IntOctagon*>(offset_shape.get()))
-+        {
-+            // already an octagon
-+        }
-+        else
-+        {
-+            offset_shape = std::make_unique<IntOctagon>(offset_shape->bounding_octagon());
-+        }
-+    }
-+
-+    if (offset_shape->contains_inside(p_polyline.first_corner()) ||
-+        offset_shape->contains_inside(p_polyline.last_corner()))
-+    {
-+        return false;
-+    }
-+
-+    std::vector<std::pair<int, int>> entries = offset_shape->entrance_points(p_polyline);
-+    if (entries.empty())
-+    {
-+        return true; // no obstacle
-+    }
-+    if (entries.size() < 2)
-+    {
-+        return false;
-+    }
-+
-+    int first_intersection_side_no = entries[0].second;
-+    int last_intersection_side_no = entries.back().second;
-+    int first_intersection_line_no = entries[0].first;
-+    int last_intersection_line_no = entries.back().first;
-+    int side_diff = last_intersection_side_no - first_intersection_side_no;
-+    if (side_diff < 0)
-+    {
-+        side_diff += offset_shape->border_line_count();
-+    }
-+    else if (side_diff == 0)
-+    {
-+        FloatPoint compare_corner = offset_shape->corner_approx(first_intersection_side_no);
-+        FloatPoint first_intersection = p_polyline.arr[first_intersection_line_no].intersection_approx(
-+            offset_shape->border_line(first_intersection_side_no));
-+        FloatPoint second_intersection = p_polyline.arr[last_intersection_line_no].intersection_approx(
-+            offset_shape->border_line(last_intersection_side_no));
-+        if (compare_corner.distance(second_intersection) < compare_corner.distance(first_intersection))
-+        {
-+            side_diff += offset_shape->border_line_count();
-+        }
-+    }
-+
-+    std::vector<Line> substitute_lines;
-+    substitute_lines.reserve(side_diff + 3);
-+    substitute_lines.push_back(p_polyline.arr[first_intersection_line_no]);
-+    int current_edge_line_no = first_intersection_side_no;
-+    for (int i = 1; i <= side_diff + 1; ++i)
-+    {
-+        substitute_lines.push_back(offset_shape->border_line(current_edge_line_no));
-+        if (current_edge_line_no == offset_shape->border_line_count() - 1)
-+        {
-+            current_edge_line_no = 0;
-+        }
-+        else
-+        {
-+            ++current_edge_line_no;
-+        }
-+    }
-+    substitute_lines.push_back(p_polyline.arr[last_intersection_line_no]);
-+    Polyline substitute_polyline(substitute_lines);
-+
-+    std::vector<std::unique_ptr<Polyline>> pieces = offset_shape->cutout(p_polyline);
-+    Polyline result = substitute_polyline;
-+
-+    if (!pieces.empty())
-+    {
-+        result = pieces[0]->combine(substitute_polyline);
-+    }
-+    if (pieces.size() > 1)
-+    {
-+        result = result.combine(*pieces[1]);
-+    }
-+
-+    p_polyline = std::move(result);
-+    return true;
-+}
-+
-+} // namespace
-+
- geometry::planar::Polyline ShoveTraceAlgo::spring_over(const geometry::planar::Polyline& p_polyline,
--                                                       int /*p_half_width*/,
--                                                       int /*p_layer*/,
--                                                       const std::vector<int>& /*p_net_no_arr*/,
--                                                       int /*p_cl_type*/,
--                                                       bool /*p_over_connected_pins*/,
--                                                       int /*p_recursion_depth*/,
--                                                       const std::set<Pin*>* /*p_contact_pins*/)
-+                                                        int p_half_width,
-+                                                        int p_layer,
-+                                                        const std::vector<int>& p_net_no_arr,
-+                                                        int p_cl_type,
-+                                                        bool p_over_connected_pins,
-+                                                        int p_recursion_depth,
-+                                                        const std::set<Pin*>* p_contact_pins)
- {
--    // Headless stub – return copy via arr (Polyline copy is deleted due to unique_ptr, so reconstruct)
--    return geometry::planar::Polyline(p_polyline.arr);
-+    Polyline polyline = p_polyline;
-+
-+    if (p_recursion_depth <= 0)
-+    {
-+        return polyline;
-+    }
-+
-+    auto* search_tree = board_->get_search_tree_manager()->get_default_tree();
-+    std::vector<int> check_net_no_arr;
-+    if (p_contact_pins == nullptr)
-+    {
-+        check_net_no_arr = p_net_no_arr;
-+    }
-+
-+    Item* found_obstacle = nullptr;
-+    IntBox found_obstacle_bbox;
-+
-+    for (size_t i = 1; i + 1 < polyline.arr.size(); ++i)
-+    {
-+        std::unique_ptr<TileShape> current_shape = polyline.offset_shape(p_half_width, static_cast<int>(i));
-+        if (!current_shape)
-+        {
-+            continue;
-+        }
-+        std::vector<Item*> obstacles = search_tree->overlapping_items_with_clearance(
-+            *current_shape, p_layer, check_net_no_arr, p_cl_type);
-+        for (Item* current_item : obstacles)
-+        {
-+            bool is_obstacle = false;
-+            if (current_item->shares_net_no(p_net_no_arr))
-+            {
-+                if (auto* pin = dynamic_cast<Pin*>(current_item))
-+                {
-+                    is_obstacle = (p_contact_pins != nullptr && p_contact_pins->find(pin) == p_contact_pins->end());
-+                }
-+            }
-+            else if (auto* conduction = dynamic_cast<ConductionArea*>(current_item))
-+            {
-+                is_obstacle = conduction->get_is_obstacle();
-+            }
-+            else if (dynamic_cast<ViaObstacleArea*>(current_item) || dynamic_cast<ComponentObstacleArea*>(current_item))
-+            {
-+                is_obstacle = false;
-+            }
-+            else if (auto* trace = dynamic_cast<PolylineTrace*>(current_item))
-+            {
-+                if (trace->is_shove_fixed())
-+                {
-+                    is_obstacle = true;
-+                    for (Item* contact : trace->get_normal_contacts())
-+                    {
-+                        if (contact->shares_net_no(p_net_no_arr))
-+                        {
-+                            is_obstacle = false;
-+                            break;
-+                        }
-+                    }
-+                }
-+                else
-+                {
-+                    is_obstacle = false;
-+                }
-+            }
-+            else
-+            {
-+                is_obstacle = !current_item->is_routable();
-+            }
-+
-+            if (is_obstacle)
-+            {
-+                if (!found_obstacle)
-+                {
-+                    found_obstacle = current_item;
-+                    found_obstacle_bbox = current_item->bounding_box();
-+                }
-+                else if (found_obstacle != current_item)
-+                {
-+                    IntBox current_bbox = current_item->bounding_box();
-+                    if (found_obstacle_bbox.intersects(current_bbox))
-+                    {
-+                        if (current_bbox.contains(found_obstacle_bbox))
-+                        {
-+                            found_obstacle = current_item;
-+                            found_obstacle_bbox = current_bbox;
-+                        }
-+                        else if (!found_obstacle_bbox.contains(current_bbox))
-+                        {
-+                            return polyline; // conflicting obstacles
-+                        }
-+                    }
-+                }
-+            }
-+        }
-+        if (found_obstacle)
-+        {
-+            break;
-+        }
-+    }
-+
-+    if (!found_obstacle)
-+    {
-+        return polyline; // no obstacle
-+    }
-+
-+    if (p_recursion_depth <= 0 ||
-+        dynamic_cast<BoardOutline*>(found_obstacle) ||
-+        (dynamic_cast<PolylineTrace*>(found_obstacle) && !found_obstacle->is_shove_fixed()))
-+    {
-+        return p_polyline; // cannot spring over, return original
-+    }
-+
-+    if (!try_spring_over_obstacle(this, polyline, p_half_width, p_layer, p_net_no_arr,
-+                                  p_cl_type, p_over_connected_pins, p_recursion_depth,
-+                                  p_contact_pins, found_obstacle))
-+    {
-+        return p_polyline;
-+    }
-+
-+    return spring_over(polyline, p_half_width, p_layer, p_net_no_arr, p_cl_type,
-+                       p_over_connected_pins, p_recursion_depth - 1, p_contact_pins);
- }
- 
- geometry::planar::Polyline ShoveTraceAlgo::spring_over_obstacles(const geometry::planar::Polyline& p_polyline,
-                                                                  int p_half_width,
-
-[0m
-[0m→ [0mRead src/board/ShoveTraceAlgo.cpp[90m [limit=30][0m
-[0m
-[0m← [0mEdit src/board/ShoveTraceAlgo.cpp
-Index: /mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp
-===================================================================
---- /mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp
-+++ /mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp
-@@ -10,14 +10,22 @@
- #include "board/PolylineTrace.h"
- #include "board/Via.h"
- #include "board/Pin.h"
- #include "board/ConductionArea.h"
-+#include "board/ObstacleArea.h"
- #include "board/Item.h"
-+#include "board/DrillItem.h"
- #include "geometry/planar/LineSegment.h"
- #include "geometry/planar/TileShape.h"
- #include "geometry/planar/Direction.h"
-+#include "geometry/planar/IntBox.h"
-+#include "geometry/planar/IntOctagon.h"
-+#include "geometry/planar/Point.h"
-+#include "geometry/planar/Polyline.h"
- #include "datastructures/TimeLimit.h"
- #include "logger/FRLogger.h"
-+#include "rules/BoardRules.h"
-+#include "rules/AngleRestriction.h"
- 
- #include <cmath>
- #include <limits>
- 
-
-[0m
-[0m$ [0mcmake --build build --target freerouting_board -j$(nproc) 2>&1 | grep -A 10 "error:"
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:27:10: fatal error: rules/AngleRestriction.h: No such file or directory
-   27 | #include "rules/AngleRestriction.h"
-      |          ^~~~~~~~~~~~~~~~~~~~~~~~~~
-compilation terminated.
-gmake[3]: *** [src/board/CMakeFiles/freerouting_board.dir/build.make:513: src/board/CMakeFiles/freerouting_board.dir/ShoveTraceAlgo.cpp.o] Error 1
-gmake[2]: *** [CMakeFiles/Makefile2:883: src/board/CMakeFiles/freerouting_board.dir/all] Error 2
-gmake[1]: *** [CMakeFiles/Makefile2:890: src/board/CMakeFiles/freerouting_board.dir/rule] Error 2
-gmake: *** [Makefile:238: freerouting_board] Error 2
-[0m
-[0m← [0mEdit src/board/ShoveTraceAlgo.cpp
-Index: /mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp
-===================================================================
---- /mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp
-+++ /mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp
-@@ -23,9 +23,8 @@
- #include "geometry/planar/Polyline.h"
- #include "datastructures/TimeLimit.h"
- #include "logger/FRLogger.h"
- #include "rules/BoardRules.h"
--#include "rules/AngleRestriction.h"
- 
- #include <cmath>
- #include <limits>
- 
-
-[0m
-[0m$ [0mgrep -n "AngleRestriction" /mnt/d/projects/EDA/freerouting_cpp/src/rules/BoardRules.h | head -10
-50:enum class AngleRestriction
-74:    AngleRestriction get_trace_angle_restriction() const { return trace_angle_restriction_; }
-75:    void set_trace_angle_restriction(AngleRestriction p_angle);
-106:    AngleRestriction trace_angle_restriction_ = AngleRestriction::FORTY_FIVE;
-[0m
-[0m$ [0mgrep -n "AngleRestriction" /mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp
-405:    if (rules.get_trace_angle_restriction() == AngleRestriction::NINETY_DEGREE)
-416:    else if (rules.get_trace_angle_restriction() == AngleRestriction::FORTY_FIVE_DEGREE)
-[0m
-[0m→ [0mRead src/board/ShoveTraceAlgo.cpp[90m [limit=30, offset=395][0m
-[0m
-[0m← [0mEdit src/board/ShoveTraceAlgo.cpp
-Index: /mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp
-===================================================================
---- /mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp
-+++ /mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp
-@@ -401,9 +401,9 @@
-     offset_shape = offset_shape->offset(half_cl_offset);
- }
- 
- const BoardRules& rules = p_this->board_->get_rules();
--if (rules.get_trace_angle_restriction() == AngleRestriction::NINETY_DEGREE)
-+if (rules.get_trace_angle_restriction() == rules::AngleRestriction::NINETY_DEGREE)
- {
-     if (auto* box = dynamic_cast<IntBox*>(offset_shape.get()))
-     {
-         // already a box
-@@ -412,9 +412,9 @@
-     {
-         offset_shape = std::make_unique<IntBox>(offset_shape->bounding_box());
-     }
- }
--else if (rules.get_trace_angle_restriction() == AngleRestriction::FORTY_FIVE_DEGREE)
-+else if (rules.get_trace_angle_restriction() == rules::AngleRestriction::FORTY_FIVE_DEGREE)
- {
-     if (auto* oct = dynamic_cast<IntOctagon*>(offset_shape.get()))
-     {
-         // already an octagon
-
-[0m
-[0m$ [0mcmake --build build --target freerouting_board -j$(nproc) 2>&1 | grep -A 10 "error:"
-/mnt/d/projects/EDA/freerouting_cpp/src/board/DrillItem.h:15:7: error: redefinition of ‘class freerouting::board::DrillItem’
-   15 | class DrillItem : public Item, public Connectable
-      |       ^~~~~~~~~
-In file included from /mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:11:
-/mnt/d/projects/EDA/freerouting_cpp/src/board/Via.h:10:7: note: previous definition of ‘class freerouting::board::DrillItem’
-   10 | class DrillItem : public Item
-      |       ^~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp: In member function ‘bool freerouting::board::ShoveTraceAlgo::insert(const freerouting::geometry::planar::TileShape&, const freerouting::board::CalcFromSide*, int, const std::vector<int>&, int, const std::vector<freerouting::board::Item*>&, int, int, int)’:
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:181:33: warning: unused parameter ‘p_max_via_recursion_depth’ [-Wunused-parameter]
-  181 |                             int p_max_via_recursion_depth,
-      |                             ~~~~^~~~~~~~~~~~~~~~~~~~~~~~~
---
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:265:33: error: ‘freerouting::board::RoutingBoard* freerouting::board::ShoveTraceAlgo::board_’ is private within this context
-  265 |     auto* search_tree = p_this->board_->get_search_tree_manager()->get_default_tree();
-      |                                 ^~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.h:97:19: note: declared private here
-   97 |     RoutingBoard* board_ = nullptr;
-      |                   ^~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:273:59: error: cannot convert ‘std::unique_ptr<freerouting::geometry::planar::TileShape>’ to ‘freerouting::geometry::planar::TileShape*’ in initialization
-  273 |         TileShape* current_shape = p_polyline.offset_shape(p_half_width, static_cast<int>(i));
-      |                                    ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-      |                                                           |
-      |                                                           std::unique_ptr<freerouting::geometry::planar::TileShape>
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:278:85: error: conversion from ‘std::set<freerouting::board::Item*, freerouting::board::TreeStorableLess>’ to non-scalar type ‘std::vector<freerouting::board::Item*>’ requested
-  278 |         std::vector<Item*> obstacles = search_tree->overlapping_items_with_clearance(
-      |                                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
-  279 |             *current_shape, p_layer, check_net_no_arr, p_cl_type);
-      |             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~                    
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:294:35: error: ‘ViaObstacleArea’ does not name a type; did you mean ‘ObstacleArea’?
-  294 |             else if (dynamic_cast<ViaObstacleArea*>(current_item) || dynamic_cast<ComponentObstacleArea*>(current_item))
-      |                                   ^~~~~~~~~~~~~~~
-      |                                   ObstacleArea
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:294:50: error: expected ‘>’ before ‘*’ token
-  294 |             else if (dynamic_cast<ViaObstacleArea*>(current_item) || dynamic_cast<ComponentObstacleArea*>(current_item))
-      |                                                  ^
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:294:83: error: ‘ComponentObstacleArea’ does not name a type
-  294 |             else if (dynamic_cast<ViaObstacleArea*>(current_item) || dynamic_cast<ComponentObstacleArea*>(current_item))
-      |                                                                                   ^~~~~~~~~~~~~~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:294:104: error: expected ‘>’ before ‘*’ token
-  294 |             else if (dynamic_cast<ViaObstacleArea*>(current_item) || dynamic_cast<ComponentObstacleArea*>(current_item))
-      |                                                                                                        ^
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:326:58: error: ‘class freerouting::board::Item’ has no member named ‘bounding_box’; did you mean ‘freerouting::geometry::planar::IntBox freerouting::board::Item::bounding_box_’? (not accessible from this context)
-  326 |                     *p_out_obstacle_bbox = current_item->bounding_box();
-      |                                                          ^~~~~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/Item.h:210:45: note: declared protected here
-  210 |     ::freerouting::geometry::planar::IntBox bounding_box_;
-      |                                             ^~~~~~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:261:32: warning: unused parameter ‘p_over_connected_pins’ [-Wunused-parameter]
-  261 |                           bool p_over_connected_pins,
-      |                           ~~~~~^~~~~~~~~~~~~~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp: In function ‘std::unique_ptr<freerouting::geometry::planar::TileShape> freerouting::board::{anonymous}::get_obstacle_shape(freerouting::board::Item*, freerouting::board::ShapeSearchTree*, int)’:
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:355:55: error: ‘class freerouting::board::DrillItem’ has no member named ‘get_tree_shape_on_layer’
-  355 |         return std::unique_ptr<TileShape>(drill_item->get_tree_shape_on_layer(p_search_tree, p_layer)->clone());
-      |                                                       ^~~~~~~~~~~~~~~~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp: In function ‘bool freerouting::board::{anonymous}::try_spring_over_obstacle(const freerouting::board::ShoveTraceAlgo*, freerouting::geometry::planar::Polyline&, int, int, const std::vector<int>&, int, bool, int, const std::set<freerouting::board::Pin*>*, freerouting::board::Item*)’:
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:371:33: error: ‘freerouting::board::RoutingBoard* freerouting::board::ShoveTraceAlgo::board_’ is private within this context
-  371 |     auto* search_tree = p_this->board_->get_search_tree_manager()->get_default_tree();
-      |                                 ^~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.h:97:19: note: declared private here
-   97 |     RoutingBoard* board_ = nullptr;
-      |                   ^~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:374:60: error: ‘class freerouting::board::Item’ has no member named ‘get_all_contacts’; did you mean ‘get_normal_contacts’?
-  374 |         std::vector<Item*> contacts_on_layer = p_obstacle->get_all_contacts(p_layer);
-      |                                                            ^~~~~~~~~~~~~~~~
-      |                                                            get_normal_contacts
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:398:47: error: ‘freerouting::board::RoutingBoard* freerouting::board::ShoveTraceAlgo::board_’ is private within this context
-  398 |         double half_cl_offset = 0.5 * p_this->board_->clearance_value(
-      |                                               ^~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.h:97:19: note: declared private here
-   97 |     RoutingBoard* board_ = nullptr;
-      |                   ^~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:404:39: error: ‘freerouting::board::RoutingBoard* freerouting::board::ShoveTraceAlgo::board_’ is private within this context
-  404 |     const BoardRules& rules = p_this->board_->get_rules();
-      |                                       ^~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.h:97:19: note: declared private here
-   97 |     RoutingBoard* board_ = nullptr;
-      |                   ^~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:405:73: error: ‘NINETY_DEGREE’ is not a member of ‘freerouting::rules::AngleRestriction’
-  405 |     if (rules.get_trace_angle_restriction() == rules::AngleRestriction::NINETY_DEGREE)
-      |                                                                         ^~~~~~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:407:19: warning: unused variable ‘box’ [-Wunused-variable]
-  407 |         if (auto* box = dynamic_cast<IntBox*>(offset_shape.get()))
-      |                   ^~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:416:78: error: ‘FORTY_FIVE_DEGREE’ is not a member of ‘freerouting::rules::AngleRestriction’
-  416 |     else if (rules.get_trace_angle_restriction() == rules::AngleRestriction::FORTY_FIVE_DEGREE)
-      |                                                                              ^~~~~~~~~~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:418:38: error: ‘IntOctagon’ does not name a type
-  418 |         if (auto* oct = dynamic_cast<IntOctagon*>(offset_shape.get()))
-      |                                      ^~~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:418:48: error: expected ‘>’ before ‘*’ token
-  418 |         if (auto* oct = dynamic_cast<IntOctagon*>(offset_shape.get()))
-      |                                                ^
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:424:45: error: ‘IntOctagon’ was not declared in this scope; did you mean ‘freerouting::geometry::planar::IntOctagon’?
-  424 |             offset_shape = std::make_unique<IntOctagon>(offset_shape->bounding_octagon());
-      |                                             ^~~~~~~~~~
-      |                                             freerouting::geometry::planar::IntOctagon
-In file included from /mnt/d/projects/EDA/freerouting_cpp/src/board/ChangedArea.h:7,
-                 from /mnt/d/projects/EDA/freerouting_cpp/src/board/RoutingBoard.h:10,
-                 from /mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:6:
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/IntOctagon.h:19:7: note: ‘freerouting::geometry::planar::IntOctagon’ declared here
-   19 | class IntOctagon : public RegularTileShape
-      |       ^~~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:424:71: error: ‘class freerouting::geometry::planar::TileShape’ has no member named ‘bounding_octagon’; did you mean ‘bounding_box’?
-  424 |             offset_shape = std::make_unique<IntOctagon>(offset_shape->bounding_octagon());
-      |                                                                       ^~~~~~~~~~~~~~~~
-      |                                                                       bounding_box
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:490:56: error: no match for ‘operator=’ (operand types are ‘freerouting::geometry::planar::Polyline’ and ‘std::unique_ptr<freerouting::geometry::planar::Polyline>’)
-  490 |         result = pieces[0]->combine(substitute_polyline);
-      |                                                        ^
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:490:56: note: there is 1 candidate
-In file included from /mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.h:9:
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/Polyline.h:33:15: note: candidate 1: ‘freerouting::geometry::planar::Polyline& freerouting::geometry::planar::Polyline::operator=(const freerouting::geometry::planar::Polyline&)’
-   33 |     Polyline& operator=(const Polyline& p_other);
-      |               ^~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/Polyline.h:33:41: note: no known conversion for argument 1 from ‘std::unique_ptr<freerouting::geometry::planar::Polyline>’ to ‘const freerouting::geometry::planar::Polyline&’
-   33 |     Polyline& operator=(const Polyline& p_other);
-      |                         ~~~~~~~~~~~~~~~~^~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:494:43: error: no match for ‘operator=’ (operand types are ‘freerouting::geometry::planar::Polyline’ and ‘std::unique_ptr<freerouting::geometry::planar::Polyline>’)
-  494 |         result = result.combine(*pieces[1]);
-      |                                           ^
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:494:43: note: there is 1 candidate
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/Polyline.h:33:15: note: candidate 1: ‘freerouting::geometry::planar::Polyline& freerouting::geometry::planar::Polyline::operator=(const freerouting::geometry::planar::Polyline&)’
-   33 |     Polyline& operator=(const Polyline& p_other);
-      |               ^~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/Polyline.h:33:41: note: no known conversion for argument 1 from ‘std::unique_ptr<freerouting::geometry::planar::Polyline>’ to ‘const freerouting::geometry::planar::Polyline&’
-   33 |     Polyline& operator=(const Polyline& p_other);
-      |                         ~~~~~~~~~~~~~~~~^~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:364:55: warning: unused parameter ‘p_net_no_arr’ [-Wunused-parameter]
---
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:531:34: error: template argument 1 is invalid
-  531 |         std::unique_ptr<TileShape> current_shape = polyline.offset_shape(p_half_width, static_cast<int>(i));
-      |                                  ^
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:531:34: error: template argument 2 is invalid
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:531:73: error: cannot convert ‘std::unique_ptr<freerouting::geometry::planar::TileShape>’ to ‘int’ in initialization
-  531 |         std::unique_ptr<TileShape> current_shape = polyline.offset_shape(p_half_width, static_cast<int>(i));
-      |                                                    ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-      |                                                                         |
-      |                                                                         std::unique_ptr<freerouting::geometry::planar::TileShape>
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:537:13: error: invalid type argument of unary ‘*’ (have ‘int’)
-  537 |             *current_shape, p_layer, check_net_no_arr, p_cl_type);
-      |             ^~~~~~~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:552:35: error: ‘ViaObstacleArea’ does not name a type; did you mean ‘ObstacleArea’?
-  552 |             else if (dynamic_cast<ViaObstacleArea*>(current_item) || dynamic_cast<ComponentObstacleArea*>(current_item))
-      |                                   ^~~~~~~~~~~~~~~
-      |                                   ObstacleArea
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:552:50: error: expected ‘>’ before ‘*’ token
-  552 |             else if (dynamic_cast<ViaObstacleArea*>(current_item) || dynamic_cast<ComponentObstacleArea*>(current_item))
-      |                                                  ^
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:552:83: error: ‘ComponentObstacleArea’ does not name a type
-  552 |             else if (dynamic_cast<ViaObstacleArea*>(current_item) || dynamic_cast<ComponentObstacleArea*>(current_item))
-      |                                                                                   ^~~~~~~~~~~~~~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:552:104: error: expected ‘>’ before ‘*’ token
-  552 |             else if (dynamic_cast<ViaObstacleArea*>(current_item) || dynamic_cast<ComponentObstacleArea*>(current_item))
-      |                                                                                                        ^
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:585:57: error: ‘class freerouting::board::Item’ has no member named ‘bounding_box’; did you mean ‘freerouting::geometry::planar::IntBox freerouting::board::Item::bounding_box_’? (not accessible from this context)
-  585 |                     found_obstacle_bbox = current_item->bounding_box();
-      |                                                         ^~~~~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/Item.h:210:45: note: declared protected here
-  210 |     ::freerouting::geometry::planar::IntBox bounding_box_;
-      |                                             ^~~~~~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:589:57: error: ‘class freerouting::board::Item’ has no member named ‘bounding_box’; did you mean ‘freerouting::geometry::planar::IntBox freerouting::board::Item::bounding_box_’? (not accessible from this context)
-  589 |                     IntBox current_bbox = current_item->bounding_box();
-      |                                                         ^~~~~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/Item.h:210:45: note: declared protected here
-  210 |     ::freerouting::geometry::planar::IntBox bounding_box_;
-      |                                             ^~~~~~~~~~~~~
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp: At global scope:
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ShoveTraceAlgo.cpp:255:7: warning: ‘freerouting::board::Item* freerouting::board::{anonymous}::find_first_obstacle(const freerouting::board::ShoveTraceAlgo*, const freerouting::geometry::planar::Polyline&, int, int, const std::vector<int>&, int, bool, const std::set<freerouting::board::Pin*>*, freerouting::geometry::planar::IntBox*)’ defined but not used [-Wunused-function]
-  255 | Item* find_first_obstacle(const ShoveTraceAlgo* p_this,
-      |       ^~~~~~~~~~~~~~~~~~~
-gmake[3]: *** [src/board/CMakeFiles/freerouting_board.dir/build.make:513: src/board/CMakeFiles/freerouting_board.dir/ShoveTraceAlgo.cpp.o] Error 1
-[0m
-There are many errors. Let me fix them systematically.
-[0m$ [0mgrep -n "class.*ObstacleArea" /mnt/d/projects/EDA/freerouting_cpp/src/board/*.h
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ComponentObstacleArea.h:23:class ComponentObstacleArea : public ObstacleArea
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ConductionArea.h:29:class ConductionArea : public ObstacleArea
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ObstacleArea.h:28:class ObstacleArea : public Item
-/mnt/d/projects/EDA/freerouting_cpp/src/board/ViaObstacleArea.h:23:class ViaObstacleArea : public ObstacleArea
-[0m
-[0m$ [0mgrep -n "bounding_box\|get_all_contacts" /mnt/d/projects/EDA/freerouting_cpp/src/board/Item.h
-51:    ::freerouting::geometry::planar::IntBox get_bounding_box() const { return bounding_box_; }
-52:    void set_bounding_box(const ::freerouting::geometry::planar::IntBox& p_box) { bounding_box_ = p_box; }
-210:    ::freerouting::geometry::planar::IntBox bounding_box_;
-[0m
-[0m$ [0mgrep -n "get.*contact" /mnt/d/projects/EDA/freerouting_cpp/src/board/Item.h
-74:    virtual std::vector<Item*> get_normal_contacts() const;
-[0m
-[0m$ [0mgrep -n "get_tree_shape_on_layer" /mnt/d/projects/EDA/freerouting_cpp/src/board/Via.h
-90:    const geometry::planar::TileShape* get_tree_shape_on_layer(ShapeSearchTree* p_search_tree, int p_layer);
-93:    const geometry::planar::TileShape* get_tree_shape_on_layer(const ShapeSearchTree* p_search_tree, int p_layer) const;
-[0m
-[0m$ [0mgrep -n "get_tree_shape_on_layer" /mnt/d/projects/EDA/freerouting_cpp/src/board/DrillItem.h
-(no output)
-[0m
-[0m$ [0mgrep -A 10 "enum class AngleRestriction" /mnt/d/projects/EDA/freerouting_cpp/src/rules/BoardRules.h
-enum class AngleRestriction
-{
-    NONE,
-    RIGHT,
-    FORTY_FIVE
-};
-
-class BoardRules
-{
-public:
-    BoardRules(const board::LayerStructure& p_layer_structure,
-[0m
-[0m$ [0mgrep -n "combine" /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/Polyline.h
-95:    std::unique_ptr<Polyline> combine(const Polyline& p_other) const;
-[0m
-[0m$ [0mgrep -n "offset_shape" /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/Polyline.h
-97:    std::vector<std::unique_ptr<TileShape>> offset_shapes(int p_half_width) const;
-98:    std::vector<std::unique_ptr<TileShape>> offset_shapes(int p_half_width, int p_from_no, int p_to_no) const;
-99:    std::unique_ptr<TileShape> offset_shape(int p_half_width, int p_no) const;
-[0m
-[0m$ [0mgrep -n "bounding_octagon" /mnt/d/projects/EDA/freerouting_cpp/src/geometry/planar/TileShape.h
-(no output)
-[0m
-[0m→ [0mRead src/board/ShoveTraceAlgo.cpp[90m [offset=230, limit=100][0m
-[0m→ [0mRead src/board/ShoveTraceAlgo.cpp[90m [offset=240][0m
-[0m✗ [0mEdit src/board/ShoveTraceAlgo.cpp failed
-[91m[1mError: [0mCould not find oldString in the file. It must match exactly, including whitespace, indentation, and line endings.
-[0m→ [0mRead src/board/ShoveTraceAlgo.cpp[90m [offset=240][0m

@@ -4,6 +4,7 @@
 #include "board/ItemSelectionFilter.h"
 #include "board/Pin.h"
 #include "board/PolylineTrace.h"
+#include "board/RoutingBoard.h"
 #include "board/ShapeSearchTree.h"
 #include "board/Trace.h"
 #include "board/Via.h"
@@ -58,6 +59,85 @@ std::vector<Item*> Item::get_normal_contacts() const
     return {};
 }
 
+namespace {
+
+/**
+ * Returns true, if p_item implements the Java Connectable interface. In Java
+ * the interface is implemented by Trace (and therefore PolylineTrace),
+ * DrillItem (and therefore Pin and Via) and ConductionArea; the C++
+ * Connectable class is a dead draft which no real item derives from, so the
+ * check is reproduced with dynamic_casts.
+ */
+bool is_connectable(const Item* p_item)
+{
+    return p_item != nullptr &&
+           (dynamic_cast<const Trace*>(p_item) != nullptr ||
+            dynamic_cast<const DrillItem*>(p_item) != nullptr ||
+            dynamic_cast<const ConductionArea*>(p_item) != nullptr);
+}
+
+} // namespace
+
+std::set<Item*> Item::get_all_contacts() const
+{
+    // Port of Java Item.getAllContacts().
+    std::set<Item*> result;
+    if (board_ == nullptr || !is_connectable(this))
+    {
+        return result;
+    }
+    for (int i = 0; i < tile_shape_count(); i++)
+    {
+        std::set<SearchTreeObject*, TreeStorableLess> overlapping_objects =
+            board_->overlapping_objects(get_tile_shape(i), shape_layer(i));
+        for (SearchTreeObject* curr_object : overlapping_objects)
+        {
+            auto* curr_item = dynamic_cast<Item*>(curr_object);
+            if (curr_item == nullptr)
+            {
+                continue;
+            }
+            if (curr_item != this && is_connectable(curr_item) && curr_item->shares_net(this))
+            {
+                result.insert(curr_item);
+            }
+        }
+    }
+    return result;
+}
+
+std::set<Item*> Item::get_all_contacts(int p_layer) const
+{
+    // Port of Java Item.getAllContacts(int).
+    std::set<Item*> result;
+    if (board_ == nullptr || !is_connectable(this))
+    {
+        return result;
+    }
+    for (int i = 0; i < tile_shape_count(); i++)
+    {
+        if (shape_layer(i) != p_layer)
+        {
+            continue;
+        }
+        std::set<SearchTreeObject*, TreeStorableLess> overlapping_objects =
+            board_->overlapping_objects(get_tile_shape(i), p_layer);
+        for (SearchTreeObject* curr_object : overlapping_objects)
+        {
+            auto* curr_item = dynamic_cast<Item*>(curr_object);
+            if (curr_item == nullptr)
+            {
+                continue;
+            }
+            if (curr_item != this && is_connectable(curr_item) && curr_item->shares_net(this))
+            {
+                result.insert(curr_item);
+            }
+        }
+    }
+    return result;
+}
+
 std::set<Item*> Item::get_connected_set(int p_net_no, bool p_stop_at_plane) const
 {
     std::set<Item*> result;
@@ -67,6 +147,43 @@ std::set<Item*> Item::get_connected_set(int p_net_no, bool p_stop_at_plane) cons
     }
     result.insert(const_cast<Item*>(this));
     get_connected_set_recu(result, p_net_no, p_stop_at_plane);
+    return result;
+}
+
+std::set<Item*> Item::get_unconnected_set(int p_net_no) const
+{
+    // Port of Java Item.get_unconnected_set(int). Divergence: Java returns a
+    // TreeSet ordered by Item.compare_to (descending item id), while the C++
+    // get_connected_set() results are ordered by item pointer.
+    std::set<Item*> result;
+    if (p_net_no > 0 && !contains_net(p_net_no))
+    {
+        return result;
+    }
+    // Java BasicBoard.get_connectable_items() is a RoutingBoard method in C++.
+    const auto* routing_board = dynamic_cast<const RoutingBoard*>(board_);
+    if (routing_board == nullptr)
+    {
+        return result;
+    }
+    if (p_net_no > 0)
+    {
+        const std::vector<Item*> connectable_items = routing_board->get_connectable_items(p_net_no);
+        result.insert(connectable_items.begin(), connectable_items.end());
+    }
+    else
+    {
+        for (int curr_net_no : net_nos_)
+        {
+            const std::vector<Item*> connectable_items = routing_board->get_connectable_items(curr_net_no);
+            result.insert(connectable_items.begin(), connectable_items.end());
+        }
+    }
+    const std::set<Item*> connected_items = get_connected_set(p_net_no);
+    for (Item* curr_item : connected_items)
+    {
+        result.erase(curr_item);
+    }
     return result;
 }
 

@@ -71,7 +71,7 @@ public:
 
 private:
     const ClearanceMatrix& clearance_matrix_;
-    const board::LayerStructure& board_layer_structure_;
+    board::LayerStructure board_layer_structure_;
     std::vector<int> trace_half_width_arr_;
     std::vector<bool> active_routing_layer_arr_;
 

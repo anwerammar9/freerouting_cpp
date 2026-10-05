@@ -1,4 +1,5 @@
 #include "board/BasicBoard.h"
+#include "board/ChangedArea.h"
 #include "board/Item.h"
 #include "board/ItemSelectionFilter.h"
 #include "board/Pin.h"
@@ -12,6 +13,8 @@
 #include "geometry/planar/Polyline.h"
 #include "geometry/planar/TileShape.h"
 #include "rules/BoardRules.h"
+
+#include <algorithm>
 
 namespace freerouting::board {
 
@@ -37,6 +40,11 @@ BasicBoard::BasicBoard(const LayerStructure& p_layer_structure,
 }
 
 BasicBoard::~BasicBoard() = default;
+
+geometry::planar::IntBox BasicBoard::get_bounding_box() const
+{
+    return geometry::planar::IntBox::EMPTY;
+}
 
 std::set<SearchTreeObject*, TreeStorableLess> BasicBoard::overlapping_objects(
     const ::freerouting::geometry::planar::TileShape& p_shape, int p_layer) const
@@ -177,7 +185,64 @@ PolylineTrace* BasicBoard::insert_trace_without_cleaning(
     {
         routing_board->add_item(new_trace);
     }
+    if (new_trace->nets_normal())
+    {
+        max_trace_half_width_ = std::max(max_trace_half_width_, p_half_width);
+        min_trace_half_width_ = std::min(min_trace_half_width_, p_half_width);
+    }
     return new_trace;
+}
+
+void BasicBoard::insert_trace(const std::shared_ptr<geometry::planar::Polyline>& p_polyline,
+                              int p_layer,
+                              int p_half_width,
+                              const std::vector<int>& p_net_no_arr,
+                              int p_clearance_class,
+                              FixedState p_fixed_state)
+{
+    // Port of Java BasicBoard.insertTrace(Polyline, int, int, int[], int, FixedState).
+    PolylineTrace* new_trace = insert_trace_without_cleaning(p_polyline, p_layer, p_half_width,
+                                                             p_net_no_arr, p_clearance_class,
+                                                             p_fixed_state);
+    if (new_trace == nullptr)
+    {
+        return;
+    }
+    geometry::planar::IntOctagon clip_shape;
+    bool has_clip_shape = false;
+    if (auto* routing_board = dynamic_cast<const RoutingBoard*>(this))
+    {
+        if (const ChangedArea* changed_area = routing_board->changed_area())
+        {
+            clip_shape = changed_area->get_area(p_layer);
+            has_clip_shape = true;
+        }
+    }
+    new_trace->normalize(has_clip_shape ? &clip_shape : nullptr);
+}
+
+bool BasicBoard::check_polyline_trace(const geometry::planar::Polyline& p_polyline,
+                                      int p_layer,
+                                      int p_pen_half_width,
+                                      const std::vector<int>& p_net_no_arr,
+                                      int p_clearance_class) const
+{
+    // Port of Java BasicBoard.checkPolylineTrace(): a temporary trace is built
+    // from the polyline to determine the pins at its end corners, which are the
+    // contact pins exempted from the clearance check.
+    PolylineTrace tmp_trace(std::make_shared<geometry::planar::Polyline>(p_polyline), p_layer,
+                            p_pen_half_width, p_net_no_arr, p_clearance_class, 0, 0,
+                            FixedState::NOT_FIXED);
+    std::set<Pin*> contact_pins = tmp_trace.touching_pins_at_end_corners();
+    for (int i = 0; i < tmp_trace.tile_shape_count(); i++)
+    {
+        if (!check_trace_shape(tmp_trace.get_tile_shape(i), p_layer, p_net_no_arr,
+                               p_clearance_class, &contact_pins))
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool BasicBoard::split_traces(const geometry::planar::Point& p_location, int p_layer, int p_net_no)

@@ -106,6 +106,7 @@ if(BUILD_TESTS)
     # ---- gtest-based companion tests for compiled autoroute classes ----
     set(AUTOROUTE_TEST_SOURCES
         ${CMAKE_SOURCE_DIR}/src/autoroute/AutorouteAttemptState_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/autoroute/AutorouteEngine_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/BoardUpdateStrategy_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/CompleteExpansionRoom_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/CompleteFreeSpaceExpansionRoom_test.cpp
@@ -113,13 +114,25 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/src/autoroute/DrillPageArray_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/ExpansionDrill_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/ExpandableObject_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/autoroute/FoundConnectionInserter_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/autoroute/FoundConnectionLocator_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/IncompleteFreeSpaceExpansionRoom_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/autoroute/ItemAutorouteInfo_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/ItemRouteResult_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/ItemSelectionStrategy_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/autoroute/MazeRipupResolver_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/autoroute/MazeExpansionEngine_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/autoroute/MazeSearchAlgo_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/autoroute/MazeSearchElement_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/autoroute/MazeTraceShover_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/NamedAlgorithm_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/NamedAlgorithmType_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/PerformanceProfiler_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/autoroute/RoutingBoardFanout_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/RoutingFailureLog_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/autoroute/Sorted45DegreeRoomNeighbours_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/autoroute/SortedOrthogonalRoomNeighbours_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/autoroute/SortedRoomNeighbours_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/TaskState_test.cpp
     )
 
@@ -143,14 +156,18 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/src/board/ItemSelectionFilter_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/ObstacleArea_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/ObstacleAreaSubclass_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/board/ShapeSearchTree_complete_shape_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/CalcFromSide_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/CalcShapeAndFromSide_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/ComponentOutline_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/OptViaAlgo_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/board/Pin_center_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/PullTightAlgo_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/RoutingBoard_stubs_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/Trace_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/ItemContacts_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/board/ShoveTraceAlgo_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/board/RoutingBoardForcedTrace_test.cpp
         ${CMAKE_SOURCE_DIR}/src/core/scoring/BoardStatistics_test.cpp
         ${CMAKE_SOURCE_DIR}/src/core/BoardFileDetails_test.cpp
     )
@@ -184,6 +201,25 @@ if(BUILD_TESTS)
         )
         target_link_libraries(${test_name} PRIVATE
             $<LINK_GROUP:RESCAN,freerouting_interactive,freerouting_board,freerouting_autoroute,freerouting_core,freerouting_datastructures,freerouting_geometry,freerouting_rules,freerouting_logger,freerouting_constants>
+            GTest::gtest_main
+        )
+        gtest_discover_tests(${test_name})
+    endforeach()
+
+    # ---- gtest-based companion tests for compiled drc classes ----
+    set(DRC_TEST_SOURCES
+        ${CMAKE_SOURCE_DIR}/src/drc/DesignRulesChecker_test.cpp
+    )
+
+    foreach(test_src IN LISTS DRC_TEST_SOURCES)
+        get_filename_component(test_name ${test_src} NAME_WE)
+        add_executable(${test_name} ${test_src})
+        target_include_directories(${test_name} PRIVATE
+            ${CMAKE_SOURCE_DIR}/include
+            ${CMAKE_SOURCE_DIR}/src
+        )
+        target_link_libraries(${test_name} PRIVATE
+            $<LINK_GROUP:RESCAN,freerouting_drc,freerouting_interactive,freerouting_board,freerouting_autoroute,freerouting_core,freerouting_datastructures,freerouting_geometry,freerouting_rules,freerouting_logger,freerouting_constants,freerouting_settings>
             GTest::gtest_main
         )
         gtest_discover_tests(${test_name})
@@ -233,6 +269,8 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/src/geometry/planar/IntOctagon_test.cpp
         ${CMAKE_SOURCE_DIR}/src/geometry/planar/IntVector_test.cpp
         ${CMAKE_SOURCE_DIR}/src/geometry/planar/Circle_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/geometry/planar/Point_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/geometry/planar/TileShape_test.cpp
         ${CMAKE_SOURCE_DIR}/src/geometry/planar/Polyline_test.cpp
         ${CMAKE_SOURCE_DIR}/src/geometry/planar/PolygonShape_test.cpp
         ${CMAKE_SOURCE_DIR}/src/geometry/planar/Area_test.cpp

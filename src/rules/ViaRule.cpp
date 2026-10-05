@@ -64,6 +64,22 @@ bool ViaRule::contains_padstack(const std::shared_ptr<board::Padstack>& p_padsta
     return false;
 }
 
+bool ViaRule::contains_padstack(const board::Padstack* p_padstack) const
+{
+    if (p_padstack == nullptr)
+    {
+        return false;
+    }
+    for (const auto& curr_info : via_list_)
+    {
+        if (curr_info->get_padstack().get() == p_padstack)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool ViaRule::swap(const std::shared_ptr<ViaInfo>& p_1, const std::shared_ptr<ViaInfo>& p_2)
 {
     int index_1 = -1;

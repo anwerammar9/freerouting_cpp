@@ -158,6 +158,45 @@ public:
         int p_layer, const std::vector<int>& p_ignore_net_nos, int p_clearance_class);
 
     /**
+     * Parameters of a room to be completed by the search tree. Mirrors the
+     * arguments of the Java ShapeSearchTree.completeShape(IncompleteFreeSpaceExpansionRoom,
+     * int, SearchTreeObject, TileShape). p_shape may be null, in which case
+     * the room covers the whole board box.
+     */
+    struct CompleteShapeInput
+    {
+        const ::freerouting::geometry::planar::TileShape* shape = nullptr;
+        const ::freerouting::geometry::planar::TileShape* contained_shape = nullptr;
+        int layer = -1;
+        int net_no = 0;
+        SearchTreeObject* ignore_object = nullptr;
+        const ::freerouting::geometry::planar::TileShape* ignore_shape = nullptr;
+    };
+
+    /**
+     * One free space section of a completed room. shape is a maximal TileShape
+     * not intersecting the interior of a net dependent obstacle; contained_shape
+     * is the part of the input contained shape inside shape.
+     */
+    struct CompleteShapePiece
+    {
+        std::unique_ptr<::freerouting::geometry::planar::TileShape> shape;
+        std::unique_ptr<::freerouting::geometry::planar::TileShape> contained_shape;
+    };
+
+    /**
+     * Calculates free space rooms contained in the shape of p_input, which may
+     * overlap only with objects of the p_input.net_no on p_input.layer.
+     * p_input.contained_shape will be contained in the shape of the result.
+     * If that is not possible, several rooms are returned whose shapes intersect
+     * with p_input.contained_shape. If p_input.ignore_shape != null, objects of
+     * type CompleteFreeSpaceExpansionRoom whose intersection with the room shape
+     * is contained in p_input.ignore_shape are ignored. Port of Java
+     * ShapeSearchTree.completeShape.
+     */
+    std::vector<CompleteShapePiece> complete_shape(const CompleteShapeInput& p_input);
+
+    /**
      * Removes all entries from this tree.
      */
     void clear();
@@ -190,6 +229,43 @@ private:
      */
     static std::unique_ptr<::freerouting::geometry::planar::TileShape> enlarge_tile(
         const ::freerouting::geometry::planar::TileShape& p_shape, int p_offset);
+
+    /**
+     * Exact intersection of two tile shapes. Both shapes are converted to
+     * Simplices, intersected and simplified to the tightest representation.
+     */
+    static std::unique_ptr<::freerouting::geometry::planar::TileShape> intersection_of_two_shapes(
+        const ::freerouting::geometry::planar::TileShape& p_first,
+        const ::freerouting::geometry::planar::TileShape& p_second);
+
+    /**
+     * Restrains the shape of p_room to a TileShape which does not intersect
+     * with the interior of p_obstacle_shape. p_room.contained_shape will be
+     * contained in the shape of the result. If that is not possible, several
+     * pieces are appended to p_result whose shapes intersect with
+     * p_room.contained_shape. Port of Java
+     * ShapeSearchTree.restrainShape(IncompleteFreeSpaceExpansionRoom, TileShape).
+     */
+    static void restrain_shape(const CompleteShapePiece& p_room,
+        const ::freerouting::geometry::planar::TileShape& p_obstacle_shape,
+        std::vector<CompleteShapePiece>& p_result);
+
+    /**
+     * Makes sure that on each layer there are more than 1 free space rooms, even
+     * if there are no objects on the layer. Port of Java
+     * ShapeSearchTree.divideLargeRoom(...).
+     */
+    static void divide_large_room(const ::freerouting::geometry::planar::IntBox& p_board_box,
+        std::vector<CompleteShapePiece>& p_rooms);
+
+    /**
+     * Conservatively checks whether p_outer contains p_inner. Exact for regular
+     * tile shapes; returns false for arbitrary shapes so that expansion rooms
+     * are only ignored if containment is guaranteed. Used to decide whether an
+     * already completed free space room may be reused as ignore shape.
+     */
+    static bool shape_contains(const ::freerouting::geometry::planar::TileShape& p_outer,
+        const ::freerouting::geometry::planar::TileShape& p_inner);
 
     BasicBoard* board_;
     int compensated_clearance_class_no_;

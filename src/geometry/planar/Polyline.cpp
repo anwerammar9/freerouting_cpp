@@ -30,7 +30,29 @@ Polyline::Polyline(const std::vector<IntPoint>& p_points)
 
 Polyline::Polyline(const IntPoint& p_from_corner, const IntPoint& p_to_corner)
 {
+    // Mirrors Java Polyline(Point fromCorner, Point toCorner): the result is a
+    // polyline of three lines, whose corner at index 1 is the line from
+    // p_from_corner to p_to_corner, closed off by two 45 degree stub lines.
+    // Java: lines.length < 3 marks the polyline as empty, so the closing lines
+    // are mandatory here.
+    if (p_from_corner == p_to_corner)
+    {
+        return;
+    }
+    const std::unique_ptr<Direction> from_direction = Direction::get_instance(p_from_corner, p_to_corner);
+    const std::unique_ptr<Direction> to_direction = Direction::get_instance(p_from_corner, p_to_corner);
+    const std::unique_ptr<Direction> start_stub = from_direction->turn_45_degree(2);
+    const std::unique_ptr<Direction> end_stub = to_direction->turn_45_degree(2);
+    const auto* start_direction = dynamic_cast<const IntDirection*>(start_stub.get());
+    const auto* end_direction = dynamic_cast<const IntDirection*>(end_stub.get());
+    if (start_direction == nullptr || end_direction == nullptr)
+    {
+        arr.emplace_back(p_from_corner, p_to_corner);
+        return;
+    }
+    arr.push_back(Line::get_instance(p_from_corner, *start_direction));
     arr.emplace_back(p_from_corner, p_to_corner);
+    arr.push_back(Line::get_instance(p_to_corner, *end_direction));
 }
 
 Polyline::Polyline(const Polyline& p_other)

@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <memory>
+#include <set>
 #include <vector>
 
 #include "autoroute/AutorouteEngine.h"
@@ -8,11 +9,15 @@
 #include "autoroute/ExpansionRoom.h"
 #include "board/Layer.h"
 #include "board/RoutingBoard.h"
+#include "board/SearchTreeObject.h"
 #include "board/ShapeSearchTree.h"
 #include "geometry/planar/IntBox.h"
+#include "geometry/planar/Simplex.h"
+#include "geometry/planar/TileShape.h"
 #include "rules/BoardRules.h"
 
 namespace fr = freerouting;
+namespace fp = fr::geometry::planar;
 
 namespace {
 
@@ -38,6 +43,53 @@ public:
     int compare_to(const fr::datastructures::ShapeTree::Storable&) const override { return 0; }
 };
 
+/** Net-2 obstacle used to restrain rooms in the engine database. */
+class FakeObstacle : public fr::board::SearchTreeObject
+{
+public:
+    FakeObstacle(int p_layer, fp::IntBox p_shape, int p_id)
+        : layer_(p_layer), shape_(p_shape), id_(p_id)
+    {
+    }
+
+    int tree_shape_count(const fr::datastructures::ShapeTree&) const override { return 1; }
+    const fp::TileShape* get_tree_shape(const fr::datastructures::ShapeTree&, int) const override { return &shape_; }
+    void set_search_tree_entries(std::vector<std::unique_ptr<fr::datastructures::ShapeTree::Leaf>> p_entries,
+        fr::datastructures::ShapeTree&) override
+    {
+        tree_entries_ = std::move(p_entries);
+    }
+    int compare_to(const fr::datastructures::ShapeTree::Storable& p_other) const override
+    {
+        const auto* other_obstacle = dynamic_cast<const FakeObstacle*>(&p_other);
+        if (other_obstacle == nullptr)
+        {
+            return -1;
+        }
+        if (id_ == other_obstacle->id_)
+        {
+            return 0;
+        }
+        return id_ < other_obstacle->id_ ? -1 : 1;
+    }
+    bool is_obstacle(int) const override { return true; }
+    bool is_trace_obstacle(int p_net_no) const override { return p_net_no != 2; }
+    int shape_layer(int) const override { return layer_; }
+    int get_id() const override { return id_; }
+
+private:
+    int layer_;
+    fp::IntBox shape_;
+    int id_;
+    std::vector<std::unique_ptr<fr::datastructures::ShapeTree::Leaf>> tree_entries_;
+};
+
+/** True if p_piece's interior does not overlap the interior of p_obstacle. */
+bool avoids(const fp::IntBox& p_piece, const fp::IntBox& p_obstacle)
+{
+    return p_piece.to_Simplex().intersection(p_obstacle.to_Simplex()).dimension() < 2;
+}
+
 } // namespace
 
 TEST(CompleteFreeSpaceExpansionRoomTest, StorableContract)
@@ -51,9 +103,11 @@ TEST(CompleteFreeSpaceExpansionRoomTest, StorableContract)
     EXPECT_EQ(room.tree_shape_count(tree), 1);
     const fr::geometry::planar::TileShape* tree_shape = room.get_tree_shape(tree, 0);
     ASSERT_NE(tree_shape, nullptr);
-    const auto* box_shape = dynamic_cast<const fr::geometry::planar::IntBox*>(tree_shape);
-    ASSERT_NE(box_shape, nullptr);
-    EXPECT_EQ(*box_shape, shape);
+    // The room carries its exact shape as a Simplex (Java getTreeShape() returns
+    // the room shape TileShape), the bounding box is the constructor box.
+    EXPECT_EQ(tree_shape->bounding_box(), shape);
+    EXPECT_EQ(tree_shape->dimension(), 2);
+    EXPECT_EQ(room.get_shape_tile().lines.size(), shape.to_Simplex().lines.size());
     EXPECT_EQ(room.get_tree_shape(tree, 1), nullptr);
     EXPECT_EQ(room.shape_layer(0), 3);
     EXPECT_EQ(room.shape_layer(1), 3);
@@ -108,6 +162,48 @@ TEST(CompleteFreeSpaceExpansionRoomTest, CompletedRoomIsStoredInSearchTree)
     engine.clear();
     EXPECT_EQ(tree->size(), 0);
     EXPECT_TRUE(tree->overlapping_objects(fr::geometry::planar::IntBox(150, 250, 250, 350), -1).empty());
+}
+
+TEST(CompleteFreeSpaceExpansionRoomTest, RoomIsRestrainedAroundObstacle)
+{
+    // A 2-dimensional room containing a net-2 obstacle on its layer must be
+    // completed through ShapeSearchTree::complete_shape (WP-10 Increment C):
+    // the obstacle restrains the room, so the completion is split into pieces
+    // that do not overlap the obstacle interior instead of returning the raw
+    // room box.
+    auto board = make_routing_board();
+    fr::autoroute::AutorouteEngine engine(board.get(), 1, true);
+    engine.set_net_no(1);
+    fr::board::ShapeSearchTree* tree = engine.get_autoroute_search_tree();
+    ASSERT_NE(tree, nullptr);
+
+    fp::IntBox wall(4000, 0, 6000, 10000);
+    FakeObstacle obstacle(0, wall, /*p_id=*/1);
+    tree->insert(obstacle);
+
+    // The room box covers the whole wall. The completion must not return a
+    // single room covering the raw box.
+    fr::autoroute::IncompleteFreeSpaceExpansionRoom incomplete(
+        nullptr, 0, fp::IntBox(0, 0, 10000, 10000));
+    std::vector<fr::autoroute::CompleteFreeSpaceExpansionRoom*> rooms =
+        engine.complete_expansion_room(&incomplete);
+
+    ASSERT_FALSE(rooms.empty()) << "complete_shape must complete a room despite the obstacle";
+    bool some_room_restrained = false;
+    for (fr::autoroute::CompleteFreeSpaceExpansionRoom* room : rooms)
+    {
+        ASSERT_NE(room, nullptr);
+        EXPECT_EQ(room->get_layer(), 0);
+        fp::IntBox shape = room->get_shape();
+        EXPECT_EQ(shape.dimension(), 2);
+        EXPECT_TRUE(avoids(shape, wall))
+            << "completed room overlaps the obstacle interior: " << shape.to_string();
+        if (shape != fp::IntBox(0, 0, 10000, 10000))
+        {
+            some_room_restrained = true;
+        }
+    }
+    EXPECT_TRUE(some_room_restrained);
 }
 
 TEST(CompleteFreeSpaceExpansionRoomTest, NetDependentRoomPurgedOnNetChange)

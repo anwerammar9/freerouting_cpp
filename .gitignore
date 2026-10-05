@@ -1,5 +1,6 @@
 # Java build
 build/
+bin/
 *.class
 *.jar
 *.war

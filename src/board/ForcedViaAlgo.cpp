@@ -77,7 +77,9 @@ ForcedPadAlgo::CheckDrillResult ForcedViaAlgo::check_layer(double p_via_radius,
                                                           const std::vector<int>& p_net_no_arr,
                                                           int p_max_recursion_depth,
                                                           int p_max_via_recursion_depth,
-                                                          RoutingBoard* p_board)
+                                                          RoutingBoard* p_board,
+                                                          int p_trace_half_width,
+                                                          int p_trace_clearance_class)
 {
     if (p_via_radius <= 0.0)
     {
@@ -116,9 +118,44 @@ ForcedPadAlgo::CheckDrillResult ForcedViaAlgo::check_layer(double p_via_radius,
     }
 
     const std::vector<Item*> empty_ignore;
-    return forced_pad_algo.check_forced_pad(*tile_shape, &from_side, p_layer, p_net_no_arr, p_cl_class,
-                                            p_attach_smd_allowed, empty_ignore, p_max_recursion_depth,
-                                            p_max_via_recursion_depth, false, nullptr);
+    ForcedPadAlgo::CheckDrillResult via_result = forced_pad_algo.check_forced_pad(*tile_shape, &from_side, p_layer,
+        p_net_no_arr, p_cl_class, p_attach_smd_allowed, empty_ignore, p_max_recursion_depth, p_max_via_recursion_depth,
+        false, nullptr);
+    if (via_result == ForcedPadAlgo::CheckDrillResult::NOT_DRILLABLE)
+    {
+        return via_result;
+    }
+
+    if (p_trace_half_width <= 0)
+    {
+        return via_result;
+    }
+
+    // Check that a trace of the trace width can start at the via location.
+    geometry::planar::Circle start_trace_circle(*location_int, static_cast<int64_t>(p_trace_half_width));
+    std::unique_ptr<geometry::planar::TileShape> start_trace_shape;
+    if (is_90_degree)
+    {
+        start_trace_shape = std::make_unique<geometry::planar::IntBox>(start_trace_circle.bounding_box());
+    }
+    else
+    {
+        start_trace_shape = std::make_unique<geometry::planar::IntOctagon>(start_trace_circle.bounding_octagon());
+    }
+
+    ForcedPadAlgo::CheckDrillResult trace_result = forced_pad_algo.check_forced_pad(*start_trace_shape, &from_side,
+        p_layer, p_net_no_arr, p_trace_clearance_class, true, empty_ignore, p_max_recursion_depth,
+        p_max_via_recursion_depth, false, nullptr);
+    if (trace_result == ForcedPadAlgo::CheckDrillResult::NOT_DRILLABLE)
+    {
+        return trace_result;
+    }
+    if (via_result == ForcedPadAlgo::CheckDrillResult::DRILLABLE_WITH_ATTACH_SMD
+        || trace_result == ForcedPadAlgo::CheckDrillResult::DRILLABLE_WITH_ATTACH_SMD)
+    {
+        return ForcedPadAlgo::CheckDrillResult::DRILLABLE_WITH_ATTACH_SMD;
+    }
+    return ForcedPadAlgo::CheckDrillResult::DRILLABLE;
 }
 
 bool ForcedViaAlgo::check(const std::shared_ptr<rules::ViaInfo>& p_via_info,
@@ -126,7 +163,9 @@ bool ForcedViaAlgo::check(const std::shared_ptr<rules::ViaInfo>& p_via_info,
                           const std::vector<int>& p_net_no_arr,
                           int p_max_recursion_depth,
                           int p_max_via_recursion_depth,
-                          RoutingBoard* p_board)
+                          RoutingBoard* p_board,
+                          const std::vector<int>* p_trace_pen_halfwidth_arr,
+                          int p_trace_clearance_class_index)
 {
     if (p_via_info == nullptr || p_board == nullptr)
     {
@@ -165,6 +204,39 @@ bool ForcedViaAlgo::check(const std::shared_ptr<rules::ViaInfo>& p_via_info,
         {
             p_board->set_shove_failing_layer(i);
             return false;
+        }
+
+        // Check that a trace of the routed trace width can start at the via
+        // location. Port of Java ForcedViaInserter.check() lines 209-235.
+        if (p_trace_pen_halfwidth_arr != nullptr
+            && i < static_cast<int>(p_trace_pen_halfwidth_arr->size())
+            && (*p_trace_pen_halfwidth_arr)[i] > 0)
+        {
+            const auto* trace_point = dynamic_cast<const geometry::planar::IntPoint*>(&p_location);
+            if (trace_point != nullptr)
+            {
+                geometry::planar::Circle start_trace_circle(*trace_point, (*p_trace_pen_halfwidth_arr)[i]);
+                std::unique_ptr<geometry::planar::TileShape> start_trace_shape;
+                if (is_90_degree)
+                {
+                    start_trace_shape =
+                        std::make_unique<geometry::planar::IntBox>(start_trace_circle.bounding_box());
+                }
+                else
+                {
+                    start_trace_shape = std::make_unique<geometry::planar::IntOctagon>(
+                        start_trace_circle.bounding_octagon());
+                }
+                if (forced_pad_algo.check_forced_pad(
+                        *start_trace_shape, &from_side, i, p_net_no_arr, p_trace_clearance_class_index,
+                        true, empty_ignore, p_max_recursion_depth, p_max_via_recursion_depth, false,
+                        nullptr)
+                    == ForcedPadAlgo::CheckDrillResult::NOT_DRILLABLE)
+                {
+                    p_board->set_shove_failing_layer(i);
+                    return false;
+                }
+            }
         }
     }
     return true;

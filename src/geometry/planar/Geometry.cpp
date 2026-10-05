@@ -544,6 +544,96 @@ FloatPoint FloatPoint::turn_90_degree(int p_factor, const FloatPoint& p_from_poi
     return FloatPoint(new_x, new_y);
 }
 
+std::vector<FloatPoint> FloatPoint::tangential_points(const FloatPoint& p_to_point, double p_distance) const
+{
+    // turn the situation 90 degree if the x difference is smaller
+    // than the y difference for better numerical stability
+    double dx = std::abs(x - p_to_point.x);
+    double dy = std::abs(y - p_to_point.y);
+    bool situation_turned = dy > dx;
+    FloatPoint pole;
+    FloatPoint circle_center;
+
+    if (situation_turned)
+    {
+        // turn the situation by 90 degree
+        pole = FloatPoint(-y, x);
+        circle_center = FloatPoint(-p_to_point.y, p_to_point.x);
+    }
+    else
+    {
+        pole = *this;
+        circle_center = p_to_point;
+    }
+
+    dx = pole.x - circle_center.x;
+    dy = pole.y - circle_center.y;
+    double dx_square = dx * dx;
+    double dy_square = dy * dy;
+    double dist_square = dx_square + dy_square;
+    double radius_square = p_distance * p_distance;
+    double discriminant = radius_square * dy_square - (radius_square - dx_square) * dist_square;
+
+    if (discriminant <= 0)
+    {
+        // pole is inside the circle.
+        return {};
+    }
+    double square_root = std::sqrt(discriminant);
+
+    std::vector<FloatPoint> result(2);
+
+    double a1 = radius_square * dy;
+    double dy1 = (a1 + p_distance * square_root) / dist_square;
+    double dy2 = (a1 - p_distance * square_root) / dist_square;
+
+    double first_point_y = dy1 + circle_center.y;
+    double first_point_x = (radius_square - dy * dy1) / dx + circle_center.x;
+    double second_point_y = dy2 + circle_center.y;
+    double second_point_x = (radius_square - dy * dy2) / dx + circle_center.x;
+
+    if (situation_turned)
+    {
+        // turn the result by 270 degree
+        result[0] = FloatPoint(first_point_y, -first_point_x);
+        result[1] = FloatPoint(second_point_y, -second_point_x);
+    }
+    else
+    {
+        result[0] = FloatPoint(first_point_x, first_point_y);
+        result[1] = FloatPoint(second_point_x, second_point_y);
+    }
+    return result;
+}
+
+std::optional<FloatPoint> FloatPoint::left_tangential_point(const FloatPoint& p_to_point, double p_distance) const
+{
+    std::vector<FloatPoint> tangent_points = tangential_points(p_to_point, p_distance);
+    if (tangent_points.size() < 2)
+    {
+        return std::nullopt;
+    }
+    if (p_to_point.side_of(*this, tangent_points[0]) == Side::ON_THE_RIGHT)
+    {
+        return tangent_points[0];
+    }
+    return tangent_points[1];
+}
+
+std::optional<FloatPoint> FloatPoint::right_tangential_point(const FloatPoint& p_to_point, double p_distance) const
+{
+    std::vector<FloatPoint> tangent_points = tangential_points(p_to_point, p_distance);
+    if (tangent_points.size() < 2)
+    {
+        return std::nullopt;
+    }
+    if (p_to_point.side_of(*this, tangent_points[0]) == Side::ON_THE_LEFT)
+    {
+        return tangent_points[0];
+    }
+    return tangent_points[1];
+}
+
 IntDirection IntPoint::perpendicular_direction(const Line& p_line) const
 {
     Side side = p_line.side_of(*this);

@@ -202,7 +202,7 @@ BoardStatistics::BoardStatistics(const std::string& data, FileFormat format)
 void BoardStatistics::init_from_board(board::RoutingBoard* board, const std::string& unit) {
     if (board == nullptr) return;
 
-    auto& bb = board->get_bounding_box();
+    const auto bb = board->get_bounding_box();
 
     // Host info
     auto* comm = board->communication();

@@ -78,6 +78,26 @@ public:
     int contains_on_border_line_no(const IntPoint& p_point) const;
 
     /**
+     * If p_point is equal to a corner of this shape, the number of that corner
+     * is returned; -1 otherwise. Port of Java PolylineShape.equalsCorner().
+     */
+    int equals_corner(const IntPoint& p_point) const;
+
+    /** Returns the previous border line or corner number of this shape. */
+    int prev_no(int p_no) const;
+
+    /** Returns the next border line or corner number of this shape. */
+    int next_no(int p_no) const;
+
+    /**
+     * Calculates, if this shape and p_other have a common border piece and
+     * returns the indices in this shape and p_other of the touching edge
+     * lines. Otherwise an empty vector is returned. Used if the intersection
+     * shape is 1-dimensional. Port of Java TileShape.touchingSides().
+     */
+    std::vector<int> touching_sides(const TileShape& p_other) const;
+
+    /**
      * Returns the number of the border line hit by the ray from p_from_point
      * along p_direction, or -1 if p_from_point is outside this shape.
      * Mirrors Java TileShape.intersecting_border_line_no().
@@ -95,11 +115,50 @@ public:
     std::optional<FloatPoint> nearest_border_point_approx(const FloatPoint& p_from_point) const;
     std::vector<FloatPoint> nearest_border_points_approx(const FloatPoint& p_from_point, int p_count) const;
     int index_of_nearest_corner(const IntPoint& p_from_point) const;
+
+    /**
+     * Returns the index of the corner of this shape, so that all other points
+     * of the shape are to the right of the line from p_from_point to this
+     * corner. Port of Java PolylineShape.indexOfLeftMostCorner().
+     */
+    int index_of_left_most_corner(const FloatPoint& p_from_point) const;
+
+    /**
+     * Returns the index of the corner of this shape, so that all other points
+     * of the shape are to the left of the line from p_from_point to this
+     * corner. Port of Java PolylineShape.indexOfRightMostCorner().
+     */
+    int index_of_right_most_corner(const FloatPoint& p_from_point) const;
+
     std::optional<FloatLine> diagonal_corner_segment() const;
+
+    /**
+     * Returns a FloatLine result, so that result.a() is an approximation of
+     * the left most corner of this shape when viewed from p_from_point, and
+     * result.b() an approximation of the right most corner. Returns nothing
+     * for an empty shape. Port of Java
+     * PolylineShape.polarLineSegment().
+     */
+    std::optional<FloatLine> polar_line_segment(const FloatPoint& p_from_point) const;
+
     double length() const;
     Side side_of(const Line& p_line) const;
     double distance_to_the_left(const Line& p_line) const;
     std::vector<std::unique_ptr<TileShape>> split_to_convex() const;
+
+    /**
+     * Checks, if p_line_segment has a common point with the interior of this
+     * shape. Port of Java TileShape.isIntersectedInteriorBy(LineSegment).
+     */
+    bool is_intersected_interior_by(const class LineSegment& p_line_segment) const;
+
+    /**
+     * Checks if the line segment defined by p_start_point, p_end_point and
+     * p_line has a common point with the interior of this shape. Port of Java
+     * TileShape.isIntersectedInteriorBy(Point, Point, Line).
+     */
+    bool is_intersected_interior_by(const IntPoint& p_start_point, const IntPoint& p_end_point,
+                                    const Line& p_line) const;
 
     /**
      * Returns entrance points of p_polyline into this shape.
@@ -118,6 +177,14 @@ public:
     std::unique_ptr<TileShape> offset(double p_dist) const;
 
     /**
+     * Shrinks this shape by p_offset. If the shrunk shape is empty, the result
+     * is the intersection of this shape with the bounding box of its centre of
+     * gravity, so that the shape does not vanish completely. Port of Java
+     * TileShape.shrink().
+     */
+    std::unique_ptr<TileShape> shrink(double p_offset) const;
+
+    /**
      * Cuts p_shape out of this shape and divides the result into convex
      * pieces. Port of the Java TileShape.cutout: the actual division is
      * delegated to the concrete cutout_from pair (this may be a Simplex,
@@ -126,13 +193,61 @@ public:
      */
     std::vector<std::unique_ptr<TileShape>> cutout(const TileShape& p_shape) const;
 
+    /**
+     * Cuts out the parts of p_polyline in the interior of this shape and
+     * returns the remaining pieces of the polyline. Pieces completely
+     * contained in the border of this shape are not returned. Port of Java
+     * TileShape.cutout(Polyline), which is the base of the spring-over
+     * algorithm of TraceShover.
+     */
+    std::vector<class Polyline> cutout(const class Polyline& p_polyline) const;
+
+    /**
+     * Returns the smallest width of this convex shape. Dispatched to the
+     * concrete IntBox / IntOctagon / Simplex implementations. Port of Java
+     * TileShape.minWidth().
+     */
+    double min_width() const;
+
+    /**
+     * Returns the largest width of this convex shape. Dispatched to the
+     * concrete IntBox / IntOctagon / Simplex implementations. Port of Java
+     * TileShape.maxWidth().
+     */
+    double max_width() const;
+
+    /**
+     * Returns the smallest octagon with axis parallel and 45 degree border
+     * lines containing this shape. Dispatched to the concrete IntOctagon /
+     * Simplex implementations. Port of Java TileShape.boundingOctagon().
+     */
+    IntOctagon bounding_octagon() const;
+
+    /**
+     * Returns true, if p_box contains this shape. Dispatched to the concrete
+     * IntBox / IntOctagon implementations; a Simplex is contained in the box
+     * if all of its corners are. Port of Java TileShape.isContainedIn(IntBox),
+     * which the shove algorithm uses to reject shapes outside the board.
+     */
+    bool is_contained_in(const IntBox& p_box) const;
+
     // ---- static factories ----------------------------------------------------
 
     /**
-     * Creates the convex shape defined by the half-planes of p_line_arr and
+     * Creates a convex shape defined by the half-planes of p_line_arr and
      * simplifies the result to the simplest physical representation.
      */
     static std::unique_ptr<TileShape> get_instance(const std::vector<Line>& p_line_arr);
+
+    /**
+     * Returns the intersection of p_first and p_second, simplified to the
+     * simplest physical representation. The C++ port of the Java
+     * TileShape.intersection(TileShape) family, which dispatches on the
+     * runtime types of both operands; the Simplex based computation produces
+     * the same geometry for all concrete tile types and the result is
+     * simplified to the concrete type afterwards.
+     */
+    static std::unique_ptr<TileShape> intersection_of(const TileShape& p_first, const TileShape& p_second);
 
     /**
      * Creates a TileShape from the corners of a convex IntPoint polygon.

@@ -49,6 +49,12 @@ void ExpansionDrill::reset()
     }
 }
 
+int64_t ExpansionDrill::get_id() const
+{
+    // Port of Java ExpansionDrill.getId(): stable hash of location and layers.
+    return 31 * (31 * location.get_id() + first_layer) + last_layer;
+}
+
 bool ExpansionDrill::calculate_expansion_rooms(AutorouteEngine* p_autoroute_engine)
 {
     if (!p_autoroute_engine)

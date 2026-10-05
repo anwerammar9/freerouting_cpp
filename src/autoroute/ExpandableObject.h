@@ -61,6 +61,15 @@ public:
      * @brief Resets this ExpandableObject for autorouting the next connection
      */
     virtual void reset() = 0;
+
+    /**
+     * @brief Returns a unique identification number for this object to allow deterministic sorting
+     *
+     * Port of Java ExpandableObject.getId().
+     *
+     * @return The identification number of this object
+     */
+    virtual int64_t get_id() const = 0;
 };
 
 } // namespace autoroute

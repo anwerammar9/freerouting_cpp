@@ -10,6 +10,8 @@
 #include "board/Trace.h"
 #include "geometry/planar/IntBox.h"
 #include "geometry/planar/Shape.h"
+#include "board/ShapeSearchTree.h"
+#include "logger/FRLogger.h"
 
 namespace freerouting::board {
 
@@ -49,6 +51,22 @@ double DrillItem::min_width() const
         }
     }
     return result;
+}
+
+const geometry::planar::TileShape* DrillItem::get_tree_shape_on_layer(
+    const ShapeSearchTree* p_search_tree, int p_layer) const
+{
+    // Mirrors Java DrillItem.getTreeShapeOnLayer(ShapeSearchTree, int).
+    if (p_layer < from_layer_ || p_layer > to_layer_)
+    {
+        logger::FRLogger::instance().warn("DrillItem.get_tree_shape_on_layer: layer out of range");
+        return nullptr;
+    }
+    if (p_search_tree == nullptr)
+    {
+        return nullptr;
+    }
+    return get_tree_shape(*p_search_tree, p_layer - from_layer_);
 }
 
 std::vector<Item*> DrillItem::get_normal_contacts() const
@@ -240,6 +258,29 @@ const geometry::planar::TileShape* Via::get_tree_shape_on_layer(const ShapeSearc
         return nullptr;
     }
     return get_tree_shape(*p_search_tree, layer_index);
+}
+
+bool Via::is_tail() const
+{
+    std::vector<Item*> contact_list = get_normal_contacts();
+    if (contact_list.size() <= 1)
+    {
+        return true;
+    }
+    auto it = contact_list.begin();
+    Item* current_contact_item = *it;
+    int first_contact_first_layer = current_contact_item->first_layer();
+    int first_contact_last_layer = current_contact_item->last_layer();
+    for (++it; it != contact_list.end(); ++it)
+    {
+        current_contact_item = *it;
+        if (current_contact_item->first_layer() != first_contact_first_layer
+            || current_contact_item->last_layer() != first_contact_last_layer)
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 } // namespace freerouting::board

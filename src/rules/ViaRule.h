@@ -31,6 +31,13 @@ public:
     bool contains(const std::shared_ptr<ViaInfo>& p_via_info) const;
     bool contains_padstack(const std::shared_ptr<board::Padstack>& p_padstack) const;
 
+    /**
+     * Non owning overload of contains_padstack(), for callers which hold a
+     * padstack pointer, such as a board item. Port of Java
+     * ViaRule.containsPadstack(Padstack), which compares the padstack identity.
+     */
+    bool contains_padstack(const board::Padstack* p_padstack) const;
+
     bool swap(const std::shared_ptr<ViaInfo>& p_1, const std::shared_ptr<ViaInfo>& p_2);
 
     std::string to_string() const;

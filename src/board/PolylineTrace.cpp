@@ -62,6 +62,21 @@ const geometry::planar::Point& PolylineTrace::first_corner() const
     return *corner_points_.front();
 }
 
+geometry::planar::IntPoint PolylineTrace::own_corner(int p_index) const
+{
+    ensure_corners();
+    if (corner_points_.empty())
+    {
+        return geometry::planar::IntPoint(0, 0);
+    }
+    const geometry::planar::Point& corner = (p_index < 0)
+                                               ? *corner_points_.back()
+                                               : *corner_points_[static_cast<size_t>(p_index)];
+    // corner_points_ caches IntPoint instances, see ensure_corners().
+    const auto* int_corner = dynamic_cast<const geometry::planar::IntPoint*>(&corner);
+    return (int_corner != nullptr) ? *int_corner : geometry::planar::IntPoint(0, 0);
+}
+
 const geometry::planar::Point& PolylineTrace::last_corner() const
 {
     static const geometry::planar::IntPoint origin(0, 0);
@@ -563,24 +578,15 @@ std::vector<PolylineTrace*> PolylineTrace::split(
 
 bool PolylineTrace::combine()
 {
-    if (!is_on_board() || polyline_ == nullptr)
-    {
-        return false;
-    }
+    // Port of Java PolylineTrace.combine(). Java iterates instead of
+    // recursing, because a long chain of combinable traces grew the call stack
+    // by one frame per combined trace and crashed with a StackOverflowError.
     bool something_changed = false;
-    if (combine_at_start(true))
+    while (is_on_board() && polyline_ != nullptr
+           && (combine_at_start(true) || combine_at_end(true)))
     {
         something_changed = true;
-        combine();
-    }
-    else if (combine_at_end(true))
-    {
-        something_changed = true;
-        combine();
-    }
-    if (something_changed)
-    {
-        // Java notifies board observers here; the C++ headless port has no
+        // Java notifies the board observers here; the C++ headless port has no
         // observer bus yet.
         if (auto* routing_board = dynamic_cast<RoutingBoard*>(get_board()))
         {
@@ -596,7 +602,10 @@ bool PolylineTrace::combine_at_start(bool p_ignore_areas)
     {
         return false;
     }
-    const geometry::planar::Point& start_corner = first_corner();
+    // Java copies the corner (Point startCorner = firstCorner()). first_corner()
+    // returns a reference into corner_points_, which clear_derived_data() below
+    // empties, so keep the corner alive with a copy of the cache entry.
+    const geometry::planar::IntPoint start_corner = own_corner(0);
     std::set<Item*> contacts = get_normal_contacts(start_corner, false);
     if (p_ignore_areas)
     {
@@ -739,7 +748,8 @@ bool PolylineTrace::combine_at_end(bool p_ignore_areas)
     {
         return false;
     }
-    const geometry::planar::Point& end_corner = last_corner();
+    // Java copies the corner (Point endCorner = lastCorner()), see combine_at_start().
+    const geometry::planar::IntPoint end_corner = own_corner(-1);
     std::set<Item*> contacts = get_normal_contacts(end_corner, false);
     if (p_ignore_areas)
     {

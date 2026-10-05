@@ -30,6 +30,13 @@ public:
     MazeSearchElement* get_maze_search_element(int p_no) override;
     void reset() override;
 
+    /**
+     * Returns a unique identification number for this drill: a stable hash of
+     * the drill location and the drill layer range. Port of Java
+     * ExpansionDrill.getId().
+     */
+    int64_t get_id() const override;
+
     bool calculate_expansion_rooms(AutorouteEngine* p_autoroute_engine);
 
     const geometry::planar::IntPoint location;

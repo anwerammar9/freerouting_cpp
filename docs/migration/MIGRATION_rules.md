@@ -30,6 +30,7 @@
 - **ViaRule**: the duplicate drill/layer-based `rules::ViaInfo` that previously collided with `ViaInfo.h` was removed; `ViaRule` now stores `std::shared_ptr<rules::ViaInfo>` (padstack-based, identical to Java). Added `contains`, `contains_padstack`, `swap`, and defined `ViaRule::EMPTY`. `get_layer_range(from, to)` remains unimplemented because it requires `padstack->from_layer()/to_layer()` on a complete `rules::Padstack`.
 
 ## Known Gaps
+- `ClearanceMatrix::get_value(c1, c2, layer, /*p_for_safety_check=*/true)` adds `clearance_safety_margin` (16), like Java `ClearanceMatrix.getValue(..., true)`; the port had the sign inverted. `RoutingBoard::clearance_value()` is the port of Java `BasicBoard.clearanceValue()`, which always adds the margin, so it now calls the 4-argument overload. Verified against the Java baseline (the shove offset of a half-width-50 / clearance-10 trace is `50 + 10 + 16 + 1 = 77`).
 
 - `rules::Padstack` is only forward-declared (rules cannot depend on `freerouting_board` due to the dependency direction `board -> rules`). Any method needing complete padstack internals (`ViaRule::get_layer_range`, padstack-derived layer ranges) stays pending until `core/Padstack` (or a rules-owned padstack type) is migrated.
 - Locale-based naming via Java `TextManager` (`class<N>`, `net<N>`, localized strings) is replaced by plain `class<N>` / `net<N>` names; no i18n infrastructure exists in C++ yet.

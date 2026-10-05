@@ -167,6 +167,75 @@ TEST(ItemContactGraphTest, TraceContactsViaAtSharedEndpoint)
     EXPECT_EQ(via->get_connected_set(1, false), connected);
 }
 
+TEST(ItemContactGraphTest, GetAllContactsOfATraceContainsTheContactingVia)
+{
+    auto board = make_routing_board();
+    PolylineTrace* trace = insert_trace(board.get(),
+                                        {geometry::planar::IntPoint(0, 0),
+                                         geometry::planar::IntPoint(100, 100)},
+                                        {1});
+    ASSERT_NE(trace, nullptr);
+    Via* via = insert_via(board.get(), geometry::planar::IntPoint(100, 100), {1}, 50);
+    ASSERT_NE(via, nullptr);
+
+    const std::set<Item*> contacts = trace->get_all_contacts();
+
+    ASSERT_EQ(contacts.size(), 1u);
+    EXPECT_TRUE(set_contains(contacts, via));
+    EXPECT_FALSE(set_contains(contacts, trace));
+
+    // The via sees the trace as its contact.
+    const std::set<Item*> via_contacts = via->get_all_contacts();
+    ASSERT_EQ(via_contacts.size(), 1u);
+    EXPECT_TRUE(set_contains(via_contacts, trace));
+}
+
+TEST(ItemContactGraphTest, GetAllContactsOfAnIsolatedTraceIsEmpty)
+{
+    auto board = make_routing_board();
+    PolylineTrace* trace = insert_trace(board.get(),
+                                        {geometry::planar::IntPoint(0, 0),
+                                         geometry::planar::IntPoint(100, 100)},
+                                        {1});
+    ASSERT_NE(trace, nullptr);
+
+    EXPECT_TRUE(trace->get_all_contacts().empty());
+}
+
+TEST(ItemContactGraphTest, GetAllContactsDoesNotContainOtherNets)
+{
+    auto board = make_routing_board();
+    PolylineTrace* trace = insert_trace(board.get(),
+                                        {geometry::planar::IntPoint(0, 0),
+                                         geometry::planar::IntPoint(100, 100)},
+                                        {1});
+    ASSERT_NE(trace, nullptr);
+    Via* via = insert_via(board.get(), geometry::planar::IntPoint(100, 100), {2}, 50);
+    ASSERT_NE(via, nullptr);
+
+    EXPECT_TRUE(trace->get_all_contacts().empty());
+}
+
+TEST(ItemContactGraphTest, GetAllContactsOnLayerFiltersByTheLayerOfTheShape)
+{
+    auto board = make_routing_board();
+    // The trace is only on layer 0, the via spans layer 0 to 1.
+    PolylineTrace* trace = insert_trace(board.get(),
+                                        {geometry::planar::IntPoint(0, 0),
+                                         geometry::planar::IntPoint(100, 100)},
+                                        {1});
+    ASSERT_NE(trace, nullptr);
+    Via* via = insert_via(board.get(), geometry::planar::IntPoint(100, 100), {1}, 50);
+    ASSERT_NE(via, nullptr);
+
+    const std::set<Item*> layer_0_contacts = trace->get_all_contacts(0);
+    EXPECT_EQ(layer_0_contacts.size(), 1u);
+    EXPECT_TRUE(set_contains(layer_0_contacts, via));
+
+    // The trace has no shape on layer 1, so no contact can be found there.
+    EXPECT_TRUE(trace->get_all_contacts(1).empty());
+}
+
 TEST(ItemContactGraphTest, ViaRatsnestCornersReturnCenter)
 {
     auto board = make_routing_board();

@@ -72,6 +72,21 @@ public:
 
     virtual std::shared_ptr<autoroute::ItemAutorouteInfo> get_autoroute_info();
     virtual std::vector<Item*> get_normal_contacts() const;
+
+    /**
+     * Returns all connectable items with a direct contact to this item. The
+     * result is empty if this item is not connectable. Mirrors Java
+     * Item.getAllContacts().
+     */
+    std::set<Item*> get_all_contacts() const;
+
+    /**
+     * Returns all connectable items with a direct contact to this item on
+     * p_layer. The result is empty if this item is not connectable. Mirrors
+     * Java Item.getAllContacts(int).
+     */
+    std::set<Item*> get_all_contacts(int p_layer) const;
+
     virtual int first_common_layer(const Item* p_other) const;
     virtual bool shares_net(const Item* p_other) const;
     virtual bool shares_net_no(const std::vector<int>& p_net_no_arr) const;
@@ -104,6 +119,28 @@ public:
      * Mirrors Java Item.get_connected_set(int, boolean).
      */
     std::set<Item*> get_connected_set(int p_net_no, bool p_stop_at_plane) const;
+
+    /**
+     * Returns the connected set without stopping at planes. Mirrors Java
+     * Item.get_connected_set(int).
+     */
+    std::set<Item*> get_connected_set(int p_net_no) const { return get_connected_set(p_net_no, false); }
+
+    /**
+     * Returns all connectable items of the net with number p_net_no, which are
+     * not electrically connected to this item. Mirrors Java
+     * Item.get_unconnected_set(int).
+     */
+    std::set<Item*> get_unconnected_set(int p_net_no) const;
+
+    /** Returns the count of nets this item belongs to. Mirrors Java Item.net_count(). */
+    int net_count() const { return static_cast<int>(net_nos_.size()); }
+
+    /**
+     * Returns the p_no-th net number of this item for
+     * 0 <= p_no < net_count(). Mirrors Java Item.get_net_number(int).
+     */
+    int get_net_no(int p_no) const { return net_nos_[p_no]; }
 
     /** Recursive part of get_connected_set. */
     void get_connected_set_recu(std::set<Item*>& p_result, int p_net_no, bool p_stop_at_plane) const;

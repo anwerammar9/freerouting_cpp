@@ -53,7 +53,7 @@ private:
         std::vector<int> values;
     };
 
-    const board::LayerStructure& layer_structure;
+    board::LayerStructure layer_structure;
     std::vector<int> max_value_on_layer;
     int class_count;
     std::vector<Row> rows;

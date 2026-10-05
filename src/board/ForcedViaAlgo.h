@@ -31,7 +31,9 @@ public:
 
     /**
      * Checks, if a Via is possible at the input layer after evtl. shoving aside obstacle traces.
-     * p_room_shape is used for calculating the from_side.
+     * p_room_shape is used for calculating the from_side. p_trace_half_width and
+     * p_trace_clearance_class are used to check that a trace of the trace width can start at
+     * the via location.
      */
     static ForcedPadAlgo::CheckDrillResult check_layer(double p_via_radius,
                                                       int p_cl_class,
@@ -42,17 +44,26 @@ public:
                                                       const std::vector<int>& p_net_no_arr,
                                                       int p_max_recursion_depth,
                                                       int p_max_via_recursion_depth,
-                                                      RoutingBoard* p_board);
+                                                      RoutingBoard* p_board,
+                                                      int p_trace_half_width = 0,
+                                                      int p_trace_clearance_class = 1);
 
     /**
      * Checks, if a Via is possible with the input parameter after evtl. shoving aside obstacle traces.
+     *
+     * p_trace_pen_halfwidth_arr and p_trace_clearance_class_index are provided
+     * to make space for starting a trace in case the trace width is bigger
+     * than the via shape. If p_trace_pen_halfwidth_arr is nullptr, that check
+     * is skipped (Java passes null in that case).
      */
     static bool check(const std::shared_ptr<rules::ViaInfo>& p_via_info,
                       const geometry::planar::Point& p_location,
                       const std::vector<int>& p_net_no_arr,
                       int p_max_recursion_depth,
                       int p_max_via_recursion_depth,
-                      RoutingBoard* p_board);
+                      RoutingBoard* p_board,
+                      const std::vector<int>* p_trace_pen_halfwidth_arr = nullptr,
+                      int p_trace_clearance_class_index = 1);
 
     /**
      * Shoves aside traces, so that a via with the input parameters can be inserted without clearance violations.

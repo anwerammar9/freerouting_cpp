@@ -25,6 +25,15 @@ public:
     LineSegment(const Polyline& p_polyline, int p_no);
     LineSegment(const PolylineShape& p_shape, int p_no);
 
+    /**
+     * Creates the p_no-th border line segment of p_shape for p_no between 0
+     * and p_shape.border_line_count() - 1. Port of the Java
+     * LineSegment(PolylineShape, int) constructor, used e.g. by
+     * ShapeSearchTree.restrain_shape() to cut rooms along obstacle edge
+     * segments.
+     */
+    LineSegment(const TileShape& p_shape, int p_no);
+
     static LineSegment from_endpoints(const IntPoint& p_start, const IntPoint& p_end);
 
     IntPoint start_point() const;

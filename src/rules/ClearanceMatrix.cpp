@@ -145,7 +145,7 @@ int ClearanceMatrix::get_value(int p_cl_class1, int p_cl_class2, int p_layer, bo
     int value = get_value(p_cl_class1, p_cl_class2, p_layer);
     if (p_for_safety_check)
     {
-        return value - clearance_safety_margin;
+        return value + clearance_safety_margin;
     }
     return value;
 }

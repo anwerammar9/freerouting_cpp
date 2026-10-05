@@ -3,6 +3,7 @@
 
 set(CORE_SOURCES
     FileFormat.cpp
+    Package.cpp
     RoutingJob.cpp
     RoutingStage.cpp
     StopRequestState.cpp

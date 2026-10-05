@@ -6,6 +6,7 @@
 
 #include "rules/Net.h"
 #include "rules/NetClass.h"
+#include "rules/ViaRule.h"
 #include "board/Layer.h"
 
 namespace freerouting {
@@ -92,6 +93,17 @@ public:
     double get_pin_edge_to_turn_dist() const { return pin_edge_to_turn_dist_; }
     void set_pin_edge_to_turn_dist(double p_value);
 
+    /**
+     * Returns the via rule used as the default of this board or nullptr, if
+     * there is none. Port of Java BoardRules.getDefaultViaRule().
+     *
+     * Divergence: Java takes the first entry of the global via rule list. The
+     * C++ rules carry no via rule list yet (the DSN via rules are not parsed),
+     * so the via rule of the first net class is used instead, which is where
+     * the via rule of a board is known.
+     */
+    const ViaRule* get_default_via_rule() const;
+
     bool is_use_slow_autoroute_algorithm() const { return use_slow_autoroute_algorithm_; }
     void set_use_slow_autoroute_algorithm(bool p_value);
 
@@ -101,7 +113,7 @@ private:
     std::unique_ptr<ClearanceMatrix> clearance_matrix_;
     Nets nets_;
     NetClasses net_classes_;
-    const board::LayerStructure& layer_structure_;
+    board::LayerStructure layer_structure_;
 
     AngleRestriction trace_angle_restriction_ = AngleRestriction::FORTY_FIVE;
     bool ignore_conduction_ = true;

@@ -128,6 +128,12 @@ public:
     IntOctagon to_IntOctagon() const;
     std::string to_string() const;
 
+    /**
+     * Returns a unique identification number for this box to allow deterministic
+     * sorting. Port of Java IntBox.getId().
+     */
+    int64_t get_id() const { return 31 * ll.get_id() + ur.get_id(); }
+
     // ---- mutable shape operations ------------------------------------------
 
     IntBox translate_by(const IntVector& p_rel) const;

@@ -44,6 +44,13 @@ public:
     void reset() override;
 
     /**
+     * Returns a unique identification number for this drill page: a stable hash
+     * of the page shape and the autoroute net number. Port of Java
+     * DrillPage.getId().
+     */
+    int64_t get_id() const override;
+
+    /**
      * Returns the drills on this page. If p_attach_smd, drilling to smd pins is
      * allowed. The drills are recalculated when the autoroute net changes or the
      * page was invalidated. Mirrors Java DrillPage.getDrills().

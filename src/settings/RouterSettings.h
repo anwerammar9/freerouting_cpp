@@ -53,6 +53,33 @@ public:
     int get_via_costs() const { return 100; } // Stub
     std::vector<autoroute::ExpansionCostFactor> get_trace_cost_arr() const { return {}; } // Stub
 
+    /**
+     * Returns the effective bend cost for one layer. Port of Java
+     * RouterSettings.getBendCost(int). The C++ settings do not carry a per
+     * layer bend cost yet, so 0.0 is returned for every valid layer (the
+     * maze search then adds no bend cost penalty).
+     */
+    double get_bend_cost(int /*p_layer*/) const { return 0.0; } // Stub
+
+    /**
+     * Returns the starting cost of a ripup operation. Port of Java
+     * RouterSettings.getStartRipupCosts(). Java dereferences the nullable
+     * Integer startRipupCosts of the scoring settings, so an unset value
+     * evaluates to 1; the C++ settings carry a plain int, which defaults to
+     * 100.
+     */
+    int get_start_ripup_costs() const { return scoring_ ? scoring_->start_ripup_costs : 1; }
+
+    /**
+     * Returns the accuracy of the pull tight algorithm. Port of Java
+     * RouterSettings.tracePullTightAccuracy, which is a nullable Integer with
+     * no default value; the C++ settings do not carry it yet, so the value
+     * Java falls back to for an unset accuracy (500) is used.
+     */
+    int get_trace_pull_tight_accuracy() const { return trace_pull_tight_accuracy_; }
+
+    void set_trace_pull_tight_accuracy(int p_value) { trace_pull_tight_accuracy_ = p_value; }
+
     std::string to_string() const { return "RouterSettings"; }
 
 private:
@@ -64,6 +91,7 @@ private:
     bool vias_allowed_ = true;
     bool automatic_neckdown_ = true;
     int max_threads_ = 1;
+    int trace_pull_tight_accuracy_ = 500;
 
     std::unique_ptr<RouterOptimizerSettings> optimizer_;
     std::unique_ptr<RouterScoringSettings> scoring_;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 #include <functional>
@@ -16,9 +17,22 @@
 #include "geometry/planar/TileShape.h"
 #include "designforms/specctra/Scanner.h"
 
+namespace freerouting::datastructures {
+class TimeLimit;
+class Stoppable;
+} // namespace freerouting::datastructures
+
+namespace freerouting::settings {
+class RouterSettings;
+} // namespace freerouting::settings
+
 namespace freerouting::geometry::planar {
 class LineSegment;
 } // namespace freerouting::geometry::planar
+
+namespace freerouting::autoroute {
+class AutorouteAttemptResult;
+} // namespace freerouting::autoroute
 
 namespace freerouting::board {
 
@@ -26,6 +40,7 @@ class Item;
 class Component;
 class Components;
 class Padstack;
+class Pin;
 class PolylineTrace;
 class Trace;
 class Via;
@@ -55,6 +70,20 @@ public:
                           int64_t p_time_limit_ms);
 
     void combine_traces(int p_net_no);
+
+    /**
+     * Autoroutes from the input pin until the first via, in case the pin and its connected set has
+     * only 1 layer. Ripup is allowed if p_ripup_costs is >= 0.
+     * Mirrors Java RoutingBoard.fanout.
+     *
+     * The implementation lives in the autoroute module
+     * (src/autoroute/RoutingBoardFanout.cpp), because it needs AutorouteEngine and AutorouteControl.
+     */
+    autoroute::AutorouteAttemptResult fanout(Pin* p_pin,
+                                            settings::RouterSettings* p_router_settings,
+                                            int p_ripup_costs,
+                                            datastructures::Stoppable* p_stoppable,
+                                            datastructures::TimeLimit* p_time_limit);
 
     void add_item(Item* p_item);
     void remove_item(Item* p_item);
@@ -115,12 +144,93 @@ public:
     Item* get_item(int p_index) const;
 
     // Search tree manager access
-    SearchTreeManager& search_tree_manager() { return *search_tree_manager_; }
-    const SearchTreeManager& search_tree_manager() const { return *search_tree_manager_; }
+    SearchTreeManager& search_tree_manager() { return *get_search_tree_manager(); }
+    const SearchTreeManager& search_tree_manager() const { return *get_search_tree_manager(); }
 
     // Shove failure tracking
     void set_shove_failing_obstacle(Item* p_item) { shove_failing_obstacle_ = p_item; }
+
+    /** Returns the obstacle which made the last shove fail, or nullptr. */
+    Item* get_shove_failing_obstacle() const { return shove_failing_obstacle_; }
     void set_shove_failing_layer(int p_layer) { shove_failing_layer_ = p_layer; }
+
+    /** Returns the layer on which the last shove failed, or -1. */
+    int get_shove_failing_layer() const { return shove_failing_layer_; }
+
+    /** Resets the shove failing obstacle tracking. Mirrors Java
+     *  RoutingBoard.clear_shove_failing_obstacle(). */
+    void clear_shove_failing_obstacle();
+
+    /**
+     * Checks if a trace polyline with the input parameters can be inserted
+     * while shoving aside obstacle traces and vias. Mirrors Java
+     * RoutingBoard.check_forced_trace_polyline().
+     */
+    bool check_forced_trace_polyline(const geometry::planar::Polyline& p_polyline,
+                                     int p_half_width,
+                                     int p_layer,
+                                     const std::vector<int>& p_net_no_arr,
+                                     int p_clearance_class_index,
+                                     int p_max_recursion_depth,
+                                     int p_max_via_recursion_depth,
+                                     int p_max_spring_over_recursion_depth);
+
+    /**
+     * Tries to insert a trace polyline with the input parameters while shoving
+     * aside obstacle traces and vias. Returns the last corner of the polyline,
+     * to which the shove succeeded, or std::nullopt if the check was
+     * inaccurate and an error occurred while inserting. Mirrors Java
+     * RoutingBoard.insert_forced_trace_polyline().
+     *
+     * Divergence: Java compares the returned corner object against the
+     * polyline corners by reference identity; the C++ port compares the
+     * IntPoint values.
+     */
+    std::optional<geometry::planar::IntPoint> insert_forced_trace_polyline(
+        const geometry::planar::Polyline& p_polyline,
+        int p_half_width,
+        int p_layer,
+        const std::vector<int>& p_net_no_arr,
+        int p_clearance_class_index,
+        int p_max_recursion_depth,
+        int p_max_via_recursion_depth,
+        int p_max_spring_over_recursion_depth,
+        int p_tidy_width,
+        int p_pull_tight_accuracy,
+        bool p_with_check,
+        const datastructures::TimeLimit* p_time_limit);
+
+    /**
+     * Tries to insert a trace line from p_from_corner to p_to_corner while
+     * shoving aside obstacle traces and vias. Returns the last point between
+     * p_from_corner and p_to_corner, to which the shove succeeded, or
+     * std::nullopt if the check was inaccurate. Mirrors Java
+     * RoutingBoard.insert_forced_trace_segment().
+     */
+    std::optional<geometry::planar::IntPoint> insert_forced_trace_segment(
+        const geometry::planar::IntPoint& p_from_corner,
+        const geometry::planar::IntPoint& p_to_corner,
+        int p_half_width,
+        int p_layer,
+        const std::vector<int>& p_net_no_arr,
+        int p_clearance_class_index,
+        int p_max_recursion_depth,
+        int p_max_via_recursion_depth,
+        int p_max_spring_over_recursion_depth,
+        int p_tidy_width,
+        int p_pull_tight_accuracy,
+        bool p_with_check,
+        const datastructures::TimeLimit* p_time_limit);
+
+    /**
+     * Inserts a trace from p_from_point to the nearest point on p_to_trace.
+     * Returns false if that is not possible without clearance violation.
+     * Mirrors Java RoutingBoard.connect_to_trace().
+     */
+    bool connect_to_trace(const geometry::planar::IntPoint& p_from_point,
+                          Trace* p_to_trace,
+                          int p_pen_half_width,
+                          int p_clearance_class_index);
 
     // Board outline
     const BoardOutline* get_outline() const;
@@ -185,7 +295,7 @@ public:
 
     std::string to_string() const { return "RoutingBoard"; }
 
-    const geometry::planar::IntBox& get_bounding_box() const { return bounding_box_; }
+    geometry::planar::IntBox get_bounding_box() const override { return bounding_box_; }
 
 private:
     static constexpr int64_t PULL_TIGHT_TIME_LIMIT = 2000;
@@ -193,7 +303,6 @@ private:
     Item* shove_failing_obstacle_ = nullptr;
     int shove_failing_layer_ = -1;
     std::unique_ptr<ChangedArea> changed_area_;
-    std::unique_ptr<SearchTreeManager> search_tree_manager_;
 
     geometry::planar::IntBox bounding_box_;
     Communication* board_communication_ = nullptr;

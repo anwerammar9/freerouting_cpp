@@ -19,6 +19,11 @@ public:
                     board::Item* p_second,
                     const std::vector<board::Item*>& p_all_items);
 
+    /** Creates a new instance with all_items = {p_first, p_second} and a specific type. */
+    UnconnectedItems(board::Item* p_first,
+                    board::Item* p_second,
+                    const std::string& p_type);
+
     UnconnectedItems(board::Item* p_first,
                     board::Item* p_second,
                     const std::vector<board::Item*>& p_all_items,

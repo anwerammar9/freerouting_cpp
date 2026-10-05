@@ -62,6 +62,22 @@ LineSegment::LineSegment(const PolylineShape& p_shape, int p_no)
     end_ = (p_no == line_count - 1) ? p_shape.border_line(0) : p_shape.border_line(p_no + 1);
 }
 
+LineSegment::LineSegment(const TileShape& p_shape, int p_no)
+    : start_(degenerate_line())
+    , middle_(degenerate_line())
+    , end_(degenerate_line())
+{
+    const int line_count = p_shape.border_line_count();
+    if (p_no < 0 || p_no >= line_count)
+    {
+        logger::FRLogger::instance().warn("LineSegment from TileShape: p_no out of range");
+        return;
+    }
+    start_ = (p_no == 0) ? p_shape.border_line(line_count - 1) : p_shape.border_line(p_no - 1);
+    middle_ = p_shape.border_line(p_no);
+    end_ = (p_no == line_count - 1) ? p_shape.border_line(0) : p_shape.border_line(p_no + 1);
+}
+
 IntDirection LineSegment::normalized_direction(const IntPoint& p_from, const IntPoint& p_to)
 {
     const int64_t dx = p_to.x - p_from.x;
