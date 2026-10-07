@@ -148,10 +148,6 @@ void ShapeTraceEntries::remove_trace_from_board(RoutingBoard* p_board, PolylineT
 {
     if (p_board == nullptr || p_trace == nullptr) return;
     p_board->remove_item(p_trace);
-    // remove_item only unlinks the item list, so the stale search tree
-    // entries have to be evicted explicitly (same pattern as in
-    // PolylineTrace::split()).
-    p_board->get_search_tree_manager()->remove(p_trace);
     p_trace->set_on_board(false);
 }
 

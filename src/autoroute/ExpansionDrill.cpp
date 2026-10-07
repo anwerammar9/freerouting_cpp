@@ -90,24 +90,22 @@ bool ExpansionDrill::calculate_expansion_rooms(AutorouteEngine* p_autoroute_engi
             }
             if (current_room->get_layer() == i)
             {
-                // A stored room is reused only if the drill location lies
-                // inside it. Java relies on complete rooms being maximal free
-                // spaces (the location is always contained). The C++ interim
-                // rooms are tiny boxes around the drill location (complete_shape
-                // is not ported yet), so an explicit containment check prevents
-                // reusing a foreign room for a neighbouring drill location.
-                if (current_room->get_shape().contains(location))
-                {
-                    found_room = current_room;
-                    break;
-                }
+                // Java reuses the first complete room of the layer overlapping
+                // the drill location; complete rooms are maximal free spaces,
+                // so the location is always inside the reused room.
+                found_room = current_room;
+                break;
             }
         }
 
         if (found_room == nullptr)
         {
-            // create a new expansion room on this layer
-            IncompleteFreeSpaceExpansionRoom new_incomplete_room(nullptr, i, search_shape);
+            // Create a new expansion room on this layer. Java
+            // ExpansionDrill.calculateExpansionRooms(): the room shape is null,
+            // i.e. the whole plane, and the unit search shape of the location
+            // is the contained shape.
+            IncompleteFreeSpaceExpansionRoom new_incomplete_room(
+                nullptr, i, kWholePlaneShape, search_shape.to_Simplex());
             std::vector<CompleteFreeSpaceExpansionRoom*> new_rooms =
                 p_autoroute_engine->complete_expansion_room(&new_incomplete_room);
             if (new_rooms.size() != 1)

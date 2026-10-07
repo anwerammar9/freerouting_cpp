@@ -150,9 +150,16 @@ void RoutingBoard::add_item(Item* p_item)
 
 void RoutingBoard::remove_item(Item* p_item)
 {
-    if (!p_item)
+    if (p_item == nullptr)
+    {
         return;
-        
+    }
+    if (p_item->is_deletion_forbidden())
+    {
+        return;
+    }
+    additional_update_after_change(p_item);
+    search_tree_manager().remove(p_item);
     auto it = std::find(items_.begin(), items_.end(), p_item);
     if (it != items_.end())
     {
@@ -613,12 +620,93 @@ void RoutingBoard::join_changed_area(const geometry::planar::Point& p_point, int
     }
 }
 
-void RoutingBoard::remove_items(const std::vector<Item*>& p_items)
+bool RoutingBoard::remove_items(const std::vector<Item*>& p_items)
 {
+    // Port of Java BasicBoard.removeItems(Collection): every item which is
+    // delete-fixed or user-fixed is kept, and the result reports whether all
+    // requested items were removed.
+    bool result = true;
     for (Item* item : p_items)
     {
+        if (item == nullptr)
+        {
+            continue;
+        }
+        if (item->is_deletion_forbidden() || item->is_user_fixed())
+        {
+            result = false;
+            continue;
+        }
         remove_item(item);
     }
+    return result;
+}
+
+bool RoutingBoard::remove_trace_tails(int p_net_no, Item::StopConnectionOption p_stop_option)
+{
+    // Port of Java RoutingBoard.removeTraceTails(int, Item.StopConnectionOption).
+    // Divergence: Java collects the stubs and their connections in TreeSets
+    // ordered by Item.compare_to (descending item id), while the C++ port uses
+    // pointer ordered sets - the same divergence as in
+    // Item::get_unconnected_set().
+    std::set<Item*> stub_set;
+    for (Item* current_item : get_autoroute_items())
+    {
+        if (current_item == nullptr || !current_item->is_routable())
+        {
+            continue;
+        }
+        if (current_item->net_count() != 1)
+        {
+            continue;
+        }
+        if (p_net_no > 0 && current_item->get_net_no(0) != p_net_no)
+        {
+            continue;
+        }
+        if (!current_item->is_tail())
+        {
+            continue;
+        }
+        if (dynamic_cast<const Via*>(current_item) != nullptr)
+        {
+            if (p_stop_option == Item::StopConnectionOption::VIA)
+            {
+                continue;
+            }
+            if (p_stop_option == Item::StopConnectionOption::FANOUT_VIA
+                && current_item->is_fanout_via(nullptr))
+            {
+                continue;
+            }
+        }
+        stub_set.insert(current_item);
+    }
+
+    std::set<Item*> stub_connections;
+    for (Item* current_item : stub_set)
+    {
+        if (current_item->get_normal_contacts().size() == 1)
+        {
+            const std::vector<Item*> connection_items = current_item->get_connection_items(p_stop_option);
+            stub_connections.insert(connection_items.begin(), connection_items.end());
+        }
+        else
+        {
+            // The connected items are no stubs, for example if a via is only
+            // connected on 1 layer, but to several traces.
+            stub_connections.insert(current_item);
+        }
+    }
+
+    if (stub_connections.empty())
+    {
+        return false;
+    }
+    const std::vector<Item*> stub_connection_list(stub_connections.begin(), stub_connections.end());
+    remove_items(stub_connection_list);
+    combine_traces(p_net_no);
+    return true;
 }
 
 int RoutingBoard::clearance_value(int p_class_1, int p_class_2, int p_layer) const

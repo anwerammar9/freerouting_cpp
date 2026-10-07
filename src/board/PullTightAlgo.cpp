@@ -548,9 +548,6 @@ bool PullTightAlgo::smoothen_end_corners_at_trace_1(PolylineTrace* p_trace)
             const int curr_cl_class = curr_trace->get_clearance_class();
             const FixedState curr_fixed_state = curr_trace->get_fixed_state();
             board_->remove_item(curr_trace);
-            // Evict stale tree entries as well (see split_at_line); the second
-            // remove_item below is then a guarded no-op for the tree.
-            board_->get_search_tree_manager()->remove(curr_trace);
             PolylineTrace* adj_ins_trace = board_->insert_trace_without_cleaning(
                 std::make_shared<geometry::planar::Polyline>(*adjusted_polyline), trace_layer,
                 curr_half_width_, curr_trace->get_net_nos(), curr_cl_class, curr_fixed_state);

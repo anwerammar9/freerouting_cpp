@@ -32,6 +32,7 @@ add_library(freerouting_autoroute STATIC
     NamedAlgorithm.cpp
     NamedAlgorithmType.cpp
     PerformanceProfiler.cpp
+    RoutingBoardAutoroute.cpp
     RoutingBoardFanout.cpp
     RoutingFailureLog.cpp
     Sorted45DegreeRoomNeighbours.cpp

@@ -41,9 +41,8 @@ namespace
 
 /**
  * Java RoutingBoard.removeItems() unlinks the items from the item list and
- * evicts their search tree entries (BoardItemRepository.removeItem). The C++
- * RoutingBoard::remove_items() only unlinks the item list, so the tree
- * eviction is done here, following the pattern of PolylineTrace::split().
+ * evicts their search tree entries (BoardItemRepository.removeItem), which
+ * RoutingBoard::remove_item() now does as well.
  */
 void remove_items_from_board(RoutingBoard* p_board, const std::vector<Item*>& p_items)
 {
@@ -52,7 +51,6 @@ void remove_items_from_board(RoutingBoard* p_board, const std::vector<Item*>& p_
     {
         if (item == nullptr) continue;
         p_board->remove_item(item);
-        p_board->get_search_tree_manager()->remove(item);
     }
 }
 

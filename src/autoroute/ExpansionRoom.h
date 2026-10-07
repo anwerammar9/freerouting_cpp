@@ -205,6 +205,17 @@ private:
     std::vector<ExpansionDoor*> doors_;
 };
 
+/**
+ * Tag for IncompleteFreeSpaceExpansionRoom constructors whose room shape is
+ * the whole plane. Java represents the whole plane as a null shape
+ * ("If shape == null, it means shape is the whole plane"), which C++ cannot
+ * express with a value type.
+ */
+struct WholePlaneShapeTag
+{
+};
+inline constexpr WholePlaneShapeTag kWholePlaneShape{};
+
 class IncompleteFreeSpaceExpansionRoom : public IncompleteExpansionRoom
 {
 public:
@@ -213,10 +224,26 @@ public:
     /**
      * Creates an incomplete free space expansion room with an exact Simplex
      * shape and a contained shape. Mirrors the Java constructor
-     * IncompleteFreeSpaceExpansionRoom(TileShape, int, TileShape).
+     * IncompleteFreeSpaceExpansionRoom(TileShape, int, TileShape) with a
+     * non-null shape.
      */
     IncompleteFreeSpaceExpansionRoom(ExpansionRoom* p_source_room, int p_layer,
         const geometry::planar::Simplex& p_shape, const geometry::planar::Simplex& p_contained_shape);
+
+    /**
+     * Creates an incomplete free space expansion room whose shape is the whole
+     * plane, with p_contained_shape as the shape that must be contained in the
+     * completed room. Mirrors the Java constructor
+     * IncompleteFreeSpaceExpansionRoom(null, layer, containedShape).
+     *
+     * Deviation: Java getShape() returns null for such a room (used only as
+     * the completeShape start-shape signal and NPEs everywhere else); the C++
+     * get_shape() reports the empty box and is_whole_plane() distinguishes the
+     * whole-plane case. Whole-plane rooms never acquire doors before they are
+     * completed, so no other code observes the shape.
+     */
+    IncompleteFreeSpaceExpansionRoom(ExpansionRoom* p_source_room, int p_layer, WholePlaneShapeTag,
+        const geometry::planar::Simplex& p_contained_shape);
     virtual ~IncompleteFreeSpaceExpansionRoom() = default;
 
     geometry::planar::IntBox get_shape() const override;
@@ -224,6 +251,9 @@ public:
     geometry::planar::Simplex get_contained_shape_tile() const { return contained_shape_tile_; }
     void set_shape_tile(const geometry::planar::Simplex& p_shape) { shape_tile_ = p_shape; }
     void set_contained_shape_tile(const geometry::planar::Simplex& p_shape) { contained_shape_tile_ = p_shape; }
+
+    /** True if this room's shape is the whole plane (Java null shape). */
+    bool is_whole_plane() const { return whole_plane_; }
 
     /**
      * Returns a unique identification number for this room: a stable hash of
@@ -238,6 +268,7 @@ public:
 private:
     geometry::planar::Simplex shape_tile_;
     geometry::planar::Simplex contained_shape_tile_;
+    bool whole_plane_ = false;
 };
 
 class ExpansionDoor : public ExpandableObject

@@ -28,6 +28,8 @@ class CompleteExpansionRoom;
 class CompleteFreeSpaceExpansionRoom;
 class DrillPageArray;
 class ExpansionRoom;
+/** Tag for whole-plane incomplete rooms (defined in ExpansionRoom.h). */
+struct WholePlaneShapeTag;
 
 class AutorouteEngine {
 public:
@@ -92,9 +94,19 @@ public:
     /**
      * Creates and registers an incomplete free space expansion room with an
      * exact Simplex shape and a contained shape. Mirrors Java
-     * AutorouteEngine.addIncompleteExpansionRoom(TileShape, int, TileShape).
+     * AutorouteEngine.addIncompleteExpansionRoom(TileShape, int, TileShape)
+     * with a non-null shape.
      */
     IncompleteFreeSpaceExpansionRoom* add_incomplete_expansion_room(const geometry::planar::Simplex& p_shape,
+        int p_layer, const geometry::planar::Simplex& p_contained_shape);
+
+    /**
+     * Creates and registers a whole-plane incomplete free space expansion
+     * room. Mirrors Java
+     * AutorouteEngine.addIncompleteExpansionRoom(null, layer, containedShape),
+     * used for maze search start rooms and drill expansion rooms.
+     */
+    IncompleteFreeSpaceExpansionRoom* add_incomplete_expansion_room(WholePlaneShapeTag p_shape_kind,
         int p_layer, const geometry::planar::Simplex& p_contained_shape);
 
     /**
@@ -149,17 +161,18 @@ public:
      * CompleteFreeSpaceExpansionRoom supplies the ignore object and from-door
      * shape, the free space is computed by the search tree and every resulting
      * 2-dimensional piece becomes a CompleteFreeSpaceExpansionRoom registered
-     * in the engine database and stored in the autoroute search tree.
+     * in the engine database and stored in the autoroute search tree. The
+     * doors of the new rooms are calculated by SortedRoomNeighbours
+     * (Java SortedRoomNeighbours.complete).
      *
-     * The start shape is bounded by p_room's own shape (or, for sub-2D drill
-     * unit shapes, an inflation of it), so a room never grows beyond the free
-     * space inside that bound — the C++ rooms are IntBox based and the Java
-     * "whole-plane start shape" would split an otherwise empty board into
-     * several sections. Room splitting around intersecting obstacles is
-     * faithfully reproduced. Door calculation (Java SortedRoomNeighbours.complete)
-     * is not ported yet.
+     * Like in Java, the start shape is the board bounding box intersected with
+     * p_room's own tile shape; a whole-plane room (Java null shape) therefore
+     * completes to the free space of the whole board, which is divided into
+     * sections by ShapeSearchTree::divide_large_room when it exceeds half of
+     * the board in both directions. Sub-2-dimensional start shapes yield no
+     * rooms, exactly as in Java.
      */
-    std::vector<CompleteFreeSpaceExpansionRoom*> complete_expansion_room(IncompleteExpansionRoom* p_room);
+    std::vector<CompleteFreeSpaceExpansionRoom*> complete_expansion_room(IncompleteFreeSpaceExpansionRoom* p_room);
 
     static constexpr int TRACE_WIDTH_TOLERANCE = 2;
 

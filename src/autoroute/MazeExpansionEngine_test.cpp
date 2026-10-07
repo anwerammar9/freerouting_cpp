@@ -18,6 +18,7 @@
 #include "board/Layer.h"
 #include "board/Padstack.h"
 #include "board/RoutingBoard.h"
+#include "board/SearchTreeObject.h"
 #include "board/ShapeSearchTree.h"
 #include "geometry/planar/IntBox.h"
 #include "geometry/planar/Shape.h"
@@ -74,6 +75,74 @@ std::shared_ptr<fr::rules::ViaRule> make_via_rule()
     via_rule->append_via(
         std::make_shared<fr::rules::ViaInfo>("via", padstack, 1, true, nullptr));
     return via_rule;
+}
+
+/**
+ * Net-2 obstacle with a single IntBox shape on one layer restraining the free
+ * space in the autoroute search tree. Whole-plane drill rooms complete to
+ * exactly one room per layer (the condition of
+ * ExpansionDrill.calculateExpansionRooms) only when the free space around the
+ * drill location is restrained by obstacles.
+ */
+class FakeObstacle : public fr::board::SearchTreeObject
+{
+public:
+    FakeObstacle(int p_layer, fr::geometry::planar::IntBox p_shape, int p_id)
+        : layer_(p_layer), shape_(p_shape), id_(p_id)
+    {
+    }
+
+    int tree_shape_count(const fr::datastructures::ShapeTree&) const override { return 1; }
+    const fr::geometry::planar::TileShape* get_tree_shape(const fr::datastructures::ShapeTree&, int) const override { return &shape_; }
+    void set_search_tree_entries(std::vector<std::unique_ptr<fr::datastructures::ShapeTree::Leaf>> p_entries,
+        fr::datastructures::ShapeTree&) override
+    {
+        // Own the leaves like board::Item does so the search tree keeps
+        // referencing live nodes until the object is destroyed.
+        search_tree_entries_ = std::move(p_entries);
+    }
+    int compare_to(const fr::datastructures::ShapeTree::Storable& p_other) const override
+    {
+        const auto* other_obstacle = dynamic_cast<const FakeObstacle*>(&p_other);
+        if (other_obstacle == nullptr)
+        {
+            return -1;
+        }
+        if (id_ == other_obstacle->id_)
+        {
+            return 0;
+        }
+        return id_ < other_obstacle->id_ ? -1 : 1;
+    }
+    bool is_obstacle(int) const override { return true; }
+    bool is_trace_obstacle(int p_net_no) const override { return p_net_no != 2; }
+    int shape_layer(int) const override { return layer_; }
+    int get_id() const override { return id_; }
+
+private:
+    int layer_;
+    fr::geometry::planar::IntBox shape_;
+    int id_;
+    std::vector<std::unique_ptr<fr::datastructures::ShapeTree::Leaf>> search_tree_entries_;
+};
+
+/**
+ * Inserts a net-2 wall with the given box on each layer into the autoroute
+ * search tree of the engine and returns the obstacles so they stay alive while
+ * the tree is queried.
+ */
+std::vector<std::unique_ptr<FakeObstacle>> insert_restraining_walls(
+    fr::autoroute::AutorouteEngine& p_engine, const fr::geometry::planar::IntBox& p_layer_0_box,
+    const fr::geometry::planar::IntBox& p_layer_1_box)
+{
+    auto wall_layer_0 = std::make_unique<FakeObstacle>(0, p_layer_0_box, /*p_id=*/1);
+    auto wall_layer_1 = std::make_unique<FakeObstacle>(1, p_layer_1_box, /*p_id=*/2);
+    p_engine.get_autoroute_search_tree()->insert(*wall_layer_0);
+    p_engine.get_autoroute_search_tree()->insert(*wall_layer_1);
+    std::vector<std::unique_ptr<FakeObstacle>> keep_walls;
+    keep_walls.push_back(std::move(wall_layer_0));
+    keep_walls.push_back(std::move(wall_layer_1));
+    return keep_walls;
 }
 
 } // namespace
@@ -183,9 +252,21 @@ TEST(MazeExpansionEngineTest, ExpandToDrillAddsElementForThickRoom)
     fr::autoroute::MazeSearchAlgo search(board.get(), nullptr);
     search.set_control(make_control());
 
+    // Net-2 walls restrain the free space so the whole-plane drill rooms
+    // complete to exactly one room per layer.
+    auto walls = insert_restraining_walls(
+        engine, fr::geometry::planar::IntBox(4000, 0, 6000, 10000),
+        fr::geometry::planar::IntBox(4000, 0, 6000, 10000));
+
     fr::autoroute::ExpansionDrill drill(fr::geometry::planar::IntBox(400, 400, 600, 600),
         fr::geometry::planar::IntPoint(500, 500), 0, 1);
     ASSERT_TRUE(drill.calculate_expansion_rooms(&engine));
+    // The completed rooms are the free space left of the walls and thicker
+    // than the trace width on both layers.
+    ASSERT_NE(drill.room_arr[0], nullptr);
+    ASSERT_NE(drill.room_arr[1], nullptr);
+    EXPECT_EQ(drill.room_arr[0]->get_shape(), fr::geometry::planar::IntBox(0, 0, 4000, 10000));
+    EXPECT_GE(drill.room_arr[0]->get_shape().min_width(), 2.0 * 50.0);
 
     // A room which is wider than the trace width: Java rejects a drill into a
     // thin room, so the drill element has to be created.
@@ -213,14 +294,25 @@ TEST(MazeExpansionEngineTest, ExpandToDrillRejectsThinRoom)
     fr::autoroute::MazeSearchAlgo search(board.get(), nullptr);
     search.set_control(make_control());
 
+    // A horizontal wall pair on both layers restrains the free space to a thin
+    // band around the drill at (500, 500) which is still completed to exactly
+    // one room per layer.
+    auto walls = insert_restraining_walls(
+        engine, fr::geometry::planar::IntBox(0, 0, 10000, 470),
+        fr::geometry::planar::IntBox(0, 0, 10000, 470));
+    walls.push_back(std::make_unique<FakeObstacle>(
+        0, fr::geometry::planar::IntBox(0, 530, 10000, 10000), /*p_id=*/3));
+    walls.push_back(std::make_unique<FakeObstacle>(
+        1, fr::geometry::planar::IntBox(0, 530, 10000, 10000), /*p_id=*/4));
+    engine.get_autoroute_search_tree()->insert(*walls[2]);
+    engine.get_autoroute_search_tree()->insert(*walls[3]);
+
     fr::autoroute::ExpansionDrill drill(fr::geometry::planar::IntBox(400, 400, 600, 600),
         fr::geometry::planar::IntPoint(500, 500), 0, 1);
     ASSERT_TRUE(drill.calculate_expansion_rooms(&engine));
 
-    // Divergence: the C++ interim expansion rooms are tiny boxes around the
-    // drill location, so their min width is smaller than the trace width and
-    // the Java thin room rejection of expandToDrill triggers. The test locks in
-    // that behaviour until the complete free space calculation is ported.
+    // Java expandToDrill rejects a drill into a room that is thinner than the
+    // trace width; the walls leave a thin gap room around the drill location.
     auto* thin_room = drill.room_arr[1];
     ASSERT_NE(thin_room, nullptr);
     EXPECT_LT(thin_room->get_shape().min_width(), 2.0 * 50.0);
@@ -251,6 +343,12 @@ TEST(MazeExpansionEngineTest, ExpandToOtherLayersStopsWithoutRipupForObstacleRoo
     control.ripup_allowed = false;
     control.vias_allowed = true;
     search.set_control(control);
+
+    // Net-2 walls restrain the free space so the whole-plane drill rooms
+    // complete to exactly one thick room per layer.
+    auto walls = insert_restraining_walls(
+        engine, fr::geometry::planar::IntBox(4000, 0, 6000, 10000),
+        fr::geometry::planar::IntBox(4000, 0, 6000, 10000));
 
     fr::autoroute::ExpansionDrill drill(fr::geometry::planar::IntBox(400, 400, 600, 600),
         fr::geometry::planar::IntPoint(500, 500), 0, 1);
@@ -289,7 +387,7 @@ TEST(MazeExpansionEngineTest, ExpandToOtherLayersIgnoresNonDrillDoor)
     EXPECT_NO_THROW(expansion.expand_to_other_layers(from_element));
 }
 
-TEST(MazeExpansionEngineTest, ExpandToOtherLayersWaitsForCompleteRoomsOnFreeSpaceDrill)
+TEST(MazeExpansionEngineTest, ExpandToOtherLayersAddsViaElementOnFreeSpaceDrill)
 {
     auto board = make_routing_board();
     fr::autoroute::AutorouteEngine engine(board.get(), 1, false);
@@ -310,12 +408,25 @@ TEST(MazeExpansionEngineTest, ExpandToOtherLayersWaitsForCompleteRoomsOnFreeSpac
 
     fr::autoroute::MazeSearchAlgo search(board.get(), nullptr);
     search.set_control(control);
+    // The layer expansion checks the via rule against the autoroute search
+    // tree, so the search needs the engine.
+    search.set_autoroute_engine(&engine);
+
+    // Net-2 walls restrain the free space so the whole-plane drill rooms
+    // complete to exactly one thick room per layer, which the via rule of the
+    // control can drill through.
+    auto walls = insert_restraining_walls(
+        engine, fr::geometry::planar::IntBox(4000, 0, 6000, 10000),
+        fr::geometry::planar::IntBox(4000, 0, 6000, 10000));
 
     fr::autoroute::ExpansionDrill drill(fr::geometry::planar::IntBox(400, 400, 600, 600),
         fr::geometry::planar::IntPoint(500, 500), 0, 1);
     ASSERT_TRUE(drill.calculate_expansion_rooms(&engine));
     ASSERT_NE(drill.room_arr[0], nullptr);
     ASSERT_NE(drill.room_arr[1], nullptr);
+    // The completed rooms are the free space left of the walls.
+    EXPECT_EQ(drill.room_arr[0]->get_shape(), fr::geometry::planar::IntBox(0, 0, 4000, 10000));
+    EXPECT_EQ(drill.room_arr[1]->get_shape(), fr::geometry::planar::IntBox(0, 0, 4000, 10000));
 
     fr::geometry::planar::FloatLine entry(
         fr::geometry::planar::FloatPoint(500, 500), fr::geometry::planar::FloatPoint(500, 500));
@@ -323,17 +434,13 @@ TEST(MazeExpansionEngineTest, ExpandToOtherLayersWaitsForCompleteRoomsOnFreeSpac
         drill.room_arr[1], entry, false, fr::autoroute::MazeSearchElement::Adjustment::NONE,
         false);
 
-    // Divergence: the C++ interim drill rooms are tiny boxes around the drill
-    // location, so ForcedViaAlgo::check_layer reports them as not drillable and
-    // the Java layer expansion cannot succeed yet. The test locks in that no
-    // element is created and that the via mask of the control was resolved, so
-    // the behaviour is revisited when the complete free space room calculation
-    // is ported.
+    // The via rule covers both drill layers, so the layer expansion creates an
+    // element on the other layer through the through-via.
     size_t list_size_before = search.maze_expansion_list().size();
     fr::autoroute::MazeExpansionEngine expansion(&search);
     expansion.expand_to_other_layers(from_element);
 
-    EXPECT_EQ(search.maze_expansion_list().size(), list_size_before);
+    EXPECT_EQ(search.maze_expansion_list().size(), list_size_before + 1);
     EXPECT_EQ(control.via_info_arr.size(), 1u);
     EXPECT_EQ(control.via_lower_bound, 0);
     EXPECT_EQ(control.via_upper_bound, 1);

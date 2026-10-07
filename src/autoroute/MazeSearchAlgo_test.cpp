@@ -7,8 +7,16 @@
 #include "autoroute/ExpansionRoom.h"
 #include "board/Communication.h"
 #include "board/Layer.h"
+#include "board/Padstack.h"
+#include "board/Pin.h"
+#include "board/PolylineTrace.h"
 #include "board/RoutingBoard.h"
+#include "board/SearchTreeManager.h"
+#include "board/ShapeSearchTree.h"
 #include "geometry/planar/IntBox.h"
+#include "geometry/planar/Point.h"
+#include "geometry/planar/PolygonShape.h"
+#include "geometry/planar/Polyline.h"
 #include "rules/BoardRules.h"
 
 #include <gtest/gtest.h>
@@ -56,6 +64,41 @@ AutorouteControl make_control()
     control.bend_costs.assign(2, 0.0);
     control.net_no = 1;
     return control;
+}
+
+/** Inserts an SMD tie pin of p_nets at p_center on layer 0 into the board tree. */
+board::Pin* insert_tie_pin(board::RoutingBoard* p_board, const geometry::planar::IntPoint& p_center,
+    const std::vector<int>& p_nets, int p_pad_half_width)
+{
+    auto* pin = new board::Pin(7, 1, p_nets, 1, p_board->generate_item_id(),
+        board::FixedState::NOT_FIXED, p_board);
+    pin->set_center(p_center);
+    auto* padstack = new board::Padstack("p1");
+    padstack->set_from_layer(0);
+    padstack->set_to_layer(0);
+    padstack->add_shape(0, new geometry::planar::PolygonShape(
+        std::vector<geometry::planar::IntPoint>{
+            geometry::planar::IntPoint(-p_pad_half_width, -p_pad_half_width),
+            geometry::planar::IntPoint(p_pad_half_width, -p_pad_half_width),
+            geometry::planar::IntPoint(p_pad_half_width, p_pad_half_width),
+            geometry::planar::IntPoint(-p_pad_half_width, p_pad_half_width)}));
+    pin->set_padstack(padstack);
+    pin->set_bounding_box(geometry::planar::IntBox(p_center.x - p_pad_half_width,
+        p_center.y - p_pad_half_width, p_center.x + p_pad_half_width,
+        p_center.y + p_pad_half_width));
+    p_board->get_search_tree_manager()->insert(pin);
+    p_board->add_item(pin);
+    return pin;
+}
+
+/** Inserts a trace of p_nets on layer 0 into the board tree. */
+board::PolylineTrace* insert_trace(board::RoutingBoard* p_board,
+    const std::vector<geometry::planar::IntPoint>& p_corners, const std::vector<int>& p_nets)
+{
+    auto polyline =
+        std::make_shared<geometry::planar::Polyline>(geometry::planar::Polyline::from_corners(p_corners));
+    return p_board->insert_trace_without_cleaning(polyline, 0, 50, p_nets, 1,
+        board::FixedState::NOT_FIXED);
 }
 
 } // namespace
@@ -132,6 +175,56 @@ TEST(MazeSearchAlgoTest, InitFailsWithoutEngine) {
 
     EXPECT_FALSE(algo.init(items, items));
     EXPECT_FALSE(algo.is_initialized());
+}
+
+TEST(MazeSearchAlgoTest, InitReducesForeignTraceShapesAtTiePins) {
+    // Port of the reduceTraceShapesAtTiePins calls at the start of Java
+    // MazeSearchEngine.init: traces of foreign nets connected to a tie pin
+    // lose the pin center in their search shape, own net traces stay intact.
+    namespace fp = geometry::planar;
+    auto board = make_routing_board();
+    board::Pin* pin = insert_tie_pin(board.get(), fp::IntPoint(2000, 2000), { 1, 2 }, 300);
+    board::PolylineTrace* foreign_trace =
+        insert_trace(board.get(), { fp::IntPoint(2000, 2000), fp::IntPoint(6000, 2000) }, { 2 });
+    board::PolylineTrace* own_trace =
+        insert_trace(board.get(), { fp::IntPoint(2000, 2000), fp::IntPoint(2000, 6000) }, { 1 });
+    ASSERT_NE(pin, nullptr);
+    ASSERT_NE(foreign_trace, nullptr);
+    ASSERT_NE(own_trace, nullptr);
+
+    AutorouteEngine engine(board.get(), 1, true);
+    board::ShapeSearchTree* tree = engine.get_autoroute_search_tree();
+    ASSERT_NE(tree, nullptr);
+
+    const fp::TileShape* foreign_before = foreign_trace->get_tree_shape(*tree, 0);
+    const fp::TileShape* own_before = own_trace->get_tree_shape(*tree, 0);
+    ASSERT_NE(foreign_before, nullptr);
+    ASSERT_NE(own_before, nullptr);
+    ASSERT_TRUE(foreign_before->contains(fp::IntPoint(2000, 2000)));
+
+    AutorouteControl control = make_control();
+    std::set<board::Item*> start_items{ pin };
+    std::set<board::Item*> dest_items{ foreign_trace };
+
+    // The door calculation is not ported yet, so the instance creation may
+    // fail; the tie-pin reduction runs at the start of init regardless.
+    std::unique_ptr<MazeSearchAlgo> algo =
+        MazeSearchAlgo::get_instance(start_items, dest_items, &engine, control, nullptr);
+    (void)algo;
+
+    const fp::TileShape* foreign_after = foreign_trace->get_tree_shape(*tree, 0);
+    const fp::TileShape* own_after = own_trace->get_tree_shape(*tree, 0);
+    ASSERT_NE(foreign_after, nullptr);
+    ASSERT_NE(own_after, nullptr);
+    // The foreign trace lost the pin center and keeps the piece with its far
+    // corner ...
+    EXPECT_NE(foreign_after, foreign_before);
+    EXPECT_FALSE(foreign_after->contains(fp::IntPoint(2000, 2000)));
+    EXPECT_TRUE(foreign_after->contains(fp::FloatPoint(6000.0, 2000.0)));
+    // ... while the own net trace is untouched.
+    EXPECT_EQ(own_after, own_before);
+    EXPECT_TRUE(tree->validate_entries(foreign_trace));
+    EXPECT_TRUE(tree->validate_entries(own_trace));
 }
 
 // ==========================================================================

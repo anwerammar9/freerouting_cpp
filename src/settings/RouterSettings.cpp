@@ -1,5 +1,7 @@
 #include "settings/RouterSettings.h"
 
+#include "logger/FRLogger.h"
+
 namespace freerouting::settings {
 
 RouterSettings::RouterSettings()
@@ -70,6 +72,92 @@ void RouterSettings::set_layer_active(int p_layer, bool p_active)
     {
         layer_active_[p_layer] = p_active;
     }
+}
+
+bool RouterSettings::get_preferred_direction_is_horizontal(int p_layer) const
+{
+    if (p_layer < 0 || p_layer >= static_cast<int>(preferred_direction_horizontal_.size()))
+    {
+        return true;
+    }
+    return preferred_direction_horizontal_[p_layer];
+}
+
+double RouterSettings::get_preferred_direction_trace_costs(int p_layer) const
+{
+    if (p_layer < 0 || p_layer >= static_cast<int>(layer_active_.size()))
+    {
+        logger::FRLogger::instance().warn(
+            "RouterSettings.get_preferred_direction_trace_costs: layer out of range");
+        return 0;
+    }
+    if (!scoring_ || scoring_->preferredDirectionTraceCost.empty()
+        || p_layer >= static_cast<int>(scoring_->preferredDirectionTraceCost.size()))
+    {
+        return 1.0;
+    }
+    return scoring_->preferredDirectionTraceCost[p_layer];
+}
+
+double RouterSettings::get_against_preferred_direction_trace_costs(int p_layer) const
+{
+    if (p_layer < 0 || p_layer >= static_cast<int>(layer_active_.size()))
+    {
+        logger::FRLogger::instance().warn(
+            "RouterSettings.get_against_preferred_direction_trace_costs: layer out of range");
+        return 0;
+    }
+    if (!scoring_ || scoring_->undesiredDirectionTraceCost.empty()
+        || p_layer >= static_cast<int>(scoring_->undesiredDirectionTraceCost.size()))
+    {
+        return 1.0;
+    }
+    return scoring_->undesiredDirectionTraceCost[p_layer];
+}
+
+double RouterSettings::get_horizontal_trace_costs(int p_layer) const
+{
+    if (p_layer < 0 || p_layer >= static_cast<int>(layer_active_.size()))
+    {
+        logger::FRLogger::instance().warn(
+            "RouterSettings.get_horizontal_trace_costs: layer out of range");
+        return 0;
+    }
+    if (get_preferred_direction_is_horizontal(p_layer))
+    {
+        return get_preferred_direction_trace_costs(p_layer);
+    }
+    return get_against_preferred_direction_trace_costs(p_layer);
+}
+
+double RouterSettings::get_vertical_trace_costs(int p_layer) const
+{
+    if (p_layer < 0 || p_layer >= static_cast<int>(layer_active_.size()))
+    {
+        logger::FRLogger::instance().warn(
+            "RouterSettings.get_vertical_trace_costs: layer out of range");
+        return 0;
+    }
+    if (get_preferred_direction_is_horizontal(p_layer))
+    {
+        return get_against_preferred_direction_trace_costs(p_layer);
+    }
+    return get_preferred_direction_trace_costs(p_layer);
+}
+
+std::vector<autoroute::ExpansionCostFactor> RouterSettings::get_trace_costs() const
+{
+    if (!scoring_ || scoring_->preferredDirectionTraceCost.empty())
+    {
+        return {};
+    }
+    std::vector<autoroute::ExpansionCostFactor> result(scoring_->preferredDirectionTraceCost.size());
+    for (int i = 0; i < static_cast<int>(result.size()); ++i)
+    {
+        result[i] = autoroute::ExpansionCostFactor(
+            get_horizontal_trace_costs(i), get_vertical_trace_costs(i));
+    }
+    return result;
 }
 
 } // namespace freerouting::settings

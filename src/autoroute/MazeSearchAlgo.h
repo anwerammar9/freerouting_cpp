@@ -107,6 +107,12 @@ public:
 
     void set_net_no(int p_net_no) { control_.net_no = p_net_no; }
 
+    /** Sets the autoroute engine owning the expansion room database. */
+    void set_autoroute_engine(AutorouteEngine* p_autoroute_engine)
+    {
+        autoroute_engine_ = p_autoroute_engine;
+    }
+
     /**
      * Sets the control of this search. Mirrors the Java constructor, which
      * seeds the ripup random generator from the ripup costs of the control, so

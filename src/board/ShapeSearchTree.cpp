@@ -1,6 +1,8 @@
 #include "board/ShapeSearchTree.h"
 #include "board/BasicBoard.h"
 #include "board/Item.h"
+#include "board/Pin.h"
+#include "board/PolylineTrace.h"
 #include "board/SearchTreeObject.h"
 #include "geometry/planar/FortyfiveDegreeBoundingDirections.h"
 #include "geometry/planar/IntBox.h"
@@ -8,6 +10,7 @@
 #include "geometry/planar/LineSegment.h"
 #include "geometry/planar/OrthogonalBoundingDirections.h"
 #include "geometry/planar/Point.h"
+#include "geometry/planar/Polyline.h"
 #include "geometry/planar/RegularTileShape.h"
 #include "geometry/planar/Simplex.h"
 #include "logger/FRLogger.h"
@@ -735,6 +738,120 @@ int ShapeSearchTree::clearance_compensation_value(int p_clearance_class_no, int 
     int compensation = rules.get_clearance_matrix().get_clearance_compensation_value(compensated_clearance_class_no_, p_layer);
 
     return std::max(0, value - compensation);
+}
+
+void ShapeSearchTree::change_item_shape(Item* p_item, int p_shape_index,
+    std::shared_ptr<fp::TileShape> p_new_shape)
+{
+    if (p_item == nullptr)
+    {
+        return;
+    }
+    // Java: Leaf[] oldEntries = item.getSearchTreeEntries(this). The entries
+    // are moved out first, so the old leaf can be released after it is removed
+    // from the tree.
+    std::vector<std::unique_ptr<ShapeTree::Leaf>> old_entries = p_item->take_search_tree_entries(*this);
+    if (p_shape_index < 0 || static_cast<size_t>(p_shape_index) >= old_entries.size())
+    {
+        logger::FRLogger::instance().warn("ShapeSearchTree.change_item_shape: shape index out of range");
+        p_item->set_search_tree_entries(std::move(old_entries), *this);
+        return;
+    }
+
+    // Java: removeLeaf(oldEntries[shapeIndex]). The leaf object itself stays
+    // alive until old_entries goes out of scope.
+    if (old_entries[p_shape_index] != nullptr)
+    {
+        ::freerouting::datastructures::ShapeTree::remove({old_entries[p_shape_index].get()});
+    }
+
+    // Java: newPrecalculatedTreeShapes[i] = (i == shapeIndex) ? newShape :
+    // item.getTreeShape(this, i). item.getTreeShape lazily calculates the
+    // shapes; the untouched shapes are shared with the stored array.
+    p_item->tree_shape_count(*this);
+    std::vector<std::shared_ptr<fp::TileShape>> new_shapes;
+    if (const std::vector<std::shared_ptr<fp::TileShape>>* precalculated =
+            p_item->get_precalculated_tree_shapes(*this))
+    {
+        new_shapes = *precalculated;
+    }
+    new_shapes.resize(old_entries.size());
+    new_shapes[p_shape_index] = p_new_shape;
+    p_item->set_precalculated_tree_shapes(std::move(new_shapes), *this);
+
+    // Java: newLeafArr[shapeIndex] = insert(item, shapeIndex), then
+    // item.setSearchTreeEntries(newLeafArr, this).
+    std::vector<std::unique_ptr<ShapeTree::Leaf>> new_entries(old_entries.size());
+    for (size_t i = 0; i < old_entries.size(); ++i)
+    {
+        if (i != static_cast<size_t>(p_shape_index))
+        {
+            new_entries[i] = std::move(old_entries[i]);
+        }
+    }
+    new_entries[p_shape_index] = ::freerouting::datastructures::ShapeTree::insert(*p_item, p_shape_index);
+    p_item->set_search_tree_entries(std::move(new_entries), *this);
+}
+
+void ShapeSearchTree::reduce_trace_shape_at_tie_pin(Pin* p_tie_pin, PolylineTrace* p_trace)
+{
+    if (p_tie_pin == nullptr || p_trace == nullptr)
+    {
+        return;
+    }
+    const fp::TileShape* pin_shape = p_tie_pin->get_tree_shape_on_layer(this, p_trace->get_layer());
+    if (pin_shape == nullptr)
+    {
+        // Java would fail with a NullPointerException in the intersection
+        // below; the C++ port skips the reduction instead (the pin has no
+        // shape on the layer of the trace).
+        return;
+    }
+    fp::FloatPoint compare_corner;
+    int trace_shape_no;
+    if (p_trace->first_corner().equals(&p_tie_pin->get_center()))
+    {
+        trace_shape_no = 0;
+        compare_corner = p_trace->polyline().corner_approx(1);
+    }
+    else if (p_trace->last_corner().equals(&p_tie_pin->get_center()))
+    {
+        trace_shape_no = p_trace->corner_count() - 2;
+        compare_corner = p_trace->polyline().corner_approx(p_trace->corner_count() - 2);
+    }
+    else
+    {
+        return;
+    }
+    const fp::TileShape* trace_shape = p_trace->get_tree_shape(*this, trace_shape_no);
+    if (trace_shape == nullptr)
+    {
+        return;
+    }
+    std::unique_ptr<fp::TileShape> intersection = fp::TileShape::intersection_of(*trace_shape, *pin_shape);
+    if (intersection == nullptr || intersection->dimension() < 2)
+    {
+        return;
+    }
+    std::vector<std::unique_ptr<fp::TileShape>> shape_pieces = trace_shape->cutout(*pin_shape);
+    std::shared_ptr<fp::TileShape> new_trace_shape = std::make_shared<fp::Simplex>(fp::Simplex::EMPTY);
+    bool shape_selected = false;
+    for (std::unique_ptr<fp::TileShape>& current_piece : shape_pieces)
+    {
+        if (current_piece == nullptr || current_piece->dimension() != 2)
+        {
+            continue;
+        }
+        // Java keeps the identity check against Simplex.EMPTY on every
+        // iteration: the first 2-dimensional piece is always taken, later
+        // pieces only replace it when they contain the compare corner.
+        if (!shape_selected || current_piece->contains(compare_corner))
+        {
+            new_trace_shape = std::shared_ptr<fp::TileShape>(std::move(current_piece));
+            shape_selected = true;
+        }
+    }
+    change_item_shape(p_trace, trace_shape_no, new_trace_shape);
 }
 
 void ShapeSearchTree::clear()

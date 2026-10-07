@@ -759,6 +759,15 @@ IncompleteFreeSpaceExpansionRoom* AutorouteEngine::add_incomplete_expansion_room
     return new_room;
 }
 
+IncompleteFreeSpaceExpansionRoom* AutorouteEngine::add_incomplete_expansion_room(
+    WholePlaneShapeTag p_shape_kind, int p_layer, const geometry::planar::Simplex& p_contained_shape)
+{
+    auto* new_room = new IncompleteFreeSpaceExpansionRoom(nullptr, p_layer, p_shape_kind, p_contained_shape);
+    incomplete_expansion_rooms_.push_back(
+        std::unique_ptr<IncompleteFreeSpaceExpansionRoom>(new_room));
+    return new_room;
+}
+
 IncompleteFreeSpaceExpansionRoom* AutorouteEngine::get_first_incomplete_expansion_room()
 {
     if (incomplete_expansion_rooms_.empty())
@@ -842,43 +851,8 @@ void AutorouteEngine::remove_incomplete_expansion_room(IncompleteExpansionRoom* 
     }
 }
 
-namespace {
-
-/**
- * The start and contained shapes fed into ShapeSearchTree::complete_shape().
- * C++ rooms carry a single IntBox (no separate contained shape); it is used as
- * the bounded start shape when 2-dimensional and always as the contained
- * shape.
- */
-struct CompleteRoomShapes
-{
-    std::unique_ptr<geometry::planar::IntBox> start;
-    std::unique_ptr<geometry::planar::IntBox> contained;
-};
-
-CompleteRoomShapes room_start_and_contained_shapes(const geometry::planar::IntBox& p_room_shape)
-{
-    CompleteRoomShapes result;
-    result.contained = std::make_unique<geometry::planar::IntBox>(p_room_shape);
-    if (p_room_shape.dimension() >= 2)
-    {
-        result.start = std::make_unique<geometry::planar::IntBox>(p_room_shape);
-    }
-    else
-    {
-        // A sub-2-dimensional room (e.g. the unit search shape of a drill
-        // location) needs a 2-dimensional start shape for complete_shape.
-        // Mirror the interim inflation to a small box and keep the original
-        // shape as the shape to be contained.
-        result.start = std::make_unique<geometry::planar::IntBox>(p_room_shape.offset(1.0));
-    }
-    return result;
-}
-
-} // namespace
-
 std::vector<CompleteFreeSpaceExpansionRoom*> AutorouteEngine::complete_expansion_room(
-    IncompleteExpansionRoom* p_room)
+    IncompleteFreeSpaceExpansionRoom* p_room)
 {
     std::vector<CompleteFreeSpaceExpansionRoom*> result;
     if (p_room == nullptr)
@@ -909,8 +883,6 @@ std::vector<CompleteFreeSpaceExpansionRoom*> AutorouteEngine::complete_expansion
     }
 
     const int layer = p_room->get_layer();
-    const geometry::planar::IntBox room_shape = p_room->get_shape();
-    const CompleteRoomShapes shapes = room_start_and_contained_shapes(room_shape);
 
     board::ShapeSearchTree* search_tree = get_autoroute_search_tree();
     if (search_tree == nullptr)
@@ -919,11 +891,15 @@ std::vector<CompleteFreeSpaceExpansionRoom*> AutorouteEngine::complete_expansion
         return result;
     }
 
-    // Mirrors Java AutorouteEngine.completeExpansionRoom(): the free space
-    // rooms of p_room are calculated by the search tree.
+    // Mirrors Java AutorouteEngine.completeExpansionRoom(): the room's own
+    // TileShape (null = whole plane, expressed as a nullptr input shape) and
+    // its contained shape are handed to completeShape(), which starts from the
+    // board bounding box intersected with the room shape.
+    const geometry::planar::Simplex room_shape_tile = p_room->get_shape_tile();
+    const geometry::planar::Simplex contained_shape_tile = p_room->get_contained_shape_tile();
     board::ShapeSearchTree::CompleteShapeInput input;
-    input.shape = shapes.start.get();
-    input.contained_shape = shapes.contained.get();
+    input.shape = p_room->is_whole_plane() ? nullptr : &room_shape_tile;
+    input.contained_shape = &contained_shape_tile;
     input.layer = layer;
     input.net_no = net_no_;
     input.ignore_object = ignore_object;

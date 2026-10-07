@@ -85,7 +85,30 @@ public:
                                             datastructures::Stoppable* p_stoppable,
                                             datastructures::TimeLimit* p_time_limit);
 
+    /**
+     * Routes automatically p_item to another item of the same net, to which it
+     * is not yet electrically connected. Returns the state of the attempt.
+     * Mirrors Java RoutingBoard.autoroute(Item, RouterSettings, int, Stoppable,
+     * TimeLimit).
+     *
+     * The implementation lives in the autoroute module
+     * (src/autoroute/RoutingBoardAutoroute.cpp), because it needs AutorouteEngine
+     * and AutorouteControl.
+     */
+    autoroute::AutorouteAttemptResult autoroute(board::Item* p_item,
+                                                settings::RouterSettings* p_router_settings,
+                                                int p_via_costs,
+                                                datastructures::Stoppable* p_stoppable,
+                                                datastructures::TimeLimit* p_time_limit);
+
     void add_item(Item* p_item);
+
+    /**
+     * Removes p_item from the board: notifies the change path, evicts the
+     * search tree entries and unlinks the item list entry. Items with
+     * is_deletion_forbidden() are kept. Mirrors Java
+     * BoardItemRepository.removeItem(Item).
+     */
     void remove_item(Item* p_item);
 
     // Creates a new PolylineTrace through p_points on p_layer and adds it to
@@ -252,7 +275,21 @@ public:
     void join_graphics_update_box(const geometry::planar::IntBox& p_box);
 
     // Item removal
-    void remove_items(const std::vector<Item*>& p_items);
+
+    /**
+     * Removes all removable items of p_items from the board, evicting their
+     * search tree entries. Items which are delete-fixed or user-fixed are
+     * kept. Returns false if some items could not be removed because they are
+     * fixed. Mirrors Java BasicBoard.removeItems(Collection).
+     */
+    bool remove_items(const std::vector<Item*>& p_items);
+
+    /**
+     * Removes all trace tails of the input net. If p_net_no <= 0, the tails
+     * of all nets are removed. Returns true if something was removed.
+     * Mirrors Java RoutingBoard.removeTraceTails(int, Item.StopConnectionOption).
+     */
+    bool remove_trace_tails(int p_net_no, Item::StopConnectionOption p_stop_option);
 
     // Clearance value access
     int clearance_value(int p_class_1, int p_class_2, int p_layer) const;

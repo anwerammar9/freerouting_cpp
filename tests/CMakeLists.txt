@@ -128,6 +128,7 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/src/autoroute/NamedAlgorithm_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/NamedAlgorithmType_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/PerformanceProfiler_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/autoroute/RoutingBoardAutoroute_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/RoutingBoardFanout_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/RoutingFailureLog_test.cpp
         ${CMAKE_SOURCE_DIR}/src/autoroute/Sorted45DegreeRoomNeighbours_test.cpp
@@ -157,10 +158,12 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/src/board/ObstacleArea_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/ObstacleAreaSubclass_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/ShapeSearchTree_complete_shape_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/board/ShapeSearchTree_tie_pin_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/CalcFromSide_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/CalcShapeAndFromSide_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/ComponentOutline_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/OptViaAlgo_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/board/ForcedViaAlgo_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/Pin_center_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/PullTightAlgo_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/RoutingBoard_stubs_test.cpp

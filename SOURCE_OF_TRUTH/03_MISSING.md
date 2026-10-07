@@ -10,7 +10,7 @@ C++ counterpart of the Java `TreeSet`), 1175 lines C++ vs 1258 lines Java.
 
 | Method | Java Lines | C++ Status | What's Missing |
 |--------|-----------|------------|----------------|
-| `init()` | 1000-1093 | Ported | `reduce_trace_shapes_at_tie_pins` needs `ShapeSearchTree::reduce_trace_shape_at_tie_pin` |
+| `init()` | 1000-1093 | Ported | — (tie-pin reduction ported in WP-10 Inc T, 2026-10-06) |
 | `find_connection()` / `occupy_next_element()` | 275-380 | Ported | drill-page and other-layer expansion (`MazeExpansionEngine`) |
 | `expand_to_room_doors()` | 383-610 | Ported | drill pages (`MazeExpansionEngine`); the trace shove is ported (WP-10 Inc K) |
 | `expand_to_target_doors()` | 612-700 | Ported | `RoutingBoard::check_forced_trace_polyline` thin-room line check |
@@ -20,7 +20,7 @@ C++ counterpart of the Java `TreeSet`), 1175 lines C++ vs 1258 lines Java.
 | `room_shape_is_thick()` | 1095-1125 | Ported | — |
 | `check_neck_down_at_dest_pin()` | 1200-1215 | Ported | — |
 | `segment_projection()` | 165-205 | Ported | Java compares the endpoints by reference; C++ uses value equality |
-| `expand_to_other_layers()` | Java `MazeExpansionEngine` | Ported (WP-10 Inc L) | Ported, but the C++ free-space rooms are still tiny interim boxes around the drill location, so no matching via is found on another layer in production |
+| `expand_to_other_layers()` | Java `MazeExpansionEngine` | Ported (WP-10 Inc L/U) | The drill and maze-start rooms are now **whole-plane** free space rooms (WP-10 Inc U: `shape == null` cases delegate to the board box), so `check_layer_with_any_matching_via` sees real rooms on the other layers and a matching via is found (`ExpandToOtherLayersAddsViaElementOnFreeSpaceDrill` pins the +1 element). Remaining divergence: the C++ divide condition `2*height <= board_h || 2*width <= board_w` skips the section split like Java's 2-D case, but the C++ `complete_shape` returns the whole board for a *rootless* tree where Java returns empty — both still drop the drill (`DrillPage::get_drills` needs exactly one room per layer), so parity holds |
 | `check_ripup()` | Java `MazeRipupResolver` | Ported (WP-10 Inc J) | The detour discount is lost while `Connection::get()` is still a stub |
 | `shove_trace_room()` | Java `MazeTraceShover` | Ported (WP-10 Inc K) | The C++ `ShoveTraceAlgo::check` approximates the Java `TraceShover.check`, and the `IntBox` door shapes no longer reproduce the Java `TileShape` door diagonal, so the shover often collects no door |
 | Fanout list filtering | `mazeExpansionList.add` override | Ported (WP-10 Inc R) | `MazeSearchAlgo::passes_fanout_filter()` is the port of the anonymous TreeSet of Java `MazeSearchEngine`, called from `add_to_maze_expansion_list()`. `AutorouteControl::fanout_start_pin_center` is assigned by the new `RoutingBoard::fanout()`; the escape lengths come from `AutorouteControl::max_escape_length_um`/`min_escape_length_um` with the Java defaults 3000/500 um, and the resolution from the new `Communication::get_resolution(Unit)` |
@@ -49,7 +49,19 @@ behaviour.
 > **ctest 655/655 + run_tests PASSED.** `FoundConnectionInserter` was ported in
 > Increment P (2026-10-03). Still open in this area:
 > **RESOLVED 2026-10-03 (WP-10 Increment P+rewiring):** the `AutorouteEngine::autoroute_connection()` now attempts the expansion-room maze path (`MazeSearchAlgo` + `FoundConnectionLocator` + `FoundConnectionInserter`) first, falling back to the legacy grid A* if the maze path fails. The Java `AutorouteDiagnostic` callbacks have no C++ counterpart (`MazeFanoutDiagnostics` itself is ported, see the table above).
-> **RESOLVED 2026-10-04 (WP-10 Increment Q):** multi-segment (3+ corner) route insertion works end to end (`FoundConnectionInserterTest.MultiSegmentConnectionIsInserted`). Four Java-parity bugs fixed along the way: the abbreviated `ShapeTraceEntries::resort()` (early `return` for lists shorter than two entries left a sole own-net entry in place), the non-nullable `CalcFromSide::border_intersection` (Java's is nullable, `(0,0)` was the wrong sentinel), the use-after-free in `PolylineTrace::combine_at_start()`/`combine_at_end()` plus the recursive `combine()`, and the inverted `ClearanceMatrix::get_value(..., /*safety_check=*/true)` margin sign with `RoutingBoard::clearance_value()` omitting the margin entirely. **ctest 708/708 + run_tests PASSED.**
+> > **RESOLVED 2026-10-06 (WP-10 Increment S):** the `ForcedViaInserter` hole-only-layer /
+> hole-shape clearance branch, the last named open item of Phase 4.4. `ForcedViaAlgo::check()`/`insert()`
+> build `hole_check_shape()` (a `Circle` of `ceil(drill_radius + hole_clearance + 10)` around the
+> via location), substitute it as the layer shape on a via layer without a padstack shape instead
+> of skipping the layer (null clearance class), and run an extra hole-clearance
+> `ForcedPadAlgo::check_forced_pad()` on every layer while the rule is active. Prerequisites added:
+> `BoardRules::get_hole_clearance()`/`set_hole_clearance(int)` + `clearance_class_none()` and
+> `Padstack::get_drill_radius()`. A real geometry parity bug was fixed: `tile_shape_of()` translated
+> only `Area`/`Circle` shapes and fell back to the untranslated bounding box for every other shape
+> type, so a `PolygonShape` padstack layer shape searched an empty tile at negative coordinates and
+> every via check failed; the C++ `Shape` base has no virtual `translate_by`, so the helper now
+> builds the bounding tile first and translates the tile. **ctest 745/745 + run_tests PASSED.**
+**RESOLVED 2026-10-04 (WP-10 Increment Q):** multi-segment (3+ corner) route insertion works end to end (`FoundConnectionInserterTest.MultiSegmentConnectionIsInserted`). Four Java-parity bugs fixed along the way: the abbreviated `ShapeTraceEntries::resort()` (early `return` for lists shorter than two entries left a sole own-net entry in place), the non-nullable `CalcFromSide::border_intersection` (Java's is nullable, `(0,0)` was the wrong sentinel), the use-after-free in `PolylineTrace::combine_at_start()`/`combine_at_end()` plus the recursive `combine()`, and the inverted `ClearanceMatrix::get_value(..., /*safety_check=*/true)` margin sign with `RoutingBoard::clearance_value()` omitting the margin entirely. **ctest 708/708 + run_tests PASSED.**
 
 > **Resolved 2026-09-27 (WP-10 Increment I):** the `MazeSearchAlgo::init`/`expand_to_room_doors`
 > rewrite landed. Prerequisites added: `IntPoint::get_id()`, `IntBox::get_id()`,
@@ -129,6 +141,22 @@ Java uses:
 - Fanout routing — **ported in WP-10 Increment R** (`RoutingBoard::fanout()` + the `mazeExpansionList.add` filter)
 - Integration with FoundConnectionInserter (`AutorouteEngine::autoroute_connection()` rewiring) — **done (WP-10 Increment Q)**
 
+**RESOLVED 2026-10-07 (WP-10 Inc V):** the Java board facade
+`RoutingBoard.autoroute(Item, RouterSettings, int, Stoppable, TimeLimit)`
+(board/facade/RoutingBoard.java:923-983) is ported as `RoutingBoard::autoroute(...)` —
+declared in `src/board/RoutingBoard.h`, defined in the **autoroute** module
+(`src/autoroute/RoutingBoardAutoroute.cpp`) because the facade needs
+`AutorouteControl`/`AutorouteEngine` (module-layering precedent from the `fanout` facade
+of Inc R). Guard clauses (`NO_CONNECTIONS` for a null/inert item or a net-less item, plane
+`CONNECTED_TO_PLANE`, empty destination `ALREADY_CONNECTED`), the
+`ctrl_settings.remove_unconnected_vias = false` setting, the local engine + `init_connection`
+and the `opt_changed_area` pull-tight on `ROUTED` are all faithful. Prereqs in the same
+increment: `RouterSettings::get_via_costs()` real (Java default 1; the C++ int default 50 is
+the documented null stand-in), the new `get_trace_costs()` + the five per-layer cost
+accessors (Java RouterSettings.java:638-649, 849-961) and the `AutorouteControl` 5-arg
+constructor. 6 new gtests in `RoutingBoardAutoroute_test.cpp` — **ctest 761/761 + run_tests
+PASSED**.
+
 ---
 
 ## 2. BOARD MODULE — Stub Methods
@@ -149,6 +177,10 @@ Java uses:
 **Resolved 2026-09-18 (WP-1 Contact Graph):** `Item::first_common_layer()` ported (was returning -1 unconditionally); `Item::get_connection_items()` ported (was returning `{}`); `Item::is_fanout_via()` added; `DrillItem::first_layer()/last_layer()` overrides added and layer range now synced from the padstack in the `Via` ctor / `set_padstack` (fixes vias always reporting 0..0); `Trace::normal_contact_point()` extended for DrillItem; `DrillItem::normal_contact_point()` added. Verified by 8 new `ItemContactGraphTest` cases and a diagnostics run (14/14 green, 413/413 ctest + run_tests green).
 
 **Resolved 2026-10-02 (WP-10 Inc N, `TraceShover.springOver` prerequisites):** `ShoveTraceAlgo::spring_over()` and `spring_over_obstacles()` are full Java ports (Java TraceShover.java:611-875), together with `get_ignore_items_at_tie_pins()`; the prereqs `Item::get_all_contacts()`/`get_all_contacts(int)`, `TileShape::cutout(Polyline)`, `TileShape::bounding_octagon()` and `DrillItem::get_tree_shape_on_layer()` were ported in the same increment. `ShoveTraceAlgo::check()`/`insert()` and the `ShapeTraceEntries` cutout were closed in WP-10 Inc O (2026-10-02); what is still missing is the `RoutingBoard` forced-trace insertion, which is the remaining part of Phase 4.4.
+
+**Resolved 2026-10-06 (WP-10 Inc T, tie-pin shape reduction):** `ShapeSearchTree::reduce_trace_shape_at_tie_pin(Pin*, PolylineTrace*)` and `ShapeSearchTree::change_item_shape(Item*, int, shared_ptr<TileShape>)` are full ports of Java `ShapeSearchTree.reduceTraceShapeAtTiePin`/`changeItemShapeUnlocked` (ShapeSearchTree.java:922-1010), with the new `Item::get_precalculated_tree_shapes`/`set_precalculated_tree_shapes` accessors; `MazeSearchAlgo::init` calls `reduce_trace_shapes_at_tie_pins` for the start and dest item lists as Java does (MazeSearchEngine.java:970-971), closing the last named divergence of the `init()` port. Java's NPE on a pin without a tree shape on the trace layer maps to a warning + early return. Tests: 7 gtests in the new `ShapeSearchTree_tie_pin_test.cpp` + `MazeSearchAlgoTest.InitReducesForeignTraceShapesAtTiePins` — **ctest 753/753 + run_tests PASSED.**
+
+**Known latent bug (discovered 2026-10-06 during WP-10 Inc T, NOT on the tie-pin path, NOT fixed):** `TileShape::cutout(const TileShape&)` in `src/geometry/planar/TileShape.cpp` inverts the result for two dispatch branches: when the *hole* is a `Simplex` and the *dividing* shape is an `IntOctagon` or `IntBox`, the code calls `divide->cutout_from(hole)` and returns hole-minus-divide, whereas Java `A.cutout(B)` is pieces of A minus B (divide-minus-hole). Every other dispatch combination (octagon/octagon, box/box, octagon/box, box/octagon, …) is correct. The tie-pin reduction only hits the octagon/octagon branch (both `Pin` and trace tree shapes are `IntOctagon`), so it is unaffected; a future `cutout` fix must add tests for the Simplex-hole branches.
 
 **Resolved 2026-09-18 (WP-2 NetIncompletes):** `connected_group_count` / `get_connected_group_count()` added (was missing vs `NetIncompletes.java:46,141,155`). Fixed real aliasing bug in `join_connected_sets()`: passed `const shared_ptr<...>&` aliasing `from_item`/`to_item` members that the join reassigns, so from-group items beyond the first were never repointed (3 isolated vias → 3 airlines, expected 2); now takes shared_ptrs by value. 415/415 ctest + run_tests green.
 

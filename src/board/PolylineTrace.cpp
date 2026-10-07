@@ -328,10 +328,6 @@ std::optional<std::array<PolylineTrace*, 2>> PolylineTrace::split_at_line(
         return std::nullopt;
     }
     routing_board->remove_item(this);
-    // remove_item only unlinks the item list; evict the stale tree entries too
-    // so re-queries don't re-split the removed trace (infinite loop). TODO:
-    // unify list/tree bookkeeping in remove_item/add_item directly.
-    get_board()->get_search_tree_manager()->remove(this);
     std::array<PolylineTrace*, 2> result{nullptr, nullptr};
     for (int k = 0; k < 2; ++k)
     {
@@ -554,7 +550,6 @@ std::vector<PolylineTrace*> PolylineTrace::split(
                         if (routing_board != nullptr)
                         {
                             routing_board->remove_item(this);
-                            get_board()->get_search_tree_manager()->remove(this);
                         }
                         return result;
                     }
@@ -924,10 +919,8 @@ bool PolylineTrace::normalize_impl(const geometry::planar::IntOctagon* p_clip_sh
                         dynamic_cast<RoutingBoard*>(curr_split_trace->get_board()))
                 {
                     routing_board->remove_item(curr_split_trace);
-                    curr_split_trace->get_board()->get_search_tree_manager()->remove(
-                        curr_split_trace);
+                    result = true;
                 }
-                result = true;
             }
             else if (trace_combined)
             {

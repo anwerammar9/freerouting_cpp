@@ -16,6 +16,16 @@ namespace freerouting::autoroute {
 AutorouteControl::AutorouteControl() = default;
 
 AutorouteControl::AutorouteControl(board::RoutingBoard* p_board, int p_net_no, settings::RouterSettings* p_settings)
+    : AutorouteControl(p_board, p_net_no, p_settings,
+                       p_settings ? p_settings->get_via_costs() : 100,
+                       p_settings ? p_settings->get_trace_costs()
+                                  : std::vector<ExpansionCostFactor>())
+{
+}
+
+AutorouteControl::AutorouteControl(board::RoutingBoard* p_board, int p_net_no,
+                                   settings::RouterSettings* p_settings, int p_via_costs,
+                                   const std::vector<ExpansionCostFactor>& p_trace_costs)
     : settings(p_settings)
 {
     if (!p_board) return;
@@ -27,8 +37,9 @@ AutorouteControl::AutorouteControl(board::RoutingBoard* p_board, int p_net_no, s
     via_radius_arr.resize(layer_count, 0.0);
     add_via_costs.resize(layer_count, ViaCost(layer_count));
     // Java AutorouteControl takes the trace costs and the bend costs from the
-    // router settings. The C++ settings are a stub returning an empty trace
-    // cost array, so the neutral factor (1, 1) is used for every layer.
+    // router settings. Ports of the settings shim now supply the per-layer
+    // trace cost factors; layers without a configured cost keep the neutral
+    // factor (1, 1).
     trace_costs.assign(layer_count, ExpansionCostFactor(1.0, 1.0));
     bend_costs.assign(layer_count, 0.0);
 
@@ -40,10 +51,9 @@ AutorouteControl::AutorouteControl(board::RoutingBoard* p_board, int p_net_no, s
             layer_active[i] = p_settings->get_layer_active(i);
         }
         with_neckdown = p_settings->get_automatic_neckdown();
-        std::vector<ExpansionCostFactor> settings_trace_costs = p_settings->get_trace_cost_arr();
-        for (int i = 0; i < layer_count && i < static_cast<int>(settings_trace_costs.size()); ++i)
+        for (int i = 0; i < layer_count && i < static_cast<int>(p_trace_costs.size()); ++i)
         {
-            trace_costs[i] = settings_trace_costs[i];
+            trace_costs[i] = p_trace_costs[i];
         }
         for (int i = 0; i < layer_count; ++i)
         {
@@ -54,7 +64,7 @@ AutorouteControl::AutorouteControl(board::RoutingBoard* p_board, int p_net_no, s
     via_lower_bound = 0;
     via_upper_bound = layer_count;
 
-    init_net(p_net_no, p_board, p_settings ? p_settings->get_via_costs() : 100);
+    init_net(p_net_no, p_board, p_via_costs);
 }
 
 AutorouteControl::~AutorouteControl() = default;

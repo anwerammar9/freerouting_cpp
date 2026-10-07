@@ -57,8 +57,11 @@ public:
     void set_search_tree_entries(std::vector<std::unique_ptr<fr::datastructures::ShapeTree::Leaf>> p_entries,
         fr::datastructures::ShapeTree&) override
     {
+        // Own the leaves like board::Item does so the search tree keeps
+        // referencing live nodes until the object is destroyed.
         tree_entries_ = std::move(p_entries);
     }
+
     int compare_to(const fr::datastructures::ShapeTree::Storable& p_other) const override
     {
         const auto* other_obstacle = dynamic_cast<const FakeObstacle*>(&p_other);
@@ -240,13 +243,25 @@ TEST(CompleteFreeSpaceExpansionRoomTest, DrillRoomIsStoredInTreeAndReusedAfterRe
     fr::board::ShapeSearchTree* tree = engine.get_autoroute_search_tree();
     ASSERT_NE(tree, nullptr);
 
+    // Whole-plane drill rooms only complete to exactly one free space room
+    // (Java calculateExpansionRooms requires size == 1) when the free space is
+    // restrained; on an obstacle-free tree the board is divided into sections
+    // and the drill would be dropped. The net-2 walls restrain the free space
+    // on both layers.
+    FakeObstacle wall_layer_0(0, fp::IntBox(4000, 0, 6000, 10000), /*p_id=*/1);
+    FakeObstacle wall_layer_1(1, fp::IntBox(4000, 0, 6000, 10000), /*p_id=*/2);
+    tree->insert(wall_layer_0);
+    tree->insert(wall_layer_1);
+    ASSERT_EQ(tree->size(), 2);
+
     fr::autoroute::DrillPage page(fr::geometry::planar::IntBox(0, 0, 1000, 1000), board.get());
     auto drills = page.get_drills(&engine, false);
     ASSERT_EQ(drills.size(), 1u);
     ASSERT_EQ(drills[0]->room_arr.size(), 2u);
 
-    // The rooms completed for the drill are stored in the search tree.
-    EXPECT_EQ(tree->size(), 2);
+    // The rooms completed for the drill are stored in the search tree next to
+    // the two wall obstacles.
+    EXPECT_EQ(tree->size(), 4);
     fr::autoroute::CompleteFreeSpaceExpansionRoom* room_l0 =
         dynamic_cast<fr::autoroute::CompleteFreeSpaceExpansionRoom*>(drills[0]->room_arr[0]);
     ASSERT_NE(room_l0, nullptr);
@@ -267,4 +282,58 @@ TEST(CompleteFreeSpaceExpansionRoomTest, DrillRoomIsStoredInTreeAndReusedAfterRe
     auto after_net_change = page.get_drills(&engine, false);
     ASSERT_EQ(after_net_change.size(), 1u);
     EXPECT_EQ(after_net_change[0]->room_arr[0], drills[0]->room_arr[0]);
+}
+
+// ==========================================================================
+// Whole-plane (Java null shape) rooms
+// ==========================================================================
+
+TEST(CompleteFreeSpaceExpansionRoomTest, WholePlaneRoomCompletesToRestrainedFreeSpace)
+{
+    // Java IncompleteFreeSpaceExpansionRoom(null, layer, containedShape): the
+    // completion starts from the whole board bounding box, so the completed
+    // room is the maximal free space containing the contained shape.
+    auto board = make_routing_board();
+    fr::autoroute::AutorouteEngine engine(board.get(), 1, true);
+    engine.set_net_no(1);
+    fr::board::ShapeSearchTree* tree = engine.get_autoroute_search_tree();
+    ASSERT_NE(tree, nullptr);
+    FakeObstacle wall(0, fp::IntBox(4000, 0, 6000, 10000), /*p_id=*/1);
+    tree->insert(wall);
+
+    fr::autoroute::IncompleteFreeSpaceExpansionRoom room(
+        nullptr, 0, fr::autoroute::kWholePlaneShape, fp::IntBox(500, 500, 501, 501).to_Simplex());
+    EXPECT_TRUE(room.is_whole_plane());
+    EXPECT_EQ(room.get_shape(), fp::IntBox::EMPTY);
+
+    std::vector<fr::autoroute::CompleteFreeSpaceExpansionRoom*> rooms =
+        engine.complete_expansion_room(&room);
+    ASSERT_EQ(rooms.size(), 1u);
+    EXPECT_EQ(rooms[0]->get_shape(), fp::IntBox(0, 0, 4000, 10000));
+}
+
+TEST(CompleteFreeSpaceExpansionRoomTest, WholePlaneRoomNeverCompletesToOneRoomOnObstacleFreeTree)
+{
+    // On a tree without obstacles the whole-board free space is larger than
+    // half of the board in both directions and ShapeSearchTree
+    // divide_large_room splits it into sections (Java divideLargeRoom), so the
+    // completion never yields exactly one room. ExpansionDrill
+    // calculateExpansionRooms requires size == 1 and therefore drops the
+    // drill — the Java behaviour on obstacle-free boards.
+    auto board = make_routing_board();
+    fr::autoroute::AutorouteEngine engine(board.get(), 1, true);
+    engine.set_net_no(1);
+    engine.get_autoroute_search_tree();
+
+    fr::autoroute::IncompleteFreeSpaceExpansionRoom room(
+        nullptr, 0, fr::autoroute::kWholePlaneShape, fp::IntBox(500, 500, 501, 501).to_Simplex());
+    std::vector<fr::autoroute::CompleteFreeSpaceExpansionRoom*> rooms =
+        engine.complete_expansion_room(&room);
+    EXPECT_NE(rooms.size(), 1u);
+    EXPECT_GE(rooms.size(), 2u);
+    for (fr::autoroute::CompleteFreeSpaceExpansionRoom* completed : rooms)
+    {
+        ASSERT_NE(completed, nullptr);
+        EXPECT_EQ(completed->get_shape().dimension(), 2);
+    }
 }

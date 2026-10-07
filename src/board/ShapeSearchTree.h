@@ -26,6 +26,8 @@ namespace freerouting::board {
 class Item;
 class BasicBoard;
 class SearchTreeObject;
+class Pin;
+class PolylineTrace;
 
 /**
  * Total order on tree objects mirroring the Java TreeSet ordering, which uses
@@ -195,6 +197,21 @@ public:
      * ShapeSearchTree.completeShape.
      */
     std::vector<CompleteShapePiece> complete_shape(const CompleteShapeInput& p_input);
+
+    /**
+     * Changes the shape with index p_shape_index of p_item to p_new_shape and
+     * updates the entry in the tree. Port of Java
+     * ShapeSearchTree.changeItemShape(Item, int, TileShape).
+     */
+    void change_item_shape(Item* p_item, int p_shape_index,
+        std::shared_ptr<::freerouting::geometry::planar::TileShape> p_new_shape);
+
+    /**
+     * Reduces the first or last shape of p_trace at p_tie_pin, so that the
+     * autorouter algorithm can find a connection for a different net. Port of
+     * Java ShapeSearchTree.reduceTraceShapeAtTiePin(Pin, PolylineTrace).
+     */
+    void reduce_trace_shape_at_tie_pin(Pin* p_tie_pin, PolylineTrace* p_trace);
 
     /**
      * Removes all entries from this tree.

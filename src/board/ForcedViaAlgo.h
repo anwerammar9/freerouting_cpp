@@ -6,6 +6,7 @@
 #include "board/ForcedPadAlgo.h"
 
 namespace freerouting::geometry::planar {
+class Circle;
 class FloatPoint;
 class Point;
 class Simplex;
@@ -18,6 +19,7 @@ class ViaInfo;
 
 namespace freerouting::board {
 
+class Padstack;
 class RoutingBoard;
 
 /**
@@ -81,6 +83,17 @@ public:
                        RoutingBoard* p_board);
 
 private:
+    /**
+     * Hole-clearance substitute shape for a copper-less layer of a via padstack:
+     * the drill still passes through, so other copper must stay holeClearance
+     * away from it. Returns null when the rule is off or no drill radius is
+     * known. Port of Java ForcedViaInserter.holeCheckShape().
+     */
+    static std::unique_ptr<geometry::planar::Circle> hole_check_shape(
+        const Padstack* p_padstack,
+        const geometry::planar::Point& p_location,
+        RoutingBoard* p_board);
+
     static CalcFromSide calculate_from_side(const geometry::planar::FloatPoint& p_via_location,
                                             const geometry::planar::TileShape& p_via_shape,
                                             const geometry::planar::Simplex& p_room_shape,

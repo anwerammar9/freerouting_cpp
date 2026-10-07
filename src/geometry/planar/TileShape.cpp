@@ -801,11 +801,11 @@ std::vector<std::unique_ptr<TileShape>> TileShape::cutout(const TileShape& p_sha
         }
         if (const auto* divide_octagon = dynamic_cast<const IntOctagon*>(this))
         {
-            return wrap_tile_pieces(divide_octagon->cutout_from(*hole_simplex));
+            return wrap_tile_pieces(hole_simplex->cutout_from(*divide_octagon));
         }
         if (const auto* divide_box = dynamic_cast<const IntBox*>(this))
         {
-            return wrap_tile_pieces(divide_box->cutout_from(*hole_simplex));
+            return wrap_tile_pieces(hole_simplex->cutout_from(*divide_box));
         }
     }
     else if (const auto* hole_octagon = dynamic_cast<const IntOctagon*>(&p_shape))

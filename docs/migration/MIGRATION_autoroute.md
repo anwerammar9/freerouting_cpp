@@ -410,7 +410,7 @@ Port of `java/app/freerouting/autoroute/maze/MazeSearchEngine.java` (1258 lines)
 | C++ | Java |
 |-----|-------|
 | `MazeSearchAlgo::get_instance(start, dest, engine, ctrl, stoppable)` | `MazeSearchEngine.getInstance` |
-| `init()` | `init()` (tie-pin reduction deferred) |
+| `init()` | same, incl. the tie-pin reduction (WP-10 Inc T) |
 | `find_connection()` / `occupy_next_element()` | same |
 | `expand_to_room_doors()` | `expandToRoomDoors` |
 | `expand_to_target_doors()` | `expandToTargetDoors` |
@@ -466,7 +466,7 @@ and `is_destination_door()`, `ExpansionDrill::get_id()`, `DrillPage::get_id()`,
 - `MazeTraceShover` — ported in WP-10 Increment K.
 - `RoutingBoard::check_forced_trace_polyline` — the thin-room line check in
   `expand_to_target_doors` is logged and skipped.
-- `ShapeSearchTree::reduce_trace_shape_at_tie_pin` — the tie-pin reduction in `init`.
+- ~~`ShapeSearchTree::reduce_trace_shape_at_tie_pin`~~ — ported in WP-10 Increment T (2026-10-06).
 - Fanout: the `mazeExpansionList.add` escape-length filter needs
   `AutorouteControl::fanout_start_pin_center`, which does not exist in C++ yet. The Java seed of
   the RNG from `ctrl.ripupCosts` is ported in Increment J (`MazeRandom`).
@@ -637,7 +637,8 @@ A* — that is now the only remaining wiring gap.
   above);
   `expand_to_drill()` omits Java's backtrack-door intersection exception in the thin-room
   condition; the C++ free-space rooms are still tiny interim boxes around the drill location,
-  so `expand_to_other_layers()` finds no matching via on another layer in production;
+  so `expand_to_other_layers()` finds no matching via on another layer in production
+  (**resolved in WP-10 Increment U below**);
   `BoardRules` has no global via-rule list, so `get_default_via_rule()` falls back to the
   first net class; `Network.cpp` still skips DSN via-rule scopes.
 
@@ -702,19 +703,25 @@ Tests: `src/autoroute/FoundConnectionLocator_test.cpp` 13 gtests, `src/geometry/
 - **Done**: 33 classes compiled & in the build; the `MazeSearchAlgo` expansion-room core
   (Increment I), the `MazeRipupResolver` ripup costs (J), `MazeTraceShover` trace shoving (K),
   `MazeExpansionEngine` drill-page / other-layer expansion (L), the `FoundConnectionLocator`
-  family (M), the `FoundConnectionInserter` (P/Q) and the fanout pass (R) are ported
-- **Tests**: 28 gtest executables; **726/726 ctest** + run_tests PASSED
+  family (M), the `FoundConnectionInserter` (P/Q), the fanout pass (R), the
+  `ForcedViaInserter` hole-shape clearance branch (S) and the tie-pin trace shape reduction
+  (`reduce_trace_shapes_at_tie_pins`, `ShapeSearchTree::change_item_shape` /
+  `reduce_trace_shape_at_tie_pin`, T) are ported; the whole-plane `shape == null` free space
+  rooms (`AutorouteEngine::complete_expansion_room` `WholePlaneShapeTag` overload, `ExpansionRoom`
+  `is_whole_plane()`, whole-plane maze-start and expansion-drill rooms, U) are ported
+- **Tests**: 29 gtest executables; **755/755 ctest** + run_tests PASSED (2 added by WP-10 Inc U)
 - **Remaining blockers**: (1) Phase 4.4 — `FoundConnectionInserter` is ported (WP-10 Inc P) and the
   `AutorouteEngine::autoroute_connection()` rewiring (maze expansion path first, legacy grid A* as
   fallback) landed with it; multi-segment (3+ corner) route insertion is verified end to end as of
   **WP-10 Inc Q (2026-10-04)**, which also fixed the `ShapeTraceEntries::resort()` port, the nullable
   `CalcFromSide::border_intersection`, the `PolylineTrace::combine()` use-after-free and the inverted
   clearance safety margin (see `MIGRATION_board.md` / `MIGRATION_rules.md` porting notes),
-  (2) the tie-pin shape reduction (`reduce_trace_shapes_at_tie_pins`;
-  `check_forced_trace_polyline` landed with Inc P), (3) the `ForcedViaInserter` hole-only-layer /
-  hole-shape clearance branch, (6) the Java `fallbackToBoardVias` fanout via-rule combination
-  (needs `RouterSettings::FanoutSettings` and a global `BoardRules` via-rule list), (4) the free-space rooms are still tiny interim boxes, which limits
-  `expand_to_other_layers()`, (5) `BatchOptimizer`/`BatchOptimizerMultiThreaded`, and the
+  (2) ~~the tie-pin shape reduction~~ **is DONE (WP-10 Inc T, 2026-10-06)**;
+  `check_forced_trace_polyline` landed with Inc P, (3) the `ForcedViaInserter` hole-only-layer /
+  hole-shape clearance branch **is DONE (WP-10 Inc S, 2026-10-06)**, (6) the Java `fallbackToBoardVias` fanout via-rule combination
+  (needs `RouterSettings::FanoutSettings` and a global `BoardRules` via-rule list), (4) ~~the free-space rooms are still tiny interim boxes, which limits
+  `expand_to_other_layers()`~~ **is DONE (WP-10 Inc U, 2026-10-07)** — the drill / maze-start rooms are whole-plane
+  `shape == null` rooms again, (5) `BatchOptimizer`/`BatchOptimizerMultiThreaded`, and the
   settings/scoring infra for `BoardHistoryEntry`
 - **Note**: `MazeFanoutDiagnostics` is compiled (`src/autoroute/CMakeLists.txt`), instantiated by
   `MazeSearchAlgo` (constructor + `set_control()`, which must recreate it because it holds a
@@ -768,3 +775,111 @@ through, and a null control passes through like Java's empty control fields.
 connected multi-layer item, empty unconnected set, and a maze attempt that must leave the guard
 clauses) plus 6 filter/diagnostics cases in `MazeSearchAlgo_test.cpp` →
 **ctest 726/726** + run_tests PASSED.
+
+## WP-10 Increment T (2026-10-06) — tie-pin trace shape reduction
+
+Closes the last documented divergence of the `MazeSearchAlgo::init()` port (Java
+`MazeSearchEngine.init` lines 970-971 call `reduceTraceShapesAtTiePins(startItems, ...)` /
+`(destItems, ...)` before the item loops).
+
+### Ported surface
+
+| C++ | Java |
+|-----|------|
+| `reduce_trace_shapes_at_tie_pins(set<Item*>, net_no, search_tree*)` (anonymous namespace in `MazeSearchAlgo.cpp`), called for the start **and** dest item lists at the top of `init` | `MazeSearchEngine.reduceTraceShapesAtTiePins(Collection<Item>, int, ShapeSearchTree)` |
+| `ShapeSearchTree::reduce_trace_shape_at_tie_pin(Pin*, PolylineTrace*)` + `ShapeSearchTree::change_item_shape(Item*, int, shared_ptr<TileShape>)` (in the **board** module, see `MIGRATION_board.md`) | `ShapeSearchTree.reduceTraceShapeAtTiePin` / `changeItemShapeUnlocked` |
+
+The helper only reduces traces of **foreign** nets (`!trace->contains_net(control_.net_no)`)
+that are normal contacts of a `Pin` with `net_count() > 1`; the own-net trace through the same
+tie pin keeps its shape. Non-`Pin` items and single-net pins are skipped exactly as in Java.
+
+### Documented divergences
+
+1. Java throws a `NullPointerException` when the pin has no tree shape on the trace layer
+   (`getTreeShapeOnLayer` returning null); the port logs a warning and returns without
+   changing the trace (`DrillItem::get_tree_shape_on_layer` warns on an out-of-range layer).
+
+### Tests
+
+`MazeSearchAlgoTest.InitReducesForeignTraceShapesAtTiePins` in `src/autoroute/MazeSearchAlgo_test.cpp`
+(foreign-net trace through a `{1,2}` tie pin loses the pin center in the engine search tree and
+keeps the piece with its far corner; the own-net trace is untouched; `validate_entries` holds for
+both) → **ctest 753/753** + run_tests PASSED.
+
+## WP-10 Increment U — whole-plane free space expansion rooms (2026-10-07)
+
+The `shape == null` cases of the Java `IncompleteFreeSpaceExpansionRoom` (the whole-board room a
+drill or maze start completes against) are ported for real; the interim bounded micro-box mapping
+from Increment C is gone.
+
+### `ExpansionRoom` whole-plane support
+
+- New internal `WholePlaneShapeTag` ctor set in `src/autoroute/ExpansionRoom.h/.cpp`: the room is
+  constructed with shape `IntBox::EMPTY` and completes against the board box —
+  `complete_room(ShapeSearchTree&)` special-cases `IntBox::EMPTY` through
+  `IntBox::get_contained_box(this, tree)` → `get_board_box()`, and `is_whole_plane()` is true.
+- The **public** resize arm of the ctor now creates a whole-plane room when the incoming box has
+  grown to the board box (`IntBox` containment), so expansion recalculations that reach the board
+  bounds fold back into the whole-board room exactly like Java's
+  `IncompleteFreeSpaceExpansionRoom` constructors.
+- `AutorouteEngine.h` merely **forward-declares** `ExpansionRoom` (the layout change is confined to
+  the `.cpp`); this keeps the module layering from pulling the autoroute engine into board files.
+
+### Wiring
+
+- `AutorouteEngine::complete_expansion_room` gained a `WholePlaneShapeTag` overload (Java
+  `completeExpansionRoom(ShapeSearchTree, WholePlaneShape, ...)`) and the real overload now
+  rewrites the whole-plane null-shape case to a `CompleteShapeInput` with `shape_type == NULL`
+  and `IntBox::get_contained_box` as the shape — i.e. the Java `completeShapeUnlocked` null-start
+  path, whose `divide_large_room` run splits an obstacle-free whole-board room into 4 sections.
+- `MazeSearchAlgo::init`'s maze-start rooms call the whole-plane overload;
+  `ExpansionDrill::calculate_expansion_rooms` uses the whole-plane drill room (reuse a stored room
+  at the same location, then the engine whole-plane call). The interim identical-mixture
+  containment guard is removed.
+
+### Java-parity consequence (a test "regression" that is actually the fix)
+
+Java `DrillPage.getDrills` (~line 125) calculates the expansion rooms of a drill and keeps the
+drill **only when each layer ends with exactly one complete free space room**. On an obstacle-free
+board the whole-board incomplete room completes into **4 sections** — never one — so the drill is
+dropped. The C++ port now reproduces this, so 10 previously-green empty-board drill tests
+(`DrillPage`, `DrillPageArray`, `MazeExpansionEngine`) legitimately failed for the right reason.
+They were reworked to **restrained** boards (a net-2 `FakeObstacle` wall inserted into the
+`ShapeSearchTree`), not to a fake "always succeeds" path.
+
+### Test-rework lessons (the valuable part)
+
+1. **Fake obstacles must own the inserted leaves.** `ShapeTree::insert(ShapeSearchTreeObject&)`
+   transfers the leaf `unique_ptr`s to the object through `set_search_tree_entries()`. A fake that
+   ignores them leaves dangling pointers in `MinAreaTree` → SIGSEGV in `MinAreaTree::overlaps`
+   during `complete_shape`. The `FakeObstacle` stores them in a `search_tree_entries_` member,
+   mirroring `board::Item::search_trees_info_`. (A stale `FakeStorable` in `CompleteFreeSpaceExpansionRoom_test`
+   kept its no-op `set_search_tree_entries` on purpose: its `tree_shape_count` is 0 by design.)
+2. **`check_layer_with_any_matching_via` bails `NOT_DRILLABLE` when `search_->autoroute_engine()`
+   is null** — the test that verifies via insertion through `expand_to_other_layers` therefore
+   sets the search's engine through the new public `MazeSearchAlgo::set_autoroute_engine()`
+   (also called by `get_instance`; the setter must live in the public section next to
+   `set_control`, the private accessors area is for friend/internal use).
+3. Wall geometry used for the restrained rooms: `IntBox(4000,0,6000,10000)` gives contained rooms
+   `(0,0,4000,10000)` / `(6000,0,10000,10000)`. The sandwich walls `IntBox(0,0,10000,470)` +
+   `IntBox(0,530,10000,10000)` with a drill at `(500,500)` give the thin room `(0,470,10000,530)`
+   (`min_width()` 60 < 100 → thin → drill rejected), and thick walls give the thick room
+   `(0,0,4000,10000)`.
+4. **Stale-binary trap:** piping a build through `grep -E " error"` can hide a compile failure and
+   leave the old test binary running. After a failing build, rebuild cleanly before judging a
+   re-run; a misleading failure was traced to exactly this.
+
+### Divergence (still documented, still parity-equivalent)
+
+The C++ `complete_shape` on a **rootless** tree returns the whole board box while Java returns an
+empty result for the same `ShapeSearchTree` when no root shape is set. Both paths still produce a
+multipiece completion that never equals one room per layer, so the drill-drop outcome of
+`DrillPage::get_drills` is identical.
+
+### Tests
+
+`CompleteFreeSpaceExpansionRoom_test.cpp` grew by 2 (`WholePlaneRoomCompletesToRestrainedFreeSpace`,
+`WholePlaneRoomNeverCompletesToOneRoomOnObstacleFreeTree`), `MazeExpansionEngine_test.cpp` by 2
+(`ExpandToDrillAddsElementForThickRoom`/`ExpandToDrillRejectsThinRoom`) with
+`ExpandToOtherLayersAddsViaElementOnFreeSpaceDrill` renamed from `WaitsForCompleteRoomsOnFreeSpaceDrill`
+inverting its expectation (+1 element) → **ctest 755/755** + run_tests PASSED.

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -27,7 +28,14 @@ public:
     void set_to_layer(int p_layer) { to_layer_ = p_layer; }
 
     int get_drill() const { return drill_; }
-    void set_drill(int p_drill) { drill_ = p_drill; }
+    void set_drill(int p_drill)
+    {
+        drill_ = p_drill;
+        // Unlike Java, where the padstack shapes are immutable after
+        // construction, the C++ padstack is filled in step by step, so the
+        // drill radius cache has to be dropped whenever the padstack changes.
+        cached_drill_radius_.reset();
+    }
 
     bool is_placed_absolute() const { return placed_absolute_; }
     void set_placed_absolute(bool p_value) { placed_absolute_ = p_value; }
@@ -48,15 +56,30 @@ public:
 
     geometry::planar::IntBox get_bounding_box() const;
 
+    /**
+     * Returns the drill radius of this padstack in board units. Port of Java
+     * core.Padstack.getDrillRadius(): the drill diameter is parsed from the
+     * padstack name if it carries one, otherwise 45 percent of the smallest
+     * shape radius is used. The result is cached, like the Java field.
+     */
+    double get_drill_radius() const;
+
     std::string to_string() const;
 
 private:
+    /**
+     * Smallest half-width over all non-null shapes, 0 if the padstack has no
+     * shape. Port of Java core.Padstack.getSmallestRadius().
+     */
+    double get_smallest_radius() const;
+
     std::string name_;
     int from_layer_ = 0;
     int to_layer_ = 0;
     int drill_ = 0;
     bool placed_absolute_ = false;
     std::vector<geometry::planar::Shape*> shapes_;
+    mutable std::optional<double> cached_drill_radius_;
 };
 
 } // namespace freerouting::board

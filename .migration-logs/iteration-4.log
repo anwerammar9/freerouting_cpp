@@ -1,0 +1,123 @@
+# Migration iteration 4 — WP-10 Increment T: tie-pin trace shape reduction (2026-10-06)
+
+Goal (from handoff): port `ShapeSearchTree::reduce_trace_shape_at_tie_pin` +
+`change_item_shape`, wire `MazeSearchAlgo::init`, tests, build, run, update tracking.
+
+## Baseline
+- `cmake --build build` OK, `ctest` 745/745, `./build/tests/data/run_tests` All PASSED.
+
+## Code (all Java-parity, Java = ShapeSearchTree.java:922-1010, MazeSearchEngine.java:970-971)
+- `src/board/Item.h/.cpp`: new public `get_precalculated_tree_shapes(const ShapeTree&)` and
+  `set_precalculated_tree_shapes(vector<shared_ptr<TileShape>>, const ShapeTree&)` (lazy-create
+  `search_trees_info_`, mirror of `take`/`set_search_tree_entries`).
+- `src/board/ShapeSearchTree.h/.cpp`: `change_item_shape(Item*, int, shared_ptr<TileShape>)`
+  (take entries → index guard with warn → `ShapeTree::remove({old leaf})` → replace
+  precalculated shape → rebuild entries → `ShapeTree::insert(*p_item, p_shape_index)` →
+  `set_search_tree_entries`) and `reduce_trace_shape_at_tie_pin(Pin*, PolylineTrace*)`
+  (pin shape on trace layer → first/last corner == pin center → shape 0 / corner_count()-2 →
+  2-D intersection guard → `cutout` pieces → first 2-D piece or piece containing compare corner →
+  `change_item_shape`). Placed before `ShapeSearchTree::clear()`.
+- `src/autoroute/MazeSearchAlgo.cpp`: anonymous-namespace
+  `reduce_trace_shapes_at_tie_pins(set<Item*>, net_no, search_tree*)` (Pin + net_count>1 →
+  normal contacts → PolylineTrace not containing own net → reduce), called for start AND dest
+  lists at the top of `init`, replacing the divergence comment.
+
+## Tests (registered in tests/CMakeLists.txt)
+- NEW `src/board/ShapeSearchTree_tie_pin_test.cpp` — 7 gtests: change replaces shape + keeps
+  tree consistent (size/overlap/validate_entries), out-of-range no-op, first-corner reduction,
+  last-corner reduction of a 3-corner trace (first shape untouched), no corner at pin no-op,
+  pin layer mismatch no-op, null args.
+  - Fix during bring-up: FloatPoint lives in `geometry/planar/Point.h` (no FloatPoint.h);
+    tree size assertion must count the pin leaf too (2, not 1).
+- `MazeSearchAlgoTest.InitReducesForeignTraceShapesAtTiePins` — foreign {2} trace reduced
+  (pin center gone, far corner survives), own {1} trace untouched, entries valid.
+
+## Verification
+- `ctest --test-dir build`: **753/753 passed** (745 + 7 + 1).
+- `./build/tests/data/run_tests`: **All tests PASSED**.
+
+## Discovered latent bug (NOT on this path, NOT fixed)
+- `TileShape::cutout` (`src/geometry/planar/TileShape.cpp` ~line 794): the two branches where
+  the hole is a `Simplex` and the divider is `IntOctagon`/`IntBox` call
+  `divide->cutout_from(hole)` → returns hole-minus-divide (inverted vs Java A.cutout(B) =
+  A minus B). Tie-pin only uses octagon/octagon (correct). Recorded in
+  `SOURCE_OF_TRUTH/03_MISSING.md` §2.1, `MIGRATION_board.md`, `05_WORK_PACKAGES.md` Inc T.
+
+## Tracking files updated
+- SOURCE_OF_TRUTH/02_PROGRESS.md (Inc T section + Inc I deferred list fixed; DesignForms
+  header restored after an edit slip)
+- SOURCE_OF_TRUTH/03_MISSING.md (init() row cleared; Resolved + Known-bug paragraphs)
+- SOURCE_OF_TRUTH/04_IMPLEMENTATION_PLAN.md (line 43 "Still open", task 3.7 row)
+- SOURCE_OF_TRUTH/05_WORK_PACKAGES.md (Increment T entry + Next bullet)
+- docs/migration/INDEX.md (board + autoroute rows)
+- docs/migration/MIGRATION_autoroute.md (init row, deferred list, Summary, new Inc T section)
+- docs/migration/MIGRATION_board.md (new Inc T section: ported surface, porting notes,
+  latent bug, tests)
+
+## Verdict: MIGRATION_CONTINUE (as a whole the migration is not complete)
+
+---
+
+## WP-10 Increment U — whole-plane (`shape == null`) free space expansion rooms (2026-10-07)
+
+### Code
+- `ExpansionRoom.h/.cpp`: internal `WholePlaneShapeTag` ctor set (shape `IntBox::EMPTY`,
+  completion via `IntBox::get_contained_box` → board box, `is_whole_plane()`); public resize
+  arm folds a room grown to the board box back into a whole-plane room. `AutorouteEngine.h`
+  now only forward-declares `ExpansionRoom`.
+- `AutorouteEngine.cpp/.h`: `complete_expansion_room` `WholePlaneShapeTag` overload; the real
+  overload rewrites the whole-plane null-shape case to `CompleteShapeInput.shape_type == NULL`
+  with `IntBox::get_contained_box` (Java `completeShapeUnlocked` null-start path + the
+  `divide_large_room` 4-section split).
+- `MazeSearchAlgo.cpp`: maze-start rooms go through the whole-plane overload.
+- `ExpansionDrill.cpp`: `calculate_expansion_rooms` uses the whole-plane drill room; interim
+  identical-mixture containment guard removed.
+- `MazeSearchAlgo.h`: public `set_autoroute_engine()` (used by the drill-expansion test; also
+  wired in `get_instance`). The first attempt landed in the private accessor block and the
+  test failed to compile — moved next to `set_control()`.
+
+### Java-parity consequence
+Drills on obstacle-free boards now DROP (`DrillPage.getDrills` keeps a drill only when each
+layer ends with exactly one complete free space room; the whole-board completion yields 4
+sections). 10 previously-green empty-board drill tests were reworked to restrained boards
+( net-2 `FakeObstacle` walls), not faked back to green.
+
+### Lessons
+1. `ShapeTree::insert` transfers leaf `unique_ptr`s to the object's
+   `set_search_tree_entries()`; a fake that drops them leaves dangling leaves in `MinAreaTree`
+   → SIGSEGV in `MinAreaTree::overlaps`. `FakeObstacle` stores them in a member.
+2. `check_layer_with_any_matching_via` bails `NOT_DRILLABLE` when `search_->autoroute_engine()`
+   is null — the via-expansion test must set the engine.
+3. Wall geometry: `IntBox(4000,0,6000,10000)` → contained rooms `(0,0,4000,10000)` /
+   `(6000,0,10000,10000)`; sandwich walls y∈[0,470] + y∈[530,10000], drill (500,500) → thin
+   room `(0,470,10000,530)` min_width 60.
+4. Stale-binary trap: a build piped through `grep -E " error"` can hide a compile failure and
+   rerun the old instrumented test binary.
+
+### Tests (new / reworked)
+- `CompleteFreeSpaceExpansionRoom_test.cpp`: +2 (`WholePlaneRoomCompletesToRestrainedFreeSpace`,
+  `WholePlaneRoomNeverCompletesToOneRoomOnObstacleFreeTree`); temporary probes removed.
+- `DrillPage_test.cpp`: FakeObstacle + walls in the 4 formerly-failing tests → 5/5.
+- `DrillPageArray_test.cpp`: FakeObstacle + walls; needs
+  `#include "autoroute/ExpansionRoom.h"` for the complete type → 4/4.
+- `MazeExpansionEngine_test.cpp`: FakeObstacle + `insert_restraining_walls`; reworked
+  `ExpandToDrillAddsElementForThickRoom`, `ExpandToDrillRejectsThinRoom` (sandwich walls),
+  `ExpandToOtherLayersStopsWithoutRipupForObstacleRoom`,
+  `ExpandToOtherLayersAddsViaElementOnFreeSpaceDrill` (was WaitsFor..., +1 element); one
+  edit-slip truncated the two drill-page-array guard tests (AutorouteEngineOwnsDrillPageArray /
+  InvalidateDrillPagesKeepsPageGeometry) — restored.
+
+## Verification
+- `ctest --test-dir build`: **755/755 passed** (753 + 2).
+- `./build/tests/run_tests` / AllTests: PASSED (target no longer present; ctest incl. AllTests).
+
+## Tracking files updated
+- SOURCE_OF_TRUTH/02_PROGRESS.md (Inc U section; Inc L divergence marked resolved)
+- SOURCE_OF_TRUTH/03_MISSING.md (expand_to_other_layers row)
+- SOURCE_OF_TRUTH/04_IMPLEMENTATION_PLAN.md (task 3.9 row → DONE; Inc U in the narrative)
+- SOURCE_OF_TRUTH/05_WORK_PACKAGES.md (Increment U entry; Next bullet updated)
+- docs/migration/INDEX.md (autoroute row: left-open list + Inc U note)
+- docs/migration/MIGRATION_autoroute.md (extended Inc L divergence, Summary blockers,
+  new Inc U section)
+
+## Verdict: MIGRATION_CONTINUE (as a whole the migration is not complete)

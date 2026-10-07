@@ -442,6 +442,13 @@ IncompleteFreeSpaceExpansionRoom::IncompleteFreeSpaceExpansionRoom(ExpansionRoom
 {
 }
 
+IncompleteFreeSpaceExpansionRoom::IncompleteFreeSpaceExpansionRoom(ExpansionRoom* p_source_room, int p_layer,
+    WholePlaneShapeTag, const geometry::planar::Simplex& p_contained_shape)
+    : IncompleteExpansionRoom(p_source_room, p_layer, geometry::planar::IntBox::EMPTY),
+      shape_tile_(geometry::planar::Simplex::EMPTY), contained_shape_tile_(p_contained_shape), whole_plane_(true)
+{
+}
+
 geometry::planar::IntBox IncompleteFreeSpaceExpansionRoom::get_shape() const
 {
     return shape_tile_.bounding_box();

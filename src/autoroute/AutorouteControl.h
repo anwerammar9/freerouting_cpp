@@ -42,6 +42,15 @@ class AutorouteControl {
 public:
     AutorouteControl();
     AutorouteControl(board::RoutingBoard* p_board, int p_net_no, settings::RouterSettings* p_settings);
+
+    /**
+     * Creates a new instance of AutorouteControl for the input net with
+     * explicit via costs and trace costs. Port of the Java 5-argument
+     * AuthorouteControl constructor, which the RoutingBoard.autoroute facade
+     * uses with the via costs and trace costs supplied by the caller.
+     */
+    AutorouteControl(board::RoutingBoard* p_board, int p_net_no, settings::RouterSettings* p_settings,
+                     int p_via_costs, const std::vector<ExpansionCostFactor>& p_trace_costs);
     ~AutorouteControl();
 
     void init_net(int p_net_no, board::RoutingBoard* p_board, int p_via_costs);

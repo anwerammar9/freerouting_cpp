@@ -116,6 +116,47 @@ bool MazeSearchAlgo::passes_fanout_filter(const MazeListElement& p_element) cons
     return true;
 }
 
+namespace {
+
+/**
+ * Looks for pins with more than 1 nets and reduces the shapes of traces of
+ * foreign nets, which are already connected to such a pin, so that the pin
+ * center is not blocked for connection. Port of the Java private static
+ * MazeSearchEngine.reduceTraceShapesAtTiePins(Collection<Item>, int,
+ * ShapeSearchTree).
+ */
+void reduce_trace_shapes_at_tie_pins(const std::set<board::Item*>& p_item_list, int p_own_net_no,
+    board::ShapeSearchTree* p_search_tree)
+{
+    if (p_search_tree == nullptr)
+    {
+        return;
+    }
+    for (board::Item* current_item : p_item_list)
+    {
+        if (current_item == nullptr)
+        {
+            continue;
+        }
+        auto* current_tie_pin = dynamic_cast<board::Pin*>(current_item);
+        if (current_tie_pin == nullptr || current_item->net_count() <= 1)
+        {
+            continue;
+        }
+        for (board::Item* current_contact : current_item->get_normal_contacts())
+        {
+            auto* current_trace = dynamic_cast<board::PolylineTrace*>(current_contact);
+            if (current_trace == nullptr || current_trace->contains_net(p_own_net_no))
+            {
+                continue;
+            }
+            p_search_tree->reduce_trace_shape_at_tie_pin(current_tie_pin, current_trace);
+        }
+    }
+}
+
+} // namespace
+
 std::unique_ptr<MazeSearchAlgo> MazeSearchAlgo::get_instance(board::RoutingBoard* p_board,
     datastructures::Stoppable* p_stoppable)
 {
@@ -135,7 +176,7 @@ std::unique_ptr<MazeSearchAlgo> MazeSearchAlgo::get_instance(
     }
     std::unique_ptr<MazeSearchAlgo> result =
         std::make_unique<MazeSearchAlgo>(p_autoroute_engine->board(), p_stoppable);
-    result->autoroute_engine_ = p_autoroute_engine;
+    result->set_autoroute_engine(p_autoroute_engine);
     result->set_control(p_ctrl);
     result->search_tree_ = p_autoroute_engine->get_autoroute_search_tree();
     result->destination_distance_ = std::make_unique<DestinationDistance>(
@@ -156,8 +197,12 @@ bool MazeSearchAlgo::init(const std::set<board::Item*>& p_start_items,
         return false;
     }
 
-    // Divergence: Java reduce_trace_shapes_at_tie_pins() needs
-    // ShapeSearchTree::reduce_trace_shape_at_tie_pin(), which is not ported yet.
+    // Looks for pins with more than 1 nets and reduces shapes of traces of
+    // foreign nets, which are already connected to such a pin, so that the pin
+    // center is not blocked for connection. Port of the Java private static
+    // MazeSearchEngine.reduceTraceShapesAtTiePins calls at the start of init.
+    reduce_trace_shapes_at_tie_pins(p_start_items, control_.net_no, search_tree_);
+    reduce_trace_shapes_at_tie_pins(p_dest_items, control_.net_no, search_tree_);
 
     start_items_ = p_start_items;
     dest_items_ = p_dest_items;
@@ -226,8 +271,11 @@ bool MazeSearchAlgo::init(const std::set<board::Item*>& p_start_items,
                 {
                     continue;
                 }
+                // Java MazeSearchEngine.init(): the start room shape is null,
+                // i.e. the whole plane; the connection shape is the contained
+                // shape of the room.
                 IncompleteFreeSpaceExpansionRoom* new_start_room =
-                    autoroute_engine_->add_incomplete_expansion_room(contained_shape->to_Simplex(),
+                    autoroute_engine_->add_incomplete_expansion_room(kWholePlaneShape,
                         current_item->shape_layer(i), contained_shape->to_Simplex());
                 start_rooms.push_back(new_start_room);
             }

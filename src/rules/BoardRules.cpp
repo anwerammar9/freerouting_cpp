@@ -1,5 +1,6 @@
 #include "rules/BoardRules.h"
 
+#include <algorithm>
 #include <sstream>
 
 #include "rules/ClearanceMatrix.h"
@@ -179,6 +180,11 @@ void BoardRules::set_min_trace_half_width(int p_value)
 void BoardRules::set_max_trace_half_width(int p_value)
 {
     max_trace_half_width_ = p_value;
+}
+
+void BoardRules::set_hole_clearance(int p_value)
+{
+    hole_clearance_ = std::max(0, p_value);
 }
 
 void BoardRules::set_pin_edge_to_turn_dist(double p_value)

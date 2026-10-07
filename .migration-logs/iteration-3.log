@@ -3514,3 +3514,46 @@ Iteration 3, part 2 — WP-10 Increment O (2026-10-02)
 Still open for Phase 4.4: the RoutingBoard forced-trace insertion +
 connect_to_trace, then FoundConnectionInserter itself and the
 AutorouteEngine::autoroute_connection() rewiring off the legacy grid A*.
+
+=== WP-10 Increment S (2026-10-06) — ForcedViaInserter hole-shape clearance parity ===
+Next concrete task after WP-10 Inc R: the last named open item of Phase 4.4 (04_IMPLEMENTATION_PLAN.md line 69).
+
+Java reference: java/app/freerouting/board/actions/ForcedViaInserter.java — holeCheckShape() (a Circle of
+ceil(drill_radius + board_rules.getHoleClearance() + 10) around the via location), used (a) as the layer shape
+on a via layer that has no padstack shape instead of skipping the layer (null clearance class) and (b) as an
+extra ForcedPadAlgo.checkForcedPad call on every layer while the rule is active. Same in check() and insert().
+
+Prereqs ported:
+- rules::BoardRules::get_hole_clearance() / set_hole_clearance(int) (negative clamped to 0) / clearance_class_none()
+- Padstack::get_drill_radius() with the private get_smallest_radius() fallback (smallest_radius * 0.9),
+  digit-only strtod parsing of the <outer>:<drill> pair in the padstack name, cached in
+  std::optional<double> and invalidated on shape/drill changes.
+
+Real parity bug found by the new tests (FORCED VIA CHECKS WERE BROKEN FOR EVERYTHING):
+tile_shape_of() in ForcedViaAlgo.cpp translated the pad shape with Area::translate_by() / Circle::translate_by()
+and fell back to the *untranslated* bounding box for every other shape type. The C++ geometry Shape base class
+has no virtual translate_by (only Area declares it), so a padstack whose layer shape is a PolygonShape searched
+an empty tile at negative coordinates and check() returned false at layer 0 for every via. Fixed by building the
+bounding tile first and then translating that tile by the IntVector, which is equivalent to Java's
+translate-then-bound for any convex shape. The debug harness that isolated it (src/board/Dbg_test.cpp) proved
+ForcedPadAlgo itself passed (res 0 = DRILLABLE) before the fix.
+
+Test-writing gotchas found:
+- ShapeTraceEntries::store_items refuses only is_shove_fixed() items of a foreign net, so a NOT_FIXED foreign
+  trace is shoved aside and never blocks a via check. The negative tests need a SHOVE_FIXED trace.
+- The padstack drill name format is <outer>:<drill> (Java takes the token before and the token after the first
+  colon), not "1.0_0.6:0.6" — the first test expectations were wrong because of that.
+- An exact ceil() boundary test on the private hole shape is not observable (the 16-unit clearance safety margin
+  is inflated away), so the radius is pinned coarsely instead (hole_clearance 1 blocks a trace at the drill
+  radius, hole_clearance 1 allows one at +500).
+
+Files: src/board/ForcedViaAlgo.{h,cpp}, src/board/Padstack.{h,cpp}, src/rules/BoardRules.{h,cpp},
+src/board/ForcedViaAlgo_test.cpp (new, 19 gtests), tests/CMakeLists.txt.
+Verification: cmake -S . -B build && cmake --build build -j12; ./build/tests/ForcedViaAlgo_test 19/19;
+ctest 745/745 (was 726/726); ./build/tests/data/run_tests PASSED.
+Tracking updated: SOURCE_OF_TRUTH/{02_PROGRESS,03_MISSING,04_IMPLEMENTATION_PLAN,05_WORK_PACKAGES}.md,
+docs/migration/{INDEX,MIGRATION_board,MIGRATION_autoroute}.md.
+Still open (not in this increment): RoutingBoard::autoroute_connection board facade API, the Java
+fallbackToBoardVias fanout via-rule combination (needs RouterSettings::FanoutSettings + a global via-rule
+list), the drill-hole obstacle/clearance feature (HeadlessBoardManager + ShapeSearchTree), the tie-pin shape
+reduction (reduce_trace_shapes_at_tie_pins) and the PullTight* quality paths.

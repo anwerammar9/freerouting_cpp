@@ -85,10 +85,26 @@ public:
     void set_max_trace_half_width(int p_value);
 
     /**
+     * Returns the clearance around drilled holes. Port of Java
+     * BoardRules.getHoleClearance(). The default is 0, which switches the
+     * hole clearance rule off.
+     */
+    int get_hole_clearance() const { return hole_clearance_; }
+
+    /** Port of Java BoardRules.setHoleClearance(): negative values are clamped to 0. */
+    void set_hole_clearance(int p_value);
+
+    /**
      * Returns the clearance class of the default net class.
      * Mirrors Java BoardRules.default_clearance_class().
      */
     static int default_clearance_class() { return 1; }
+
+    /**
+     * Returns the clearance class used for items with no clearances.
+     * Mirrors Java BoardRules.clearanceClassNone().
+     */
+    static int clearance_class_none() { return 0; }
 
     double get_pin_edge_to_turn_dist() const { return pin_edge_to_turn_dist_; }
     void set_pin_edge_to_turn_dist(double p_value);
@@ -119,6 +135,7 @@ private:
     bool ignore_conduction_ = true;
     int min_trace_half_width_ = 0;
     int max_trace_half_width_ = 0;
+    int hole_clearance_ = 0;
     double pin_edge_to_turn_dist_ = 0;
     bool use_slow_autoroute_algorithm_ = false;
 };

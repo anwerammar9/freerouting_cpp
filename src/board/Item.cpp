@@ -334,6 +334,31 @@ bool Item::is_user_fixed() const
     return static_cast<int>(fixed_state_) >= static_cast<int>(FixedState::USER_FIXED);
 }
 
+bool Item::is_deletion_forbidden() const
+{
+    // Items belonging to a component are delete_fixed.
+    if (component_no_ > 0 || is_user_fixed())
+    {
+        return true;
+    }
+    // Also power planes are delete_fixed.
+    if (const ConductionArea* area = dynamic_cast<const ConductionArea*>(this))
+    {
+        BasicBoard* board = get_board();
+        if (board == nullptr)
+        {
+            return false;
+        }
+        const int layer_no = area->get_layer();
+        if (layer_no < 0 || layer_no >= board->get_layer_structure().layer_count())
+        {
+            return false;
+        }
+        return !board->get_layer_structure().get_layer(layer_no)->is_signal;
+    }
+    return false;
+}
+
 bool Item::is_selected_by_filter(const ItemSelectionFilter& p_filter) const
 {
     (void)p_filter;
@@ -447,6 +472,27 @@ std::vector<std::unique_ptr<datastructures::ShapeTree::Leaf>> Item::take_search_
         return {};
     }
     return search_trees_info_->take_tree_entries(p_tree);
+}
+
+const std::vector<std::shared_ptr<geometry::planar::TileShape>>* Item::get_precalculated_tree_shapes(
+    const datastructures::ShapeTree& p_tree) const
+{
+    if (!search_trees_info_)
+    {
+        search_trees_info_ = std::make_unique<ItemSearchTreesInfo>();
+    }
+    return search_trees_info_->get_precalculated_tree_shapes(p_tree);
+}
+
+void Item::set_precalculated_tree_shapes(
+    std::vector<std::shared_ptr<geometry::planar::TileShape>> p_shapes,
+    const datastructures::ShapeTree& p_tree)
+{
+    if (!search_trees_info_)
+    {
+        search_trees_info_ = std::make_unique<ItemSearchTreesInfo>();
+    }
+    search_trees_info_->set_precalculated_tree_shapes(std::move(p_shapes), p_tree);
 }
 
 std::vector<std::shared_ptr<geometry::planar::TileShape>> Item::calculate_tree_shapes(const ShapeSearchTree& p_search_tree) const

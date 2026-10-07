@@ -50,8 +50,51 @@ public:
     int get_max_threads() const { return max_threads_; }
     void set_max_threads(int p_value) { max_threads_ = p_value; }
 
-    int get_via_costs() const { return 100; } // Stub
-    std::vector<autoroute::ExpansionCostFactor> get_trace_cost_arr() const { return {}; } // Stub
+    /**
+     * Returns the cost assigned to regular vias. Port of Java
+     * RouterSettings.getViaCosts(). Java returns 1 when the scoring settings
+     * do not carry a via cost; the C++ RouterScoringSettings stores a plain
+     * int (default 50), which is returned as the null stand-in.
+     */
+    int get_via_costs() const { return scoring_ ? scoring_->via_costs : 1; }
+
+    /**
+     * Returns true, if the preferred routing direction of p_layer is
+     * horizontal. Port of Java RouterSettings.getPreferredDirectionIsHorizontal().
+     */
+    bool get_preferred_direction_is_horizontal(int p_layer) const;
+
+    /**
+     * Returns the preferred-direction trace cost for one layer. Port of Java
+     * RouterSettings.getPreferredDirectionTraceCosts(): out-of-range layers
+     * yield 0, a missing scoring array yields 1.0.
+     */
+    double get_preferred_direction_trace_costs(int p_layer) const;
+
+    /**
+     * Returns the against-preferred-direction trace cost for one layer. Port
+     * of Java RouterSettings.getAgainstPreferredDirectionTraceCosts().
+     */
+    double get_against_preferred_direction_trace_costs(int p_layer) const;
+
+    /**
+     * Returns the trace cost for horizontal movement on one layer. Port of
+     * Java RouterSettings.getHorizontalTraceCosts().
+     */
+    double get_horizontal_trace_costs(int p_layer) const;
+
+    /**
+     * Returns the trace cost for vertical movement on one layer. Port of
+     * Java RouterSettings.getVerticalTraceCosts().
+     */
+    double get_vertical_trace_costs(int p_layer) const;
+
+    /**
+     * Returns the per-layer horizontal and vertical trace cost factors. Port
+     * of Java RouterSettings.getTraceCosts(): an empty array is returned when
+     * the scoring settings carry no per-layer preferred-direction costs.
+     */
+    std::vector<autoroute::ExpansionCostFactor> get_trace_costs() const;
 
     /**
      * Returns the effective bend cost for one layer. Port of Java

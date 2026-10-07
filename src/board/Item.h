@@ -160,6 +160,14 @@ public:
     /** Returns true if this item is fixed by the user (fixed_state >= USER_FIXED). */
     virtual bool is_user_fixed() const;
 
+    /**
+     * Returns true if it is not allowed to delete this item. Items belonging
+     * to a component are delete-fixed and so are conduction areas on
+     * non-signal layers (power planes). Port of Java
+     * Item.isDeletionForbidden().
+     */
+    bool is_deletion_forbidden() const;
+
     /** Returns true if this item contains exactly the same nets as p_other. */
     bool nets_equal(const Item* p_other) const;
     bool nets_equal(const std::vector<int>& p_net_no_arr) const;
@@ -219,6 +227,23 @@ public:
      * Moves the tree entries of this item in p_tree out of this item.
      */
     std::vector<std::unique_ptr<datastructures::ShapeTree::Leaf>> take_search_tree_entries(ShapeSearchTree& p_tree);
+
+    /**
+     * Returns the precalculated tree shapes of this item in p_tree, or
+     * nullptr, if they are not calculated for that tree yet. Mirrors the
+     * Java Item.getPrecalculatedTreeShapes(ShapeTree), which is read by
+     * ShapeSearchTree.changeItemShape.
+     */
+    const std::vector<std::shared_ptr<::freerouting::geometry::planar::TileShape>>* get_precalculated_tree_shapes(
+        const datastructures::ShapeTree& p_tree) const;
+
+    /**
+     * Stores p_shapes as the new precalculated tree shapes of this item in
+     * p_tree. Mirrors Java Item.setPrecalculatedTreeShapes(TileShape[], ShapeTree).
+     */
+    void set_precalculated_tree_shapes(
+        std::vector<std::shared_ptr<::freerouting::geometry::planar::TileShape>> p_shapes,
+        const datastructures::ShapeTree& p_tree);
 
     virtual ::freerouting::geometry::planar::IntBox surrounding_octagon() const;
     virtual std::string to_string() const;
