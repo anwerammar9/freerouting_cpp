@@ -53,3 +53,6 @@ board.json
 
 # Local config
 local.properties
+# Migration loop logs
+.migration-logs/
+STOP

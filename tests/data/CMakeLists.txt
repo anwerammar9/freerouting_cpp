@@ -1,5 +1,5 @@
 # Create test executable with simple assert-based tests
-add_executable(run_tests EXCLUDE_FROM_ALL all_tests.cpp)
+add_executable(run_tests all_tests.cpp)
 target_include_directories(run_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/src
