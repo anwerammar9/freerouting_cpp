@@ -9,6 +9,7 @@ Freerouting Java → C++20 PCB autorouter migration. Java source is truth. Goal:
 Read these files at session start:
 ```
 SOURCE_OF_TRUTH/README.md          — Quick status
+SOURCE_OF_TRUTH/TASKS.md           — Task queue (what to do next; run by loop_migration.sh)
 SOURCE_OF_TRUTH/01_MEMORY.md       — Architecture, conventions, gotchas
 SOURCE_OF_TRUTH/02_PROGRESS.md     — Module-by-module status
 SOURCE_OF_TRUTH/03_MISSING.md      — What's missing
@@ -56,7 +57,7 @@ ctest --test-dir build --output-on-failure
 ## Session Shutdown
 
 Before ending, update:
-1. `SOURCE_OF_TRUTH/02_PROGRESS.md` — move classes to Completed
-2. `SOURCE_OF_TRUTH/03_MISSING.md` — remove completed items
-3. `docs/migration/INDEX.md` — update percentages
-4. Relevant `docs/migration/MIGRATION_*.md` — add notes
+1. `SOURCE_OF_TRUTH/TASKS.md` — task status + `- result:` line
+2. Relevant `docs/migration/MIGRATION_*.md` — add notes
+
+02–05 and `docs/migration/INDEX.md` are historical; they are refreshed in bulk by task T705.

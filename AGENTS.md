@@ -34,8 +34,9 @@ templates/                    # Migration templates
 
 1. Read `SOURCE_OF_TRUTH/README.md` for current status
 2. Read `SOURCE_OF_TRUTH/01_MEMORY.md` for conventions and gotchas
-3. Read `SOURCE_OF_TRUTH/05_WORK_PACKAGES.md` for what to work on
-4. Verify build: `cmake --build build --target freerouting_board -j$(nproc)`
+3. Read `SOURCE_OF_TRUTH/TASKS.md` — the task queue; work on ONE task (the loop script names it)
+4. Do NOT read `02_PROGRESS.md`–`05_WORK_PACKAGES.md` unless the task says so (large historical logs)
+5. Verify build: `cmake --build build -j$(nproc)`
 
 ## Build & Test
 
@@ -94,8 +95,9 @@ Module targets: `freerouting_core`, `freerouting_board`, `freerouting_autoroute`
 ## Session End (MANDATORY)
 
 Update these files before stopping:
-1. `SOURCE_OF_TRUTH/02_PROGRESS.md` — move completed classes to "Completed"
-2. `SOURCE_OF_TRUTH/03_MISSING.md` — remove completed items
-3. `SOURCE_OF_TRUTH/04_IMPLEMENTATION_PLAN.md` — mark done tasks
-4. `docs/migration/INDEX.md` — update module percentages
-5. `docs/migration/MIGRATION_<module>.md` — add porting notes
+1. `SOURCE_OF_TRUTH/TASKS.md` — mark your task `[x]` + `- result:` line (or `[~]` + `- progress:`, or `[!]` + `- blocked:`)
+2. `docs/migration/MIGRATION_<module>.md` — add porting notes
+3. Do NOT commit when run by `loop_migration.sh` — the script verifies the build/tests and commits
+
+`02_PROGRESS.md`, `03_MISSING.md`, `04_IMPLEMENTATION_PLAN.md`, `05_WORK_PACKAGES.md` and
+`docs/migration/INDEX.md` are refreshed in bulk by task T705, not per task.
