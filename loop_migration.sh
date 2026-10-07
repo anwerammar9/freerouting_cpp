@@ -10,9 +10,13 @@
 #      output, then rolls back and marks the task [!] blocked
 #
 # Usage: ./loop_migration.sh [--max N] [--task T123] [--model provider/model]
+#                            [--fallback-model provider/model] [--auto]
 #                            [--attempts N] [--timeout MIN] [--dry-run] [--allow-dirty]
+#   --auto            pass --auto to opencode (auto-approve tool permissions)
+#   --fallback-model  switch to this model when the primary keeps hitting provider errors
+#                     e.g. --model freellmapi/auto --fallback-model cheaperinference/glm-5.2
 # Stop gracefully: touch STOP   (checked between iterations)
-# Extra opencode flags: OPENCODE_EXTRA_ARGS="--auto --variant high" ./loop_migration.sh
+# Extra opencode flags: OPENCODE_EXTRA_ARGS="--variant high" ./loop_migration.sh
 # ============================================================
 
 set -u
@@ -33,11 +37,14 @@ MAX_CONSECUTIVE_BLOCKED=3
 TIMEOUT_MIN=90
 FORCED_TASK=""
 MODEL=""
+FALLBACK_MODEL=""
+FALLBACK_AFTER=3          # provider errors on the primary model before switching to the fallback
+FREELLMAPI_URL="${FREELLMAPI_URL:-http://127.0.0.1:3001}"
 DRY_RUN=0
 ALLOW_DIRTY=0
 
 COMMIT_PATHS=(src tests tools docs SOURCE_OF_TRUTH CMakeLists.txt JavaToCppClassMap.csv AGENTS.md CLAUDE.md)
-PROVIDER_ERROR_RE='Error from provider|Rate limit exceeded|rate_limit_error|overloaded_error|Too Many Requests|insufficient_quota'
+PROVIDER_ERROR_RE='Error from provider|Rate limit exceeded|rate_limit_error|overloaded_error|Too Many Requests|insufficient_quota|all_providers_exhausted|No available model|no_available_models|Service Unavailable'
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -48,7 +55,10 @@ while [[ $# -gt 0 ]]; do
         --timeout)     TIMEOUT_MIN="$2"; shift 2 ;;
         --dry-run)     DRY_RUN=1; shift ;;
         --allow-dirty) ALLOW_DIRTY=1; shift ;;
-        -h|--help)     sed -n '2,18p' "$0"; exit 0 ;;
+        --auto)        OPENCODE_EXTRA_ARGS="${OPENCODE_EXTRA_ARGS:-} --auto"; shift ;;
+        --fallback-model) FALLBACK_MODEL="$2"; shift 2 ;;
+        [A-Z_]*=*)     export "${1?}"; shift ;;   # allow VAR=value after the command too
+        -h|--help)     awk 'NR>1 && /^set -u/{exit} NR>1' "$0"; exit 0 ;;
         *) echo "Unknown argument: $1" >&2; exit 64 ;;
     esac
 done
@@ -258,18 +268,41 @@ EOF
 }
 
 # ------------------------------------------------------------
+# Model backend health (FreeLLMAPI local router)
+# ------------------------------------------------------------
+
+# For freellmapi/* models: make sure the local router answers; otherwise use the
+# fallback model (if any) or wait for it to come back.
+check_model_backend() {
+    [[ "$MODEL" == freellmapi/* ]] || return 0
+    local waited=0
+    until curl -sf -m 5 -o /dev/null "$FREELLMAPI_URL/v1/models" \
+            -H "Authorization: Bearer ${FREELLMAPI_API_KEY:-}"; do
+        if [[ -n "$FALLBACK_MODEL" && "$FALLBACK_MODEL" != freellmapi/* ]]; then
+            log "FreeLLMAPI not reachable at $FREELLMAPI_URL — using fallback $FALLBACK_MODEL"
+            MODEL="$FALLBACK_MODEL"; return 0
+        fi
+        [[ $waited -ge 600 ]] && die "FreeLLMAPI not reachable at $FREELLMAPI_URL (start it: ~/freellmapi, npm start -w server)"
+        log "FreeLLMAPI not reachable at $FREELLMAPI_URL — retrying in 30s"
+        sleep 30; waited=$((waited + 30))
+    done
+}
+
+# ------------------------------------------------------------
 # One opencode session, with provider-error backoff
 # ------------------------------------------------------------
 
 run_opencode() {
     local id="$1" prompt="$2" logf="$3"
     local retry=0 wait=60 rc
-    local -a args=(run --title "migration $id")
-    [[ -n "$MODEL" ]] && args+=(--model "$MODEL")
-    # shellcheck disable=SC2206
-    [[ -n "${OPENCODE_EXTRA_ARGS:-}" ]] && args+=(${OPENCODE_EXTRA_ARGS})
+    local -a args
 
     while :; do
+        args=(run --title "migration $id")
+        [[ -n "$MODEL" ]] && args+=(--model "$MODEL")
+        # shellcheck disable=SC2206
+        [[ -n "${OPENCODE_EXTRA_ARGS:-}" ]] && args+=(${OPENCODE_EXTRA_ARGS})
+        check_model_backend
         local start_lines=0
         [[ -f "$logf" ]] && start_lines=$(wc -l < "$logf")
         timeout -k 60 "$((TIMEOUT_MIN * 60))" opencode "${args[@]}" "$prompt" 2>&1 | tee -a "$logf"
@@ -279,6 +312,11 @@ run_opencode() {
         if tail -n +"$((start_lines + 1))" "$logf" | tail -30 | grep -qE "$PROVIDER_ERROR_RE"; then
             retry=$((retry + 1))
             [[ $retry -gt $MAX_PROVIDER_RETRIES ]] && die "Provider errors persist after $MAX_PROVIDER_RETRIES retries — see $logf"
+            if [[ -n "$FALLBACK_MODEL" && "$MODEL" != "$FALLBACK_MODEL" && $retry -ge $FALLBACK_AFTER ]]; then
+                log "Primary model $MODEL keeps failing — switching to fallback $FALLBACK_MODEL for the rest of this run"
+                MODEL="$FALLBACK_MODEL"; wait=60
+                continue
+            fi
             log "Provider error / rate limit detected — waiting ${wait}s (retry $retry/$MAX_PROVIDER_RETRIES)"
             sleep "$wait"
             wait=$(( wait * 2 > 1800 ? 1800 : wait * 2 ))

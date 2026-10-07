@@ -7,9 +7,30 @@ The remaining migration is a task queue in `SOURCE_OF_TRUTH/TASKS.md`. The norma
 ./loop_migration.sh --max 10       # run up to 10 tasks (each: opencode -> build -> ctest -> commit)
 ./loop_migration.sh --task T117    # force one specific task
 ./loop_migration.sh --model anthropic/claude-sonnet-5-5 --timeout 120
-OPENCODE_EXTRA_ARGS="--auto" ./loop_migration.sh   # extra flags passed to `opencode run`
+./loop_migration.sh --auto --max 20                 # --auto = opencode auto-approves tool permissions
+OPENCODE_EXTRA_ARGS="--variant high" ./loop_migration.sh   # extra flags passed to `opencode run` (VAR=... goes BEFORE the command)
 touch STOP                         # graceful stop between tasks (rm STOP to resume)
 ```
+
+### Free models via FreeLLMAPI (local router, ~/freellmapi)
+
+FreeLLMAPI pools the free tiers of many providers behind one OpenAI-compatible endpoint
+(`http://127.0.0.1:3001/v1`). It is registered in `~/.config/opencode/opencode.json` as provider
+`freellmapi` with models `auto`, `auto:smart` and `auto:fast`.
+
+```bash
+# start the router (if not running)
+cd ~/freellmapi/server && FREEAPI_ENV_PATH=~/freellmapi/.env nohup node dist/index.js > ~/freellmapi/server.log 2>&1 &
+
+# run the loop on free models, falling back to the paid model when the free pool is exhausted
+export FREELLMAPI_API_KEY=freellmapi-...      # from the dashboard Keys page
+./loop_migration.sh --auto --max 20 --model freellmapi/auto:smart --fallback-model cheaperinference/glm-5.2
+```
+
+The loop checks that the router answers before each session. After 3 provider errors in a row it
+switches to `--fallback-model` (or, without one, backs off up to 30 min). Every task still has to pass
+the build + ctest gate, so a weak free model can't commit broken work. At worst it burns attempts
+and the task gets marked `[!]`.
 
 Exit codes: `0` all done or STOP · `1` max iterations reached · `2` only blocked tasks left ·
 `3` three tasks blocked in a row (needs human review). Logs: `.migration-logs/<time>-<task>-try<N>.log`.
