@@ -41,10 +41,9 @@ fr::board::PolylineTrace* insert_trace(fr::board::RoutingBoard* p_board,
     auto polyline = std::make_shared<fp::Polyline>(fp::Polyline::from_corners(p_corners));
     fr::board::PolylineTrace* trace = p_board->insert_trace_without_cleaning(polyline, 0, 50, p_nets, 1,
         fr::board::FixedState::NOT_FIXED);
-    if (trace != nullptr && p_tree != nullptr)
-    {
-        p_tree->insert(trace);
-    }
+    // The board inserts the trace into all its search trees, including the
+    // autoroute tree of the engine (Java SearchTreeManager.insert).
+    (void)p_tree;
     return trace;
 }
 
@@ -310,6 +309,10 @@ TEST(AutorouteEngineTest, CompleteNeighbourRoomsCalculatesObstacleNeighbourDoors
     const size_t obstacle_door_count = obstacle_room.get_doors().size();
     engine.complete_neighbour_rooms(room);
     EXPECT_EQ(obstacle_room.get_doors().size(), obstacle_door_count);
+
+    // The engine rooms live in the board search tree; remove them while the
+    // fixture objects linked into the tree still exist (Java calls clear() too).
+    engine.clear();
 }
 
 TEST(AutorouteEngineTest, CompleteNeighbourRoomsIgnoresNullRoom)

@@ -1,4 +1,5 @@
 #include "geometry/planar/TileShape.h"
+#include "geometry/planar/Polygon.h"
 
 #include <algorithm>
 #include <cmath>
@@ -790,8 +791,23 @@ std::vector<std::unique_ptr<TileShape>> wrap_tile_pieces(std::vector<T> pieces)
 
 } // namespace
 
-// Port of Java TileShape.cutout: this.cutout(p_shape) == p_shape.cutout_from(this).
+// Port of Java TileShape.cutout: this.cutout(p_shape) == p_shape.cutout_from(this),
+// i.e. the pieces of this shape minus p_shape. Java IntBox.cutout additionally
+// simplifies every piece; Simplex.cutout and IntOctagon.cutout do not.
 std::vector<std::unique_ptr<TileShape>> TileShape::cutout(const TileShape& p_shape) const
+{
+    std::vector<std::unique_ptr<TileShape>> result = cutout_pieces(p_shape);
+    if (dynamic_cast<const IntBox*>(this) != nullptr)
+    {
+        for (auto& piece : result)
+        {
+            piece = piece->simplify();
+        }
+    }
+    return result;
+}
+
+std::vector<std::unique_ptr<TileShape>> TileShape::cutout_pieces(const TileShape& p_shape) const
 {
     if (const auto* hole_simplex = dynamic_cast<const Simplex*>(&p_shape))
     {
@@ -864,6 +880,44 @@ std::unique_ptr<TileShape> TileShape::get_instance(const std::vector<IntPoint>& 
     return get_instance(line_arr);
 }
 
+std::unique_ptr<TileShape> TileShape::enlarge(double p_offset) const
+{
+    if (const auto* b = dynamic_cast<const IntBox*>(this))
+    {
+        return std::make_unique<IntOctagon>(b->enlarge(p_offset));
+    }
+    if (const auto* o = dynamic_cast<const IntOctagon*>(this))
+    {
+        return std::make_unique<IntOctagon>(o->enlarge(p_offset));
+    }
+    if (const auto* s = dynamic_cast<const Simplex*>(this))
+    {
+        return std::make_unique<Simplex>(s->enlarge(p_offset));
+    }
+    logger::FRLogger::instance().warn("TileShape.enlarge: unsupported shape type");
+    return clone();
+}
+
+std::vector<std::unique_ptr<TileShape>> TileShape::divide_into_sections(double p_max_section_width) const
+{
+    std::vector<std::unique_ptr<TileShape>> result;
+    if (is_empty())
+    {
+        result.push_back(clone());
+        return result;
+    }
+    for (const IntBox& section_box : bounding_box().divide_into_sections(p_max_section_width))
+    {
+        // Java intersectionWithSimplify(sectionBox)
+        std::unique_ptr<TileShape> curr_section = intersection_of(*this, section_box);
+        if (curr_section->dimension() == 2)
+        {
+            result.push_back(std::move(curr_section));
+        }
+    }
+    return result;
+}
+
 std::unique_ptr<TileShape> TileShape::offset(double p_dist) const
 {
     if (auto* s = dynamic_cast<const Simplex*>(this))
@@ -879,6 +933,90 @@ std::unique_ptr<TileShape> TileShape::offset(double p_dist) const
         return std::make_unique<IntOctagon>(o->offset(p_dist));
     }
     logger::FRLogger::instance().warn("TileShape.offset: unsupported shape type");
+    return clone();
+}
+
+std::unique_ptr<TileShape> TileShape::turn_90_degree(int p_factor, const IntPoint& p_pole) const
+{
+    if (const auto* box = dynamic_cast<const IntBox*>(this))
+    {
+        return std::make_unique<IntBox>(box->turn_90_degree(p_factor, p_pole));
+    }
+    std::vector<Line> new_lines;
+    new_lines.reserve(border_line_count());
+    for (int i = 0; i < border_line_count(); ++i)
+    {
+        new_lines.push_back(border_line(i).turn_90_degree(p_factor, p_pole));
+    }
+    return get_instance(new_lines);
+}
+
+std::unique_ptr<TileShape> TileShape::rotate_approx(double p_angle, const FloatPoint& p_pole) const
+{
+    if (p_angle == 0)
+    {
+        return clone();
+    }
+    std::vector<IntPoint> new_corners;
+    new_corners.reserve(border_line_count());
+    for (int i = 0; i < border_line_count(); ++i)
+    {
+        new_corners.push_back(corner_approx(i).rotate(p_angle, p_pole).round());
+    }
+    const std::vector<IntPoint> polygon_corners = Polygon(new_corners).corner_array();
+    if (polygon_corners.size() >= 3)
+    {
+        return get_instance(polygon_corners);
+    }
+    if (polygon_corners.size() == 2)
+    {
+        const Polyline curr_polyline = Polyline::from_corners(polygon_corners);
+        return LineSegment(curr_polyline, 0).to_simplex();
+    }
+    if (polygon_corners.size() == 1)
+    {
+        return std::make_unique<IntBox>(get_instance(polygon_corners[0]));
+    }
+    return std::make_unique<Simplex>(Simplex::EMPTY);
+}
+
+std::unique_ptr<TileShape> TileShape::mirror_vertical(const IntPoint& p_pole) const
+{
+    std::vector<Line> new_lines;
+    new_lines.reserve(border_line_count());
+    for (int i = 0; i < border_line_count(); ++i)
+    {
+        new_lines.push_back(border_line(i).mirror_vertical(p_pole));
+    }
+    return get_instance(new_lines);
+}
+
+std::unique_ptr<TileShape> TileShape::mirror_horizontal(const IntPoint& p_pole) const
+{
+    std::vector<Line> new_lines;
+    new_lines.reserve(border_line_count());
+    for (int i = 0; i < border_line_count(); ++i)
+    {
+        new_lines.push_back(border_line(i).mirror_horizontal(p_pole));
+    }
+    return get_instance(new_lines);
+}
+
+std::unique_ptr<TileShape> TileShape::translate_by(const IntVector& p_vector) const
+{
+    if (const auto* box = dynamic_cast<const IntBox*>(this))
+    {
+        return std::make_unique<IntBox>(box->translate_by(p_vector));
+    }
+    if (const auto* oct = dynamic_cast<const IntOctagon*>(this))
+    {
+        return std::make_unique<IntOctagon>(oct->translate_by(p_vector));
+    }
+    if (const auto* simplex = dynamic_cast<const Simplex*>(this))
+    {
+        return std::make_unique<Simplex>(simplex->translate_by(p_vector));
+    }
+    logger::FRLogger::instance().warn("TileShape.translate_by: unsupported shape type");
     return clone();
 }
 

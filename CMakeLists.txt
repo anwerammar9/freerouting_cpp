@@ -76,3 +76,8 @@ if(BUILD_TESTS)
 
     add_subdirectory(tests)
 endif()
+# Developer tool: dumps the DSN lexer token stream (compare with the Java lexer).
+add_executable(dsn_token_dump tools/dsn_token_dump/main.cpp)
+target_include_directories(dsn_token_dump PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(dsn_token_dump PRIVATE
+    $<LINK_GROUP:RESCAN,freerouting_designforms,freerouting_board,freerouting_geometry,freerouting_rules,freerouting_datastructures,freerouting_logger,freerouting_core,freerouting_constants>)

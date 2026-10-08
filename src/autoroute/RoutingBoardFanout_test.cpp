@@ -12,7 +12,8 @@
 #include "board/Pin.h"
 #include "board/Via.h"
 #include "board/SearchTreeManager.h"
-#include "core/Package.h"
+#include "board/BoardLibrary.h"
+#include "board/Package.h"
 #include "geometry/planar/IntBox.h"
 #include "geometry/planar/PolygonShape.h"
 #include "rules/BoardRules.h"
@@ -71,14 +72,11 @@ void add_component(RoutingBoard* p_board, const std::string& p_name, int p_no,
     const geometry::planar::IntPoint& p_location, int p_rel_x, int p_rel_y, int p_pin_no,
     double p_rotation = 0.0)
 {
-    auto* lib_package = new core::Package(p_name, p_no);
-    lib_package->add_pin(p_pin_no, p_rel_x, p_rel_y, 0);
-    auto* component = new Component(p_name, p_no, lib_package, false);
-    component->set_location(p_location.x, p_location.y);
-    component->set_rotation(p_rotation);
-    component->set_placed(true);
-    component->set_pin_count(1);
-    p_board->components()->add(component);
+    (void)p_no;
+    std::vector<Package::Pin> pins;
+    pins.push_back(Package::Pin{ std::to_string(p_pin_no), 0, geometry::planar::IntVector(p_rel_x, p_rel_y), 0.0 });
+    Package* lib_package = p_board->library().packages().add(p_name, std::move(pins));
+    p_board->components()->add(p_name, p_location, p_rotation, true, lib_package, lib_package, false);
 }
 
 } // namespace

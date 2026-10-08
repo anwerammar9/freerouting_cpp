@@ -1,4 +1,5 @@
 #include "rules/Net.h"
+#include "rules/BoardRules.h"
 
 #include <cctype>
 #include <sstream>
@@ -177,7 +178,9 @@ Net* Nets::add(const std::string& p_name, int p_subnet_number, bool p_contains_p
     {
         logger::FRLogger::instance().warn("Nets.add_net: max_net_no out of range");
     }
-    auto* new_net = new Net(new_net_no, p_name, p_subnet_number, nullptr, p_contains_plane);
+    // Java Net(...): netClass = netList.getBoard().rules.getDefaultNetClass()
+    NetClass* default_net_class = rules_ != nullptr ? rules_->get_default_net_class() : nullptr;
+    auto* new_net = new Net(new_net_no, p_name, p_subnet_number, default_net_class, p_contains_plane);
     net_arr_.push_back(new_net);
     return new_net;
 }

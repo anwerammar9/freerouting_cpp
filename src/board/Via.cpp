@@ -9,8 +9,11 @@
 #include "board/Padstack.h"
 #include "board/Trace.h"
 #include "geometry/planar/IntBox.h"
+#include "geometry/planar/Vector.h"
 #include "geometry/planar/Shape.h"
+#include "board/SearchTreeManager.h"
 #include "board/ShapeSearchTree.h"
+#include "board/BasicBoard.h"
 #include "logger/FRLogger.h"
 
 namespace freerouting::board {
@@ -33,6 +36,98 @@ bool is_within_tolerance(const geometry::planar::Point& p_p1,
 }
 
 } // namespace
+
+int DrillItem::tile_shape_count() const
+{
+    if (padstack_ == nullptr)
+    {
+        return 1;
+    }
+    return padstack_->get_to_layer() - padstack_->get_from_layer() + 1;
+}
+
+int DrillItem::shape_layer(int p_index) const
+{
+    // Java DrillItem.shapeLayer
+    const int index = std::min(std::max(p_index, 0), last_layer() - first_layer());
+    return first_layer() + index;
+}
+
+const geometry::planar::Shape* DrillItem::get_shape(int p_index) const
+{
+    if (!shapes_precalculated_)
+    {
+        // All shapes are calculated at once, like in Java.
+        precalculated_shapes_ = calculate_shapes();
+        shapes_precalculated_ = true;
+    }
+    if (p_index < 0 || p_index >= static_cast<int>(precalculated_shapes_.size()))
+    {
+        return nullptr;
+    }
+    return precalculated_shapes_[p_index].get();
+}
+
+std::vector<std::unique_ptr<geometry::planar::Shape>> DrillItem::calculate_shapes() const
+{
+    return {};
+}
+
+geometry::planar::IntOctagon DrillItem::get_tile_shape(int p_index) const
+{
+    // Java Item.getTileShape returns the tree shape in the default search tree.
+    if (padstack_ != nullptr && board_ != nullptr && board_->get_search_tree_manager() != nullptr)
+    {
+        const ShapeSearchTree* default_tree = board_->get_search_tree_manager()->get_default_tree();
+        if (default_tree != nullptr)
+        {
+            if (const geometry::planar::TileShape* tree_shape = get_tree_shape(*default_tree, p_index))
+            {
+                return tree_shape->bounding_octagon();
+            }
+        }
+    }
+    return Item::get_tile_shape(p_index);
+}
+
+void DrillItem::clear_derived_data()
+{
+    Item::clear_derived_data();
+    precalculated_shapes_.clear();
+    shapes_precalculated_ = false;
+}
+
+std::vector<std::shared_ptr<geometry::planar::TileShape>> DrillItem::calculate_tree_shapes(
+    const ShapeSearchTree& p_search_tree) const
+{
+    if (padstack_ == nullptr)
+    {
+        // C++ only: drill items created without a library padstack keep the
+        // bounding-box tree shape of the Item base class.
+        return Item::calculate_tree_shapes(p_search_tree);
+    }
+    return p_search_tree.calculate_tree_shapes(*this);
+}
+
+std::vector<std::unique_ptr<geometry::planar::Shape>> Via::calculate_shapes() const
+{
+    // Port of Java Via.getShape.
+    std::vector<std::unique_ptr<geometry::planar::Shape>> result;
+    if (padstack_ == nullptr)
+    {
+        logger::FRLogger::instance().warn("Via.get_shape: padstack is null");
+        return result;
+    }
+    const int shape_count = padstack_->get_to_layer() - padstack_->get_from_layer() + 1;
+    const geometry::planar::IntPoint& center = get_center();
+    const geometry::planar::IntVector translate_vector(center.x, center.y);
+    for (int i = 0; i < shape_count; ++i)
+    {
+        const geometry::planar::Shape* curr_shape = padstack_->get_shape(i + first_layer());
+        result.push_back(curr_shape != nullptr ? translate_pad_shape(*curr_shape, translate_vector) : nullptr);
+    }
+    return result;
+}
 
 double DrillItem::min_width() const
 {

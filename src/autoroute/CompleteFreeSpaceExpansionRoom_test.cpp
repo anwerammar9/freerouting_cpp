@@ -222,7 +222,10 @@ TEST(CompleteFreeSpaceExpansionRoomTest, NetDependentRoomPurgedOnNetChange)
     retained_engine.init_connection(2, nullptr, 0);
     EXPECT_EQ(retained_engine.get_autoroute_search_tree()->size(), 1);
 
-    fr::autoroute::AutorouteEngine purging_engine(board.get(), 1, true);
+    // The engines of one board share its autoroute search tree (Java
+    // SearchTreeManager.getAutorouteTree), so the second engine gets its own board.
+    auto purging_board = make_routing_board();
+    fr::autoroute::AutorouteEngine purging_engine(purging_board.get(), 1, true);
     fr::autoroute::IncompleteFreeSpaceExpansionRoom incomplete_b(
         nullptr, 0, fr::geometry::planar::IntBox(100, 200, 300, 400));
     std::vector<fr::autoroute::CompleteFreeSpaceExpansionRoom*> rooms =
@@ -282,6 +285,10 @@ TEST(CompleteFreeSpaceExpansionRoomTest, DrillRoomIsStoredInTreeAndReusedAfterRe
     auto after_net_change = page.get_drills(&engine, false);
     ASSERT_EQ(after_net_change.size(), 1u);
     EXPECT_EQ(after_net_change[0]->room_arr[0], drills[0]->room_arr[0]);
+
+    // The engine rooms live in the board search tree; remove them while the
+    // fixture objects linked into the tree still exist (Java calls clear() too).
+    engine.clear();
 }
 
 // ==========================================================================

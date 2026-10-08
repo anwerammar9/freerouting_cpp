@@ -524,7 +524,7 @@ board::ForcedPadAlgo::CheckDrillResult MazeExpansionEngine::check_layer_with_any
         {
             continue;
         }
-        std::shared_ptr<board::Padstack> via_padstack = via_info->get_padstack();
+        board::Padstack* via_padstack = via_info->get_padstack();
         if (via_padstack == nullptr || p_layer < via_padstack->get_from_layer()
             || p_layer > via_padstack->get_to_layer())
         {

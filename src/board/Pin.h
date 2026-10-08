@@ -110,6 +110,17 @@ public:
 
     std::string to_string() const override;
 
+    /**
+     * The layer of the padstack shape for the shape with index p_index. The
+     * padstack of a component on the back side is used mirrored, unless it is
+     * placed absolute. Port of Java Pin.getPadstackLayer.
+     */
+    int get_padstack_layer(int p_index) const;
+
+protected:
+    /** Port of Java Pin.getShape: rotates, mirrors and translates the padstack shapes. */
+    std::vector<std::unique_ptr<geometry::planar::Shape>> calculate_shapes() const override;
+
 private:
     /**
      * Returns the component of this pin or nullptr, if this pin does not

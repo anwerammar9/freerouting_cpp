@@ -177,6 +177,20 @@ public:
     std::unique_ptr<TileShape> offset(double p_dist) const;
 
     /**
+     * Polymorphic Java TileShape.enlarge: IntBox -> its bounding octagon
+     * offset by p_offset (always an IntOctagon), IntOctagon -> offset,
+     * Simplex -> Simplex.enlarge (offset clipped to the offset bounding octagon).
+     */
+    std::unique_ptr<TileShape> enlarge(double p_offset) const;
+
+    /**
+     * Divides this shape into sections of width and height at most about
+     * p_max_section_width (the intersections with the sections of the bounding
+     * box). Port of Java TileShape.divideIntoSections.
+     */
+    std::vector<std::unique_ptr<TileShape>> divide_into_sections(double p_max_section_width) const;
+
+    /**
      * Shrinks this shape by p_offset. If the shrunk shape is empty, the result
      * is the intersection of this shape with the bounding box of its centre of
      * gravity, so that the shape does not vanish completely. Port of Java
@@ -192,6 +206,27 @@ public:
      * mix of the concrete tile types.
      */
     std::vector<std::unique_ptr<TileShape>> cutout(const TileShape& p_shape) const;
+
+    /**
+     * Turns this shape by p_factor times 90 degree around p_pole. Port of Java
+     * TileShape.turn90Degree (IntBox keeps its own override, which returns a box).
+     */
+    std::unique_ptr<TileShape> turn_90_degree(int p_factor, const IntPoint& p_pole) const;
+
+    /**
+     * Rotates this shape approximately by p_angle (radians) around p_pole; the
+     * rotated corners are rounded to integers. Port of Java TileShape.rotateApprox.
+     */
+    std::unique_ptr<TileShape> rotate_approx(double p_angle, const FloatPoint& p_pole) const;
+
+    /** Mirrors this shape at the vertical line through p_pole. Port of Java TileShape.mirrorVertical. */
+    std::unique_ptr<TileShape> mirror_vertical(const IntPoint& p_pole) const;
+
+    /** Mirrors this shape at the horizontal line through p_pole. Port of Java TileShape.mirrorHorizontal. */
+    std::unique_ptr<TileShape> mirror_horizontal(const IntPoint& p_pole) const;
+
+    /** Translates this shape by p_vector, keeping the concrete type (Java translateBy overrides). */
+    std::unique_ptr<TileShape> translate_by(const IntVector& p_vector) const;
 
     /**
      * Cuts out the parts of p_polyline in the interior of this shape and
@@ -275,6 +310,10 @@ public:
      * Creates the smallest IntBox containing p_point.
      */
     static IntBox get_instance(const IntPoint& p_point);
+
+private:
+    /** Dispatches p_shape.cutout_from(this) on the concrete types (Java double dispatch). */
+    std::vector<std::unique_ptr<TileShape>> cutout_pieces(const TileShape& p_shape) const;
 };
 
 } // namespace planar

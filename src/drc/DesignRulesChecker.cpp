@@ -13,7 +13,7 @@
 #include "board/Component.h"
 #include "board/ConductionArea.h"
 #include "board/Trace.h"
-#include "core/Package.h"
+#include "board/Package.h"
 #include "geometry/planar/Point.h"
 #include "geometry/planar/Shape.h"
 #include "geometry/planar/Simplex.h"
@@ -218,19 +218,13 @@ std::vector<std::shared_ptr<ClearanceViolation>>
                 planar::IntOctagon pin_tile_shape = this_is_outline
                     ? current_item->get_tile_shape(current_entry.shape_index_in_object)
                     : current_tile_shape;
-                std::shared_ptr<planar::TileShape> outline_shape = outline->get_tile_shape();
-                bool inside_outline = outline_shape != nullptr;
-                if (inside_outline)
+                // C++ only (no counterpart in Java DesignRulesChecker): a pin pad
+                // completely inside the outline is not reported against it.
+                bool inside_outline = true;
+                const int corner_count = pin_tile_shape.border_line_count();
+                for (int ci = 0; inside_outline && ci < corner_count; ++ci)
                 {
-                    // IntOctagon corners are always bounded (8 corners).
-                    int corner_count = pin_tile_shape.border_line_count();
-                    for (int ci = 0; inside_outline && ci < corner_count; ++ci)
-                    {
-                        if (!outline_shape->contains(pin_tile_shape.corner(ci)))
-                        {
-                            inside_outline = false;
-                        }
-                    }
+                    inside_outline = outline->contains(pin_tile_shape.corner(ci));
                 }
                 if (inside_outline)
                 {
@@ -1267,12 +1261,19 @@ std::string DesignRulesChecker::format_item_with_context(const board::Item* item
         if (comp != nullptr)
         {
             result += comp->get_name() + ".";
-            // core::Package::Pin has no name field (documented deviation: use the pin number).
-            result += std::to_string(pin->get_pin_no());
+            const board::Package* pkg = comp->get_package();
+            if (pkg != nullptr && pin->get_pin_no() >= 0 && pin->get_pin_no() < pkg->pin_count())
+            {
+                result += pkg->get_pin(pin->get_pin_no())->name;
+            }
+            else
+            {
+                result += std::to_string(pin->get_pin_no() + 1);
+            }
         }
         else
         {
-            result += "#" + std::to_string(pin->get_pin_no());
+            result += "#" + std::to_string(pin->get_pin_no() + 1);
         }
     }
     else if (item->is_trace())

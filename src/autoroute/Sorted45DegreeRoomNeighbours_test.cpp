@@ -462,4 +462,8 @@ TEST(SortedRoomNeighboursTest, CalculateDispatchesTo45DegreeImplementation)
         }
     }
     EXPECT_TRUE(some_room_has_door_to_free_space_room);
+
+    // The engine rooms live in the board search tree; remove them while the
+    // fixture objects linked into the tree still exist (Java calls clear() too).
+    engine.clear();
 }

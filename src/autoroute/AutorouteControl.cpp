@@ -166,7 +166,7 @@ void AutorouteControl::rebuild_via_info(board::RoutingBoard* p_board, int p_via_
         {
             attach_smd_allowed = true;
         }
-        std::shared_ptr<board::Padstack> current_padstack = current_via->get_padstack();
+        board::Padstack* current_padstack = current_via->get_padstack();
         if (current_padstack == nullptr)
         {
             continue;

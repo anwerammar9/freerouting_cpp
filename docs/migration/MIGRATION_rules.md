@@ -39,3 +39,9 @@
 
 - **Done**: 10/10 classes (100% of Java files)
 - **Notes**: Rules is now the **first fully migrated module**. Verified via full project build (`cmake --build build` produces `freerouting`) and a standalone smoke test exercising NetClasses/Net/Nets/NetClass/ViaInfos/ViaRule parity APIs.
+- **2026-10-08 (T120)**: ClearanceMatrix and BoardRules rewritten Java-faithful. The old matrix was not
+  per-layer, wrote both [i][j] and [j][i], did not round odd values and returned 0 from
+  `get_clearance_compensation_value` (so the compensated autoroute trees never compensated). BoardRules gained
+  via infos/rules, net-class management, default trace widths (Java defaults min 100000 / max 100 — fixtures
+  must set trace widths like a DSN does), default via rule/diameter and clearance-class removal. Functions
+  that read board::Padstack/Item live in `src/board/RulesBoardAccess.cpp` to avoid a rules->board link cycle.

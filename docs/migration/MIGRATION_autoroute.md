@@ -883,3 +883,11 @@ multipiece completion that never equals one room per layer, so the drill-drop ou
 (`ExpandToDrillAddsElementForThickRoom`/`ExpandToDrillRejectsThinRoom`) with
 `ExpandToOtherLayersAddsViaElementOnFreeSpaceDrill` renamed from `WaitsForCompleteRoomsOnFreeSpaceDrill`
 inverting its expectation (+1 element) → **ctest 755/755** + run_tests PASSED.
+
+- **2026-10-08 (T417)**: `AutorouteEngine::autoroute_connection` is now a faithful port of Java
+  `AutorouteEngine.autorouteConnection` (+ `resetAllDoors`, item-data cleanup in `clear()`). The old
+  grid-A* fallback after a failed maze search was not Java and caused every E2E timeout (a search-tree
+  query per grid cell, up to 3M cells per connection). `BatchAutorouter` now routes each item through
+  `RoutingBoard::autoroute` (interim until the T401–T409 pipeline port); its previous loop used a
+  default, board-less `AutorouteControl`, so `MazeSearchAlgo::get_instance` could never succeed.
+  Remaining reason for 0 routed connections: DSN pin geometry (see MIGRATION_designforms.md).

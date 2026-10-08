@@ -39,6 +39,9 @@ std::shared_ptr<fr::board::RoutingBoard> make_routing_board()
     layers.push_back(std::make_shared<fr::board::Layer>("Bottom", true));
     fr::board::LayerStructure layer_structure(layers);
     auto board_rules = std::make_unique<fr::rules::BoardRules>(layer_structure, 10);
+    // Like a DSN structure scope: without default trace widths the Java
+    // min_trace_half_width default (100000) makes every drill check fail.
+    board_rules->set_default_trace_half_widths(100);
     return std::make_shared<fr::board::RoutingBoard>(
         fr::geometry::planar::IntBox(0, 0, 10000, 10000), layer_structure,
         std::move(board_rules), nullptr);
@@ -63,7 +66,11 @@ fr::autoroute::AutorouteControl make_control()
 /** A via rule with one through via of a box padstack on both layers. */
 std::shared_ptr<fr::rules::ViaRule> make_via_rule()
 {
+    // ViaInfo does not own its padstack (the board library does in Java), so
+    // the fixture padstacks live until the end of the test program.
+    static std::vector<std::shared_ptr<fr::board::Padstack>> keep_alive;
     auto padstack = std::make_shared<fr::board::Padstack>("via");
+    keep_alive.push_back(padstack);
     padstack->set_from_layer(0);
     padstack->set_to_layer(1);
     const std::vector<fr::geometry::planar::IntPoint> via_corners{
@@ -73,7 +80,7 @@ std::shared_ptr<fr::rules::ViaRule> make_via_rule()
 
     auto via_rule = std::make_shared<fr::rules::ViaRule>("rule");
     via_rule->append_via(
-        std::make_shared<fr::rules::ViaInfo>("via", padstack, 1, true, nullptr));
+        std::make_shared<fr::rules::ViaInfo>("via", padstack.get(), 1, true, nullptr));
     return via_rule;
 }
 
@@ -284,6 +291,10 @@ TEST(MazeExpansionEngineTest, ExpandToDrillAddsElementForThickRoom)
     expansion.expand_to_drill(&drill, from_element, 0);
 
     EXPECT_EQ(search.maze_expansion_list().size(), list_size_before + 1);
+
+    // The engine rooms live in the board search tree; remove them while the
+    // fixture objects linked into the tree still exist (Java calls clear() too).
+    engine.clear();
 }
 
 TEST(MazeExpansionEngineTest, ExpandToDrillRejectsThinRoom)
@@ -327,6 +338,10 @@ TEST(MazeExpansionEngineTest, ExpandToDrillRejectsThinRoom)
     expansion.expand_to_drill(&drill, from_element, 0);
 
     EXPECT_EQ(search.maze_expansion_list().size(), list_size_before);
+
+    // The engine rooms live in the board search tree; remove them while the
+    // fixture objects linked into the tree still exist (Java calls clear() too).
+    engine.clear();
 }
 
 // ==========================================================================
@@ -367,6 +382,10 @@ TEST(MazeExpansionEngineTest, ExpandToOtherLayersStopsWithoutRipupForObstacleRoo
     // Without ripup an obstacle room must never be expanded to other layers.
     EXPECT_NO_THROW(expansion.expand_to_other_layers(from_element));
     EXPECT_EQ(search.maze_expansion_list().size(), list_size_before);
+
+    // The engine rooms live in the board search tree; remove them while the
+    // fixture objects linked into the tree still exist (Java calls clear() too).
+    engine.clear();
 }
 
 TEST(MazeExpansionEngineTest, ExpandToOtherLayersIgnoresNonDrillDoor)
@@ -445,6 +464,10 @@ TEST(MazeExpansionEngineTest, ExpandToOtherLayersAddsViaElementOnFreeSpaceDrill)
     EXPECT_EQ(control.via_lower_bound, 0);
     EXPECT_EQ(control.via_upper_bound, 1);
     EXPECT_DOUBLE_EQ(control.min_normal_via_cost, 1000.0 * std::max(control.max_via_radius, 1.0));
+
+    // The engine rooms live in the board search tree; remove them while the
+    // fixture objects linked into the tree still exist (Java calls clear() too).
+    engine.clear();
 }
 
 // ==========================================================================

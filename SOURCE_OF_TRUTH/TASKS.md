@@ -38,7 +38,7 @@ The script picks the **first `[ ]`/`[~]` task whose deps are all `[x]`**.
 
 ## Phase 0 — Harness & hygiene (first: they make every later task measurable)
 
-- [ ] T001 | deps: - | E2E comparison tool
+- [x] T001 | deps: - | E2E comparison tool
   - cpp: tools/e2e_compare.sh, tools/e2e_all.sh, docs/migration/E2E_STATUS.md
   - what: `e2e_compare.sh <board.dsn>` runs `build/freerouting -de <dsn> -do <out.ses>` with a timeout
     (default 300s), then prints one line: board, exit code, seconds, #wires, #vias in the C++ SES vs the
@@ -47,6 +47,7 @@ The script picks the **first `[ ]`/`[~]` task whose deps are all `[x]`**.
     rewrites `docs/migration/E2E_STATUS.md` as a table with the date.
   - done when: both scripts run on all 8 boards without aborting (C++ crashes/timeouts are reported as
     rows, not fatal) and E2E_STATUS.md exists with today's numbers.
+  - result: tools/e2e_compare.sh + tools/e2e_all.sh (board list read from test_java_boards.sh), docs/migration/E2E_STATUS.md generated 2026-10-08: all 8 boards run without timeouts after T417, but every board routes 0 wires (root cause: T110-T115 pin geometry). Issue006-LPC18XX_43XX_SCH.dsn is a binary OLE file, not a DSN (Java has no baseline either) — parse error is correct. ctest 788/788.
 - [ ] T002 | deps: - | Reconcile JavaToCppClassMap.csv with the real C++ names
   - what: the CSV is name-based and wrong for renamed ports (MazeSearchEngine→MazeSearchAlgo,
     TraceShover→ShoveTraceAlgo, TraceTightener*→PullTightAlgo*, ViaOptimizer→OptViaAlgo,
@@ -57,48 +58,90 @@ The script picks the **first `[ ]`/`[~]` task whose deps are all `[x]`**.
     intentionally out of scope (gui/api/analytics/io.kicad/util.gson/settings.sources UI bits) as
     `out_of_scope`.
   - done when: script exits 0; README "Quick Status" counts regenerated from the CSV.
-- [ ] T003 | deps: - | Fix the known `TileShape::cutout(const TileShape&)` inverted branches
+- [x] T003 | deps: - | Fix the known `TileShape::cutout(const TileShape&)` inverted branches
   - java: geometry/planar/TileShape.java `cutout` + Simplex/IntOctagon/IntBox `cutoutFrom`
   - cpp: src/geometry/planar/TileShape.cpp
   - what: documented latent bug (03_MISSING.md §2.1 "Known latent bug"): when the hole is a Simplex and
     the dividing shape is IntOctagon/IntBox the C++ returns hole-minus-divide instead of Java's result.
   - done when: gtests for all 9 hole/divide type combinations match the Java semantics; ctest green.
+  - result: The inverted Simplex-hole branches had already been fixed in f00c632 but were untested. Added the missing Java IntBox.cutout simplify() of each piece (TileShape::cutout -> private cutout_pieces) and 27 parameterized gtests (9 divide x hole combinations x {area = divide - overlap, disjoint hole, simplify only for IntBox}); reinstating the old inverted branch makes them fail. ctest 788/788.
 - [ ] T004 | deps: - | Clean `-Wunused-*` warnings (Item.h, ClearanceMatrix.cpp, SearchTreeManager.cpp, FRLogger.cpp)
   - done when: a clean full build prints zero warnings from `src/`; no behaviour change.
 
 ## Phase 1 — DSN reader parity (`io/specctra/parser`, Java ≈ 11.4k lines, C++ ≈ 2.2k)
 
+**THIS IS THE HEADLESS BLOCKER (found 2026-10-08, see T417):** the current loader
+(`BoardLoader` + `RoutingBoard::create_pins_from_parsed`) is hand-rolled, not a Java port. All pins
+of a component end up on the component origin as 100x100 placeholder boxes in raw DSN units (no
+resolution scaling, image pin offsets not applied), so pins of different nets overlap, every
+maze start room is empty and **every board routes 0 connections**. T110-T115 must replace it with
+real padstack shapes, image pin offsets and the Java CoordinateTransform (bounds offset 1000).
+
 Theme: every `tests/data/*.dsn` loads; board counts (layers, nets, components, pins, padstacks,
 net classes, keepouts) equal Java's. T110 adds the count dump used as acceptance later.
 
-- [ ] T101 | deps: - | Keyword table + ScopeKeyword parity
+- [x] T101 | deps: - | Keyword table + ScopeKeyword parity
   - java: io/specctra/parser/Keyword.java (131), ScopeKeyword.java (82)
   - cpp: src/designforms/specctra/Keyword.{h,cpp}
   - done when: every Java keyword constant exists with the same spelling; gtest covers the full table.
-- [ ] T102 | deps: T101 | Lexer: SpecctraDsnStreamReader behaviour
+  - result: new src/designforms/specctra/parser/{Keyword,ScopeKeyword}: all 106 Java Keyword constants generated from Keyword.java (scope keywords are generic ScopeKeyword instances until their reader is ported); ScopeKeyword::skip_scope/read_scope ported. The new parser lives in namespace specctra::parser next to the old hand-rolled reader until T117 switches BoardLoader.
+- [x] T102 | deps: T101 | Lexer: SpecctraDsnStreamReader behaviour
   - java: io/specctra/parser/SpecctraDsnStreamReader.java (1862, flex-generated — port the *behaviour*:
     token kinds, NAME vs IDENTIFIER states, `string_quote` switching, parentheses, numbers), IJFlexScanner.java (38)
   - cpp: src/designforms/specctra/Scanner.{h,cpp}
   - done when: gtests on tricky snippets (quoted names, names with `-`/`.`/`/`, string_quote change,
     negative/exponent numbers) and a smoke test that tokenizes every `tests/data/*.dsn` without error.
-- [ ] T103 | deps: T102 | Resolution / Unit / CoordinateTransform in the parser
+  - result: parser/SpecctraDsnStreamReader (+ IJFlexScanner/Token): hand-written longest-match port of the shipped JFlex scanner. The keyword table (111 spellings + following lexical state) and the character classes were extracted from the generated Java DFA by reflection (the 2008 .flex is outdated: shipped scanner warns+skips illegal chars instead of throwing, "generated_by_freeroute"->GENERATED_BY_FREEROUTING). UTF-8 decoding with Java maximal-subpart U+FFFD. tools/dsn_token_dump + tools/dsn_token_compare.py: all 76 tests/data/*.dsn tokenize identically to the Java lexer. 14 gtests. ctest 828/828.
+- [x] T103 | deps: T102 | Resolution / Unit / CoordinateTransform in the parser
   - java: parser/Resolution.java (73), parser/Unit.java (27), board/state/CoordinateTransform.java (112)
   - done when: DSN→board unit conversion matches Java for mil/inch/mm/um resolutions (gtest).
-- [ ] T104 | deps: T102 | Shape reader part 1: Shape dispatch, Rectangle, Circle
+  - result: parser/Resolution (scope reader, now the RESOLUTION_SCOPE keyword instance), parser/CoordinateTransform (numeric dsn<->board part of Java io.CoordinateTransform; the board->dsn shape conversions follow with T201), UnitHelper::parse (Java Unit.fromString: case-insensitive, nullopt for unknown; from_string kept for old callers).
+- [x] T104 | deps: T102 | Shape reader part 1: Shape dispatch, Rectangle, Circle
   - java: parser/Shape.java (646, read_scope / read_area part), Rectangle.java (96), Circle.java (91)
   - cpp: src/designforms/specctra/{Shape,Rectangle,Circle}.{h,cpp}
-- [ ] T105 | deps: T104 | Shape reader part 2: Polygon, Path, PolygonPath, PolylinePath, areas with holes/window
+  - result: parser/{Shape,Rectangle,Circle,Polygon,Path(PolygonPath,PolylinePath),Layer(+LayerStructure),DsnFile(scope helpers)}: all Java read paths + transform_to_board(_rel); tile results are wrapped in ConvexTileShape, area borders/holes converted to PolygonShape for PolylineArea (Java IntBox is a PolylineShape). Padstack shapes are now typed Shape (C++ Circle is not a ConvexShape). ParserShape_test 11 (incl. resolution).
+- [x] T105 | deps: T104 | Shape reader part 2: Polygon, Path, PolygonPath, PolylinePath, areas with holes/window
   - java: parser/Polygon.java (111), Path.java (24), PolygonPath.java (131), PolylinePath.java (73), rest of Shape.java
-- [ ] T106 | deps: T103 | Rule reader (width, clearance + types) and Read/WriteScopeParameter
+  - result: done together with T104 (Polygon, Path, PolygonPath, PolylinePath, areas with window holes and clearance_class).
+- [x] T106 | deps: T103 | Rule reader (width, clearance + types) and Read/WriteScopeParameter
   - java: parser/Rule.java (343), ReadScopeParameter.java (187), WriteScopeParameter.java (38)
-- [ ] T107 | deps: T105,T106 | Structure part 1: layers, LayerStructure, boundary, planes
+  - result: parser/Rule: Rule::read_scope, read_layer_rule_scope, WidthRule, ClearanceRule (read part; write part with T204). ReadScopeParameter fields still grow per scope. Rule tests come with T107.
+- [x] T120 | deps: - | BoardRules parity (prerequisite of T107/T114)
+  - java: rules/BoardRules.java (435), ViaInfos.java (88), NetClasses.java (108) and the NetClass/ClearanceMatrix pieces they use
+  - what: C++ BoardRules lacks via_infos, via_rules, default/appended net classes with default item clearance
+    classes, get/set default trace half widths, create_default_via_rule, get_via_rule, change/remove clearance
+    class, get_default_via_diameter, and the Java constructor taking a ClearanceMatrix (C++ takes a clearance value).
+  - result: ClearanceMatrix rewritten Java-faithful (per-layer values in row[j].column[i], odd->even,
+    case-insensitive names, append/remove_class, set_inner_value, max_value, is_(inner_)layer_dependent,
+    is_equal) — the old port returned 0 from get_clearance_compensation_value, so compensated trees never
+    compensated. BoardRules: Java ctor (LayerStructure, ClearanceMatrix), via_infos, owned via_rules,
+    default/new/appended net classes, default trace widths (Java min 100000 / max 100 defaults),
+    create_default_via_rule, get_via_rule, change/remove_clearance_class, get_default_via_diameter;
+    NetClasses owns its classes; Nets::add assigns the default net class (Java Net ctor). ViaInfo now
+    holds a non-owning Padstack* (library-owned). Padstack/Item-dependent rule functions are compiled in
+    src/board/RulesBoardAccess.cpp (a rules->board link dependency would be cyclic and breaks the RESCAN
+    groups). ClearanceMatrix_test 6, BoardRules_test 5. ctest 850/850.
+- [x] T121 | deps: T120 | BasicBoard insert facade (prerequisite of T107-T116)
+  - java: board/facade/BasicBoard.java insertObstacle/insertViaObstacle/insertComponentObstacle/insertComponentOutline/
+    insertConductionArea/insertPin/insertVia (~300 lines), RoutingBoard ctor creating the BoardOutline item
+  - what: items must go into items_ AND the search trees (SearchTreeManager::insert) like Java insertItem.
+  - result: RoutingBoard::insert_item (Java BoardItemRepository.insertItem: clearance-class check, item list,
+    all search trees, additional_update_after_change) + insert_pin (padstack from the component package,
+    bbox from the pad shapes), insert_obstacle/insert_via_obstacle/insert_component_obstacle (both overloads),
+    insert_component_outline, insert_conduction_area, insert_outline. BoardOutline ported (Java item: thin
+    tree shapes along every outline line or the keepout outside the outline, keepout_outside default false,
+    is_obstacle, contains). ShapeSearchTree::calculate_tree_shapes(BoardOutline/ObstacleArea) +
+    TileShape::divide_into_sections: area obstacles were bounding-box octagons before. The DRC outline
+    special case (not in Java) now uses BoardOutline::contains. ctest 851/851. Still open for T107: the
+    RoutingBoard ctor does not insert the outline (Java does) — Structure.createBoard must call insert_outline.
+- [ ] T107 | deps: T105,T106,T121 | Structure part 1: layers, LayerStructure, boundary, planes
   - java: parser/Structure.java (layer/boundary/plane sections), Layer.java (67), LayerStructure.java (69), Plane.java (84)
   - cpp: src/designforms/specctra/Structure.{h,cpp}
 - [ ] T108 | deps: T107 | Structure part 2: keepout / via_keepout / wire_keepout, via list, snap_angle, control
   - java: parser/Structure.java remaining read sections
 - [ ] T109 | deps: T108 | Structure part 3: autoroute settings scope + create_board (outline, keepouts → board)
   - java: parser/AutorouteSettings.java (243), Structure.java create_board / insert_* parts
-- [ ] T110 | deps: T105,T106 | Library part 1: padstacks → board Padstacks; board-count dump
+- [ ] T110 | deps: T105,T106,T121 | Library part 1: padstacks → board Padstacks; board-count dump
   - java: parser/Library.java (padstack part), core/library/Padstacks.java (84)
   - also: add a test helper (or `freerouting --dump-board-counts <dsn>`) printing layer/net/component/
     pin/padstack/netclass/keepout counts; used as acceptance by T111–T118.
@@ -181,6 +224,36 @@ net classes, keepouts) equal Java's. T110 adds the count dump used as acceptance
   - cpp: also src/Freerouting.cpp (route path)
 - [ ] T416 | deps: T415 | BatchAutorouterThread (headless, single-threaded execution faithful to Java order)
   - java: autoroute/pipeline/BatchAutorouterThread.java (623)
+
+- [x] T417 | deps: - | AutorouteEngine.autoroute_connection faithful port (found during T001)
+  - java: autoroute/maze/AutorouteEngine.java autorouteConnection / resetAllDoors / clear
+  - result: removed the invented grid-A* fallback (it queried the search tree for up to 3M cells
+    per failed connection — the cause of every E2E timeout). Now Java order: maze search ->
+    locator -> clear()/reset_all_doors() -> layer-active check -> remove ripped connections + trace
+    tails -> FoundConnectionInserter. Added ripped-item/ripup-cost params, `Item::clear_autoroute_info`,
+    `get_autoroute_info_pur`, `RoutingBoard::clear_all_item_temporary_autoroute_data`; `clear()` now
+    clears item autoroute data like Java. Interim: BatchAutorouter's star loop (default, board-less
+    AutorouteControl -> no maze could ever start) replaced by per-item `RoutingBoard::autoroute`
+    calls until T401-T409 land. ctest 788/788.
+
+- [x] T418 | deps: - | Board library model (prerequisite of T110-T115, found during T417)
+  - java: core/library/{Padstack,Padstacks,Package,Packages,BoardLibrary}.java, board/model/structure/{Component,Components}.java
+  - result: geometry ConvexTileShape (TileShape as ConvexShape, the C++ TileShape is not a Shape) +
+    polymorphic TileShape::turn_90_degree/rotate_approx/mirror_vertical/mirror_horizontal/translate_by/enlarge;
+    Padstack gets Java ctor (owned per-layer ConvexShapes, id, attach_allowed, hole_only); new Padstacks,
+    board::Package/Packages (pins with name/padstack id/rotation, keepouts, side), BoardLibrary
+    (RoutingBoard::library()); Component/Components rewritten Java-faithful (1-based ids, owned, front/back
+    package). core::Package and the dead board/Components.{h,cpp} removed. DRC pin names now Java-equal.
+- [x] T419 | deps: T418 | Drill item geometry + SearchTreeManager parity
+  - java: DrillItem.getShape/tileShapeCount/shapeLayer, Pin.getShape/getPadstackLayer, Via.getShape,
+    ShapeSearchTree.calculateTreeShapes(DrillItem)/drillHoleObstacle/drillHoleClearanceDelta, SearchTreeManager
+  - result: pins/vias have per-layer board shapes and Java tree shapes (bounding box/octagon/tile by angle
+    restriction, enlarged by clearance compensation + drill-hole delta) instead of one bounding-box octagon.
+    SearchTreeManager: get_autoroute_tree inserts all board items, clearance hooks, reinsert; trees are
+    emptied before deletion; ShapeSearchTree::remove drops the item's entries. AutorouteEngine uses the
+    board's compensated autoroute tree (was a private uncompensated tree) and removes its rooms on
+    destruction. Pin_shape_test (6). C++-only: a pin without component uses its padstack at the center.
+    ctest 828/828.
 
 ## Phase 5 — Board gaps found during review
 

@@ -71,6 +71,10 @@ public:
     virtual int shape_layer(int p_index) const override { (void)p_index; return get_layer(); }
 
     virtual std::shared_ptr<autoroute::ItemAutorouteInfo> get_autoroute_info();
+    /** Returns the autoroute info without creating it (may be null). Mirrors Java Item.getAutorouteInfoPur(). */
+    std::shared_ptr<autoroute::ItemAutorouteInfo> get_autoroute_info_pur() const { return autoroute_info_; }
+    /** Clears the data allocated for the autoroute algorithm. Mirrors Java Item.clearAutorouteInfo(). */
+    void clear_autoroute_info() { autoroute_info_.reset(); }
     virtual std::vector<Item*> get_normal_contacts() const;
 
     /**

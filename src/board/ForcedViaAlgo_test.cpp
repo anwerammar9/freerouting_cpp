@@ -68,7 +68,7 @@ std::shared_ptr<Padstack> make_via_padstack(const std::string& p_name, bool p_pa
 std::shared_ptr<rules::ViaInfo> make_via_info(const std::shared_ptr<Padstack>& p_padstack,
                                               RoutingBoard* p_board)
 {
-    return std::make_shared<rules::ViaInfo>(p_padstack->get_name(), p_padstack, 1, true,
+    return std::make_shared<rules::ViaInfo>(p_padstack->get_name(), p_padstack.get(), 1, true,
                                             &p_board->mutable_rules());
 }
 

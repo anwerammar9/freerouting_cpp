@@ -20,6 +20,7 @@ add_library(freerouting_geometry STATIC
     planar/Side.cpp
     planar/Simplex.cpp
     planar/TileShape.cpp
+    planar/ConvexTileShape.cpp
     planar/Polyline.cpp
     planar/PolylineShape.cpp
     planar/FloatLine.cpp

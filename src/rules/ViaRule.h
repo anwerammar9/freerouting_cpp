@@ -27,9 +27,10 @@ public:
 
     int via_count() const { return static_cast<int>(via_list_.size()); }
     std::shared_ptr<ViaInfo> get_via(int p_index) const;
+    /** The first via with padstack layer range [p_from_layer, p_to_layer], or nullptr. Java getLayerRange. */
+    std::shared_ptr<ViaInfo> get_layer_range(int p_from_layer, int p_to_layer) const;
 
     bool contains(const std::shared_ptr<ViaInfo>& p_via_info) const;
-    bool contains_padstack(const std::shared_ptr<board::Padstack>& p_padstack) const;
 
     /**
      * Non owning overload of contains_padstack(), for callers which hold a

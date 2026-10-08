@@ -1,4 +1,5 @@
 #include "board/Padstack.h"
+#include "logger/FRLogger.h"
 
 #include <algorithm>
 #include <cctype>
@@ -6,7 +7,10 @@
 #include <limits>
 
 #include "geometry/planar/Direction.h"
+#include "geometry/planar/ConvexTileShape.h"
 #include "geometry/planar/IntOctagon.h"
+#include "geometry/planar/PolygonShape.h"
+#include "geometry/planar/Vector.h"
 
 namespace freerouting::board {
 
@@ -59,6 +63,35 @@ Padstack::Padstack(const std::string& p_name)
     , to_layer_(0)
     , drill_(0)
 {
+}
+
+Padstack::Padstack(const std::string& p_name, int p_id,
+    std::vector<std::unique_ptr<geometry::planar::Shape>> p_shapes, bool p_attach_allowed,
+    bool p_placed_absolute)
+    : name_(p_name)
+    , drill_(0)
+    , placed_absolute_(p_placed_absolute)
+    , owned_shapes_(std::move(p_shapes))
+    , id_(p_id)
+    , attach_allowed_(p_attach_allowed)
+{
+    const int layer_count = static_cast<int>(owned_shapes_.size());
+    shapes_.reserve(layer_count);
+    for (const auto& shape : owned_shapes_)
+    {
+        shapes_.push_back(shape.get());
+    }
+    // Java Padstack.fromLayer() / toLayer()
+    from_layer_ = 0;
+    while (from_layer_ < layer_count && shapes_[from_layer_] == nullptr)
+    {
+        ++from_layer_;
+    }
+    to_layer_ = layer_count - 1;
+    while (to_layer_ >= 0 && shapes_[to_layer_] == nullptr)
+    {
+        --to_layer_;
+    }
 }
 
 void Padstack::add_shape(int p_layer, geometry::planar::Shape* p_shape)
@@ -220,6 +253,80 @@ double Padstack::get_smallest_radius() const
         return 0.0;
     }
     return min_radius;
+}
+
+namespace {
+
+using geometry::planar::Area;
+using geometry::planar::Circle;
+using geometry::planar::ConvexTileShape;
+using geometry::planar::PolygonShape;
+using geometry::planar::Shape;
+
+template <typename CircleOp, typename TileOp, typename PolygonOp, typename AreaOp>
+std::unique_ptr<Shape> dispatch_pad_shape(const Shape& p_shape, CircleOp p_circle_op, TileOp p_tile_op,
+    PolygonOp p_polygon_op, AreaOp p_area_op)
+{
+    if (const auto* circle = dynamic_cast<const Circle*>(&p_shape))
+    {
+        return std::make_unique<Circle>(p_circle_op(*circle));
+    }
+    if (const auto* tile = dynamic_cast<const ConvexTileShape*>(&p_shape))
+    {
+        return std::make_unique<ConvexTileShape>(p_tile_op(tile->tile()));
+    }
+    if (const auto* polygon = dynamic_cast<const PolygonShape*>(&p_shape))
+    {
+        return std::make_unique<PolygonShape>(p_polygon_op(*polygon));
+    }
+    if (const auto* area = dynamic_cast<const Area*>(&p_shape))
+    {
+        return p_area_op(*area);
+    }
+    logger::FRLogger::instance().warn("Padstack shape transformation: unsupported shape type");
+    return nullptr;
+}
+
+} // namespace
+
+std::unique_ptr<geometry::planar::Shape> translate_pad_shape(
+    const geometry::planar::Shape& p_shape, const geometry::planar::IntVector& p_vector)
+{
+    return dispatch_pad_shape(
+        p_shape, [&](const Circle& c) { return c.translate_by(p_vector); },
+        [&](const geometry::planar::TileShape& t) { return t.translate_by(p_vector); },
+        [&](const PolygonShape& p) { return p.translate_by(p_vector); },
+        [&](const Area& a) { return std::unique_ptr<Shape>(a.translate_by(p_vector)); });
+}
+
+std::unique_ptr<geometry::planar::Shape> turn_90_degree_pad_shape(
+    const geometry::planar::Shape& p_shape, int p_factor, const geometry::planar::IntPoint& p_pole)
+{
+    return dispatch_pad_shape(
+        p_shape, [&](const Circle& c) { return c.turn_90_degree(p_factor, p_pole); },
+        [&](const geometry::planar::TileShape& t) { return t.turn_90_degree(p_factor, p_pole); },
+        [&](const PolygonShape& p) { return p.turn_90_degree(p_factor, p_pole); },
+        [&](const Area& a) { return std::unique_ptr<Shape>(a.turn_90_degree(p_factor, p_pole)); });
+}
+
+std::unique_ptr<geometry::planar::Shape> rotate_approx_pad_shape(
+    const geometry::planar::Shape& p_shape, double p_angle, const geometry::planar::FloatPoint& p_pole)
+{
+    return dispatch_pad_shape(
+        p_shape, [&](const Circle& c) { return c.rotate_approx(p_angle, p_pole); },
+        [&](const geometry::planar::TileShape& t) { return t.rotate_approx(p_angle, p_pole); },
+        [&](const PolygonShape& p) { return p.rotate_approx(p_angle, p_pole); },
+        [&](const Area& a) { return std::unique_ptr<Shape>(a.rotate_approx(p_angle, p_pole)); });
+}
+
+std::unique_ptr<geometry::planar::Shape> mirror_vertical_pad_shape(
+    const geometry::planar::Shape& p_shape, const geometry::planar::IntPoint& p_pole)
+{
+    return dispatch_pad_shape(
+        p_shape, [&](const Circle& c) { return c.mirror_vertical(p_pole); },
+        [&](const geometry::planar::TileShape& t) { return t.mirror_vertical(p_pole); },
+        [&](const PolygonShape& p) { return p.mirror_vertical(p_pole); },
+        [&](const Area& a) { return std::unique_ptr<Shape>(a.mirror_vertical(p_pole)); });
 }
 
 } // namespace freerouting::board

@@ -35,6 +35,8 @@ public:
     void reinsert_tree_items();
 
 private:
+    /** Removes all board items from p_tree and deletes it (Java drops the tree reference). */
+    void discard_tree(ShapeSearchTree* p_tree);
     void remove_all_board_items();
     void insert_all_board_items();
 

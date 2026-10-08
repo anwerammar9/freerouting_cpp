@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
 #include <memory>
+#include <string>
+#include <tuple>
 
 #include "geometry/planar/IntBox.h"
 #include "geometry/planar/IntOctagon.h"
@@ -228,6 +230,125 @@ TEST(TileShapeCutoutTest, CutoutOfASingleLinePolylineNeverSplitsIt)
     EXPECT_EQ(pieces[0].arr.front().a.x, static_cast<int64_t>(-100));
     EXPECT_EQ(pieces[0].arr.back().b.x, static_cast<int64_t>(200));
 }
+
+// ---- TileShape::cutout(TileShape) ------------------------------------------
+// Java A.cutout(B) == B.cutoutFrom(A): the convex pieces of A minus B, for all
+// nine Simplex/IntOctagon/IntBox combinations of divide shape A and hole B.
+
+enum class TileKind { kSimplex, kOctagon, kBox };
+
+const char* tile_kind_name(TileKind p_kind)
+{
+    switch (p_kind)
+    {
+    case TileKind::kSimplex: return "Simplex";
+    case TileKind::kOctagon: return "Octagon";
+    case TileKind::kBox: return "Box";
+    }
+    return "?";
+}
+
+// The box (l, b, r, t) as the given tile type. Octagon and Simplex get their
+// corners chamfered by p_chamfer, so they are not box-shaped.
+std::unique_ptr<TileShape> make_tile(TileKind p_kind, int p_l, int p_b, int p_r, int p_t, int p_chamfer)
+{
+    if (p_kind == TileKind::kBox)
+    {
+        return std::make_unique<IntBox>(p_l, p_b, p_r, p_t);
+    }
+    IntOctagon oct = TileShape::get_instance(p_l, p_b, p_r, p_t, p_l - p_t + p_chamfer, p_r - p_b - p_chamfer,
+        p_l + p_b + p_chamfer, p_r + p_t - p_chamfer);
+    if (p_kind == TileKind::kOctagon)
+    {
+        return std::make_unique<IntOctagon>(oct);
+    }
+    return std::make_unique<Simplex>(oct.to_Simplex());
+}
+
+double sum_of_areas(const std::vector<std::unique_ptr<TileShape>>& p_pieces)
+{
+    double result = 0;
+    for (const auto& piece : p_pieces)
+    {
+        result += piece->area();
+    }
+    return result;
+}
+
+class TileShapeCutoutTest : public ::testing::TestWithParam<std::tuple<TileKind, TileKind>>
+{
+};
+
+TEST_P(TileShapeCutoutTest, ResultIsDivideShapeMinusHole)
+{
+    const auto [divide_kind, hole_kind] = GetParam();
+    const auto divide = make_tile(divide_kind, 0, 0, 100, 100, 10);
+    const auto hole = make_tile(hole_kind, 40, 30, 160, 70, 6);
+
+    const auto pieces = divide->cutout(*hole);
+
+    ASSERT_FALSE(pieces.empty());
+    const double overlap = TileShape::intersection_of(*divide, *hole)->area();
+    ASSERT_GT(overlap, 0.0);
+    // Pieces of the divide shape, not of the hole (the old inverted branches
+    // returned hole-minus-divide, which has a different area).
+    EXPECT_NEAR(divide->area() - overlap, sum_of_areas(pieces), 1.0);
+    const FloatPoint inside_overlap(70, 50);
+    for (const auto& piece : pieces)
+    {
+        for (const FloatPoint& corner : piece->corner_approx_arr())
+        {
+            EXPECT_LE(divide->distance(corner), 1.0)
+                << "corner (" << corner.x << ", " << corner.y << ") outside the divide shape";
+        }
+        EXPECT_FALSE(piece->contains(inside_overlap)) << "a piece covers the hole";
+    }
+}
+
+TEST_P(TileShapeCutoutTest, DisjointHoleReturnsTheWholeDivideShape)
+{
+    const auto [divide_kind, hole_kind] = GetParam();
+    const auto divide = make_tile(divide_kind, 0, 0, 100, 100, 10);
+    const auto hole = make_tile(hole_kind, 300, 300, 400, 400, 6);
+
+    const auto pieces = divide->cutout(*hole);
+
+    ASSERT_EQ(1u, pieces.size());
+    EXPECT_NEAR(divide->area(), pieces[0]->area(), 1e-6);
+}
+
+TEST_P(TileShapeCutoutTest, OnlyIntBoxCutoutSimplifiesThePieces)
+{
+    const auto [divide_kind, hole_kind] = GetParam();
+    const auto divide = make_tile(divide_kind, 0, 0, 100, 100, 10);
+    const auto hole = make_tile(hole_kind, 40, 30, 160, 70, 6);
+
+    const auto pieces = divide->cutout(*hole);
+
+    // Java IntBox.cutout simplifies each piece, so a 45-degree Simplex piece
+    // comes back as a regular shape. Simplex.cutout keeps Simplex pieces.
+    for (const auto& piece : pieces)
+    {
+        const bool is_simplex = dynamic_cast<const Simplex*>(piece.get()) != nullptr;
+        if (divide_kind == TileKind::kBox)
+        {
+            EXPECT_FALSE(is_simplex);
+        }
+        else if (divide_kind == TileKind::kSimplex)
+        {
+            EXPECT_TRUE(is_simplex);
+        }
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(AllTileKinds, TileShapeCutoutTest,
+    ::testing::Combine(::testing::Values(TileKind::kSimplex, TileKind::kOctagon, TileKind::kBox),
+        ::testing::Values(TileKind::kSimplex, TileKind::kOctagon, TileKind::kBox)),
+    [](const ::testing::TestParamInfo<TileShapeCutoutTest::ParamType>& p_info) {
+        return std::string(tile_kind_name(std::get<0>(p_info.param))) + "Minus"
+            + tile_kind_name(std::get<1>(p_info.param));
+    });
+
 
 } // namespace
 } // namespace planar

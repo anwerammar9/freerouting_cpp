@@ -53,6 +53,12 @@ public:
     virtual geometry::planar::IntBox get_bounding_box() const;
 
     /**
+     * The items of the board (Java BasicBoard.itemList). The board base class
+     * keeps no item list; RoutingBoard overrides this.
+     */
+    virtual std::vector<Item*> get_items() const { return {}; }
+
+    /**
      * Returns a new unique item id for items created on this board.
      * Mirrors the id_no_generator used by Java Item().
      */

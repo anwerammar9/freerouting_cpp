@@ -188,7 +188,7 @@ bool ForcedViaAlgo::check(const std::shared_ptr<rules::ViaInfo>& p_via_info,
     const bool is_90_degree = is_90_degree_mode(p_board);
     const std::vector<Item*> empty_ignore;
     const std::unique_ptr<geometry::planar::Circle> hole_shape =
-        hole_check_shape(via_padstack.get(), p_location, p_board);
+        hole_check_shape(via_padstack, p_location, p_board);
     for (int i = via_padstack->get_from_layer(); i <= via_padstack->get_to_layer(); ++i)
     {
         const geometry::planar::Shape* curr_pad_shape = via_padstack->get_shape(i);
@@ -308,7 +308,7 @@ bool ForcedViaAlgo::insert(const std::shared_ptr<rules::ViaInfo>& p_via_info,
     const std::vector<Item*> empty_ignore;
     const auto* location_int = dynamic_cast<const geometry::planar::IntPoint*>(&p_location);
     const std::unique_ptr<geometry::planar::Circle> hole_shape =
-        hole_check_shape(via_padstack.get(), p_location, p_board);
+        hole_check_shape(via_padstack, p_location, p_board);
     for (int i = via_padstack->get_from_layer(); i <= via_padstack->get_to_layer(); ++i)
     {
         const geometry::planar::Shape* curr_pad_shape = via_padstack->get_shape(i);
@@ -381,7 +381,7 @@ bool ForcedViaAlgo::insert(const std::shared_ptr<rules::ViaInfo>& p_via_info,
             }
         }
     }
-    p_board->insert_via(via_padstack.get(), p_location, p_net_no_arr, p_via_info->get_clearance_class(),
+    p_board->insert_via(via_padstack, p_location, p_net_no_arr, p_via_info->get_clearance_class(),
                         FixedState::NOT_FIXED, p_via_info->attach_smd_allowed());
     return true;
 }

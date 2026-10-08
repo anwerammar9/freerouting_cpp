@@ -24,6 +24,9 @@ class TileShape;
 namespace freerouting::board {
 
 class Item;
+class DrillItem;
+class BoardOutline;
+class ObstacleArea;
 class BasicBoard;
 class SearchTreeObject;
 class Pin;
@@ -95,6 +98,32 @@ public:
      * Returns 0, if no clearance compensation is used for this tree.
      */
     int clearance_compensation_value(int p_clearance_class_no, int p_layer) const;
+
+    /**
+     * The tree shapes of a drill item: the bounding box / octagon / tile (by
+     * the board's angle restriction) of each layer shape, enlarged by the
+     * clearance compensation and the drill hole clearance delta. Port of Java
+     * ShapeSearchTree.calculateTreeShapes(DrillItem).
+     */
+    std::vector<std::shared_ptr<::freerouting::geometry::planar::TileShape>> calculate_tree_shapes(
+        const DrillItem& p_drill_item) const;
+
+    /**
+     * The tree shapes of the board outline: the convex pieces of the keepout
+     * outside the outline, or thin shapes along every outline line, on every
+     * layer. Port of Java ShapeSearchTree.calculateTreeShapes(BoardOutline).
+     */
+    std::vector<std::shared_ptr<::freerouting::geometry::planar::TileShape>> calculate_tree_shapes(
+        const BoardOutline& p_board_outline) const;
+
+    /**
+     * The tree shapes of an obstacle/conduction area: the convex pieces of the
+     * area, enlarged by the clearance compensation and divided into sections
+     * of at most 50000 (or 500 mil with a host CAD). Port of Java
+     * ShapeSearchTree.calculateTreeShapes(ObstacleArea).
+     */
+    std::vector<std::shared_ptr<::freerouting::geometry::planar::TileShape>> calculate_tree_shapes(
+        const ObstacleArea& p_obstacle_area) const;
 
     int get_compensated_clearance_class_no() const { return compensated_clearance_class_no_; }
 

@@ -39,6 +39,13 @@ namespace freerouting::board {
 class Item;
 class Component;
 class Components;
+class BoardLibrary;
+class Pin;
+class ObstacleArea;
+class ViaObstacleArea;
+class ComponentObstacleArea;
+class ComponentOutline;
+class ConductionArea;
 class Padstack;
 class Pin;
 class PolylineTrace;
@@ -154,6 +161,10 @@ public:
     Components* components() { return components_.get(); }
     const Components* components() const { return components_.get(); }
 
+    /** The padstacks, packages and via padstacks of the board. Mirrors Java BasicBoard.library. */
+    BoardLibrary& library() { return *library_; }
+    const BoardLibrary& library() const { return *library_; }
+
     // Create Pin items from parsed data
     void create_pins_from_parsed();
 
@@ -164,6 +175,7 @@ public:
     const designforms::specctra::PinDef* get_pin(int p_index) const;
 
     int get_item_count() const { return static_cast<int>(items_.size()); }
+    std::vector<Item*> get_items() const override { return items_; }
     Item* get_item(int p_index) const;
 
     // Search tree manager access
@@ -291,6 +303,12 @@ public:
      */
     bool remove_trace_tails(int p_net_no, Item::StopConnectionOption p_stop_option);
 
+    /**
+     * Clears the autoroute info of all items of the board. Mirrors Java
+     * RoutingBoard.clearAllItemTemporaryAutorouteData().
+     */
+    void clear_all_item_temporary_autoroute_data();
+
     // Clearance value access
     int clearance_value(int p_class_1, int p_class_2, int p_layer) const;
 
@@ -320,6 +338,50 @@ public:
                                int p_cl_class_no,
                                bool p_only_not_shovable_obstacles);
 
+    // ---- Java BasicBoard insert facade (items go into the item list and all search trees) ----
+
+    /**
+     * Inserts p_item into the board: item list, search trees, autoroute
+     * database update. A clearance class out of range is reset to 0 with a
+     * warning. Port of Java BoardItemRepository.insertItem.
+     */
+    void insert_item(Item* p_item);
+    /** Java BasicBoard.insertPin: the padstack comes from the component package. */
+    Pin* insert_pin(int p_component_id, int p_pin_index, const std::vector<int>& p_net_nos, int p_clearance_class,
+        FixedState p_fixed_state);
+    /** Java BasicBoard.insertObstacle(Area, layer, clearanceClass, fixedState). */
+    ObstacleArea* insert_obstacle(std::shared_ptr<geometry::planar::Area> p_area, int p_layer, int p_clearance_class,
+        FixedState p_fixed_state);
+    /** Java BasicBoard.insertObstacle with a component placement. */
+    ObstacleArea* insert_obstacle(std::shared_ptr<geometry::planar::Area> p_area, int p_layer,
+        const geometry::planar::Vector& p_translation, double p_rotation_in_degree, bool p_side_changed,
+        int p_clearance_class, int p_component_id, const std::string& p_name, FixedState p_fixed_state);
+    ViaObstacleArea* insert_via_obstacle(std::shared_ptr<geometry::planar::Area> p_area, int p_layer,
+        int p_clearance_class, FixedState p_fixed_state);
+    ViaObstacleArea* insert_via_obstacle(std::shared_ptr<geometry::planar::Area> p_area, int p_layer,
+        const geometry::planar::Vector& p_translation, double p_rotation_in_degree, bool p_side_changed,
+        int p_clearance_class, int p_component_id, const std::string& p_name, FixedState p_fixed_state);
+    ComponentObstacleArea* insert_component_obstacle(std::shared_ptr<geometry::planar::Area> p_area, int p_layer,
+        int p_clearance_class, FixedState p_fixed_state);
+    ComponentObstacleArea* insert_component_obstacle(std::shared_ptr<geometry::planar::Area> p_area, int p_layer,
+        const geometry::planar::Vector& p_translation, double p_rotation_in_degree, bool p_side_changed,
+        int p_clearance_class, int p_component_id, const std::string& p_name, FixedState p_fixed_state);
+    /**
+     * Java BasicBoard.insertComponentOutline. The C++ ComponentOutline does not
+     * store the courtyard/fabrication/closed flags yet; they are accepted for
+     * signature parity.
+     */
+    ComponentOutline* insert_component_outline(std::shared_ptr<geometry::planar::Area> p_area, bool p_is_front,
+        const geometry::planar::Vector& p_translation, double p_rotation_in_degree, int p_component_id,
+        bool p_is_courtyard, bool p_is_fabrication, bool p_is_closed, FixedState p_fixed_state);
+    /** Java BasicBoard.insertConductionArea. */
+    ConductionArea* insert_conduction_area(std::shared_ptr<geometry::planar::Area> p_area, int p_layer,
+        const std::vector<int>& p_net_nos, int p_clearance_class, bool p_is_obstacle, FixedState p_fixed_state);
+    /** Java BasicBoard.insertOutline. */
+    BoardOutline* insert_outline(std::vector<std::shared_ptr<geometry::planar::PolylineShape>> p_outline_shapes,
+        int p_clearance_class);
+
+
     // Inserts a via into the board. p_attach_allowed indicates, if the via may
     // overlap with smd pins of the same net. Mirrors Java BasicBoard.insert_via
     // (trace splitting is a TODO until split_traces is ported).
@@ -345,6 +407,7 @@ private:
     Communication* board_communication_ = nullptr;
     std::vector<Item*> items_;
     std::unique_ptr<Components> components_;
+    std::unique_ptr<BoardLibrary> library_;
     designforms::specctra::Result parsed_result_;
 };
 

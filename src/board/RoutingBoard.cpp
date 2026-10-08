@@ -1,4 +1,5 @@
 #include "board/RoutingBoard.h"
+#include "board/BoardLibrary.h"
 #include "board/Item.h"
 #include "board/Component.h"
 #include "board/ItemSelectionFilter.h"
@@ -8,6 +9,13 @@
 #include "board/Communication.h"
 #include "board/ChangedArea.h"
 #include "board/BoardOutline.h"
+#include "board/Padstacks.h"
+#include "board/Package.h"
+#include "board/ConductionArea.h"
+#include "board/ComponentOutline.h"
+#include "board/ComponentObstacleArea.h"
+#include "board/ViaObstacleArea.h"
+#include "board/ObstacleArea.h"
 #include "board/CalcFromSide.h"
 #include "board/SearchTreeManager.h"
 #include "board/ShoveTraceAlgo.h"
@@ -40,6 +48,7 @@ RoutingBoard::RoutingBoard(const geometry::planar::IntBox& p_bounding_box,
     , bounding_box_(p_bounding_box)
     , board_communication_(p_board_communication)
     , components_(std::make_unique<Components>())
+    , library_(std::make_unique<BoardLibrary>(p_layer_structure.layer_count()))
 {
 }
 
@@ -642,6 +651,17 @@ bool RoutingBoard::remove_items(const std::vector<Item*>& p_items)
     return result;
 }
 
+void RoutingBoard::clear_all_item_temporary_autoroute_data()
+{
+    for (Item* item : items_)
+    {
+        if (item != nullptr)
+        {
+            item->clear_autoroute_info();
+        }
+    }
+}
+
 bool RoutingBoard::remove_trace_tails(int p_net_no, Item::StopConnectionOption p_stop_option)
 {
     // Port of Java RoutingBoard.removeTraceTails(int, Item.StopConnectionOption).
@@ -937,6 +957,181 @@ void RoutingBoard::join_graphics_update_box(const geometry::planar::IntBox& p_bo
 {
     (void)p_box;
     // TODO: notify boardgraphics observers once they are ported.
+}
+
+void RoutingBoard::insert_item(Item* p_item)
+{
+    // Port of Java BoardItemRepository.insertItem.
+    if (p_item == nullptr)
+    {
+        return;
+    }
+    if (p_item->get_clearance_class() < 0
+        || p_item->get_clearance_class() >= get_rules().get_clearance_matrix().get_class_count())
+    {
+        logger::FRLogger::instance().warn("LayeredBoard.insert_item: clearanceClass no out of range");
+        p_item->set_clearance_class(0);
+    }
+    p_item->set_board(this);
+    items_.push_back(p_item);
+    get_search_tree_manager()->insert(p_item);
+    additional_update_after_change(p_item);
+}
+
+namespace {
+
+/** The union of the bounding boxes of the shapes of a drill item (Java DrillItem.boundingBox). */
+geometry::planar::IntBox drill_item_bounding_box(const DrillItem& p_item)
+{
+    geometry::planar::IntBox result = geometry::planar::IntBox::EMPTY;
+    for (int i = 0; i < p_item.tile_shape_count(); ++i)
+    {
+        if (const geometry::planar::Shape* shape = p_item.get_shape(i))
+        {
+            result = result.union_with(shape->bounding_box());
+        }
+    }
+    return result;
+}
+
+std::shared_ptr<geometry::planar::Vector> zero_vector()
+{
+    return std::make_shared<geometry::planar::IntVector>(0, 0);
+}
+
+} // namespace
+
+Pin* RoutingBoard::insert_pin(int p_component_id, int p_pin_index, const std::vector<int>& p_net_nos,
+    int p_clearance_class, FixedState p_fixed_state)
+{
+    auto* new_pin = new Pin(p_component_id, p_pin_index, p_net_nos, p_clearance_class, generate_item_id(),
+        p_fixed_state, this);
+    // Java Pin.getPadstack(): board.library.padstacks.get(component.getPackage().getPin(pinIndex).padstackId)
+    const Component* component = components_->get(p_component_id);
+    if (component != nullptr && component->get_package() != nullptr)
+    {
+        if (const Package::Pin* package_pin = component->get_package()->get_pin(p_pin_index))
+        {
+            new_pin->set_padstack(library_->padstacks().get(package_pin->padstack_id));
+        }
+    }
+    new_pin->set_bounding_box(drill_item_bounding_box(*new_pin));
+    insert_item(new_pin);
+    return new_pin;
+}
+
+ObstacleArea* RoutingBoard::insert_obstacle(std::shared_ptr<geometry::planar::Area> p_area, int p_layer,
+    int p_clearance_class, FixedState p_fixed_state)
+{
+    return insert_obstacle(std::move(p_area), p_layer, *zero_vector(), 0, false, p_clearance_class, 0, "", p_fixed_state);
+}
+
+ObstacleArea* RoutingBoard::insert_obstacle(std::shared_ptr<geometry::planar::Area> p_area, int p_layer,
+    const geometry::planar::Vector& p_translation, double p_rotation_in_degree, bool p_side_changed,
+    int p_clearance_class, int p_component_id, const std::string& p_name, FixedState p_fixed_state)
+{
+    if (p_area == nullptr)
+    {
+        logger::FRLogger::instance().warn("BasicBoard.insert_obstacle: area is null");
+        return nullptr;
+    }
+    auto* obs = new ObstacleArea(p_area, p_layer, p_translation, p_rotation_in_degree, p_side_changed,
+        p_clearance_class, generate_item_id(), p_component_id, p_name, p_fixed_state, this);
+    obs->set_bounding_box(obs->bounding_box());
+    insert_item(obs);
+    return obs;
+}
+
+ViaObstacleArea* RoutingBoard::insert_via_obstacle(std::shared_ptr<geometry::planar::Area> p_area, int p_layer,
+    int p_clearance_class, FixedState p_fixed_state)
+{
+    return insert_via_obstacle(std::move(p_area), p_layer, *zero_vector(), 0, false, p_clearance_class, 0, "", p_fixed_state);
+}
+
+ViaObstacleArea* RoutingBoard::insert_via_obstacle(std::shared_ptr<geometry::planar::Area> p_area, int p_layer,
+    const geometry::planar::Vector& p_translation, double p_rotation_in_degree, bool p_side_changed,
+    int p_clearance_class, int p_component_id, const std::string& p_name, FixedState p_fixed_state)
+{
+    if (p_area == nullptr)
+    {
+        logger::FRLogger::instance().warn("BasicBoard.insert_via_obstacle: area is null");
+        return nullptr;
+    }
+    auto* obs = new ViaObstacleArea(p_area, p_layer, p_translation, p_rotation_in_degree, p_side_changed,
+        p_clearance_class, generate_item_id(), p_component_id, p_name, p_fixed_state, this);
+    obs->set_bounding_box(obs->bounding_box());
+    insert_item(obs);
+    return obs;
+}
+
+ComponentObstacleArea* RoutingBoard::insert_component_obstacle(std::shared_ptr<geometry::planar::Area> p_area,
+    int p_layer, int p_clearance_class, FixedState p_fixed_state)
+{
+    return insert_component_obstacle(
+        std::move(p_area), p_layer, *zero_vector(), 0, false, p_clearance_class, 0, "", p_fixed_state);
+}
+
+ComponentObstacleArea* RoutingBoard::insert_component_obstacle(std::shared_ptr<geometry::planar::Area> p_area,
+    int p_layer, const geometry::planar::Vector& p_translation, double p_rotation_in_degree, bool p_side_changed,
+    int p_clearance_class, int p_component_id, const std::string& p_name, FixedState p_fixed_state)
+{
+    if (p_area == nullptr)
+    {
+        logger::FRLogger::instance().warn("BasicBoard.insert_component_obstacle: area is null");
+        return nullptr;
+    }
+    auto* obs = new ComponentObstacleArea(p_area, p_layer, p_translation, p_rotation_in_degree, p_side_changed,
+        p_clearance_class, generate_item_id(), p_component_id, p_name, p_fixed_state, this);
+    obs->set_bounding_box(obs->bounding_box());
+    insert_item(obs);
+    return obs;
+}
+
+ComponentOutline* RoutingBoard::insert_component_outline(std::shared_ptr<geometry::planar::Area> p_area,
+    bool p_is_front, const geometry::planar::Vector& p_translation, double p_rotation_in_degree, int p_component_id,
+    bool /*p_is_courtyard*/, bool /*p_is_fabrication*/, bool /*p_is_closed*/, FixedState p_fixed_state)
+{
+    if (p_area == nullptr)
+    {
+        logger::FRLogger::instance().warn("BasicBoard.insert_component_outline: area is null");
+        return nullptr;
+    }
+    if (!p_area->is_bounded())
+    {
+        logger::FRLogger::instance().warn("BasicBoard.insert_component_outline: area is not bounded");
+        return nullptr;
+    }
+    auto* outline = new ComponentOutline(p_area, p_is_front, p_translation, p_rotation_in_degree, generate_item_id(),
+        p_component_id, p_fixed_state, this);
+    if (const auto area = outline->get_area())
+    {
+        outline->set_bounding_box(area->bounding_box());
+    }
+    insert_item(outline);
+    return outline;
+}
+
+ConductionArea* RoutingBoard::insert_conduction_area(std::shared_ptr<geometry::planar::Area> p_area, int p_layer,
+    const std::vector<int>& p_net_nos, int p_clearance_class, bool p_is_obstacle, FixedState p_fixed_state)
+{
+    if (p_area == nullptr)
+    {
+        logger::FRLogger::instance().warn("BasicBoard.insert_conduction_area: area is null");
+        return nullptr;
+    }
+    auto* area = new ConductionArea(p_area, p_layer, *zero_vector(), 0, false, p_net_nos, p_clearance_class,
+        generate_item_id(), 0, "", p_is_obstacle, p_fixed_state, this);
+    area->set_bounding_box(area->bounding_box());
+    insert_item(area);
+    return area;
+}
+
+BoardOutline* RoutingBoard::insert_outline(std::vector<std::shared_ptr<geometry::planar::PolylineShape>> p_outline_shapes,
+    int p_clearance_class)
+{
+    auto* result = new BoardOutline(std::move(p_outline_shapes), p_clearance_class, generate_item_id(), this);
+    insert_item(result);
+    return result;
 }
 
 Via* RoutingBoard::insert_via(Padstack* p_padstack,

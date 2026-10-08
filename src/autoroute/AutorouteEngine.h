@@ -4,10 +4,12 @@
 #include <memory>
 #include <vector>
 #include <string>
+#include <map>
 #include <set>
 
 #include "autoroute/AutorouteControl.h"
 #include "autoroute/AutorouteAttemptResult.h"
+#include "board/AngleRestriction.h"
 #include "board/Item.h"
 #include "board/ShapeSearchTree.h"
 
@@ -51,14 +53,22 @@ public:
 
     bool is_stop_requested() const;
 
+    /**
+     * Autoroutes a connection between p_start_set and p_dest_set. Items ripped
+     * up by the maze search are collected in p_ripped_item_list and removed
+     * before the new connection is inserted. Port of Java
+     * AutorouteEngine.autorouteConnection().
+     */
     AutorouteAttemptResult autoroute_connection(const std::set<board::Item*>& p_start_set,
                                                 const std::set<board::Item*>& p_dest_set,
-                                                const AutorouteControl& p_ctrl);
+                                                const AutorouteControl& p_ctrl,
+                                                std::set<board::Item*>* p_ripped_item_list = nullptr,
+                                                std::map<board::Item*, int>* p_ripup_costs = nullptr);
 
     board::ShapeSearchTree* get_autoroute_search_tree()
     {
         ensure_search_tree_initialized();
-        return autoroute_search_tree_.get();
+        return autoroute_search_tree_;
     }
 
     /** Returns the routing board of this autoroute engine. Mirrors Java AutorouteEngine.board. */
@@ -186,7 +196,8 @@ private:
     int trace_clearance_class_no_ = 0;
     std::unique_ptr<datastructures::TimeLimit> time_limit_;
 
-    std::unique_ptr<board::ShapeSearchTree> autoroute_search_tree_;
+    /** The board's clearance-compensated autoroute tree (Java AutorouteEngine.autorouteSearchTree; not owned). */
+    board::ShapeSearchTree* autoroute_search_tree_ = nullptr;
 
     /**
      * The pages of expansion drills used by the maze search to change the layer.
@@ -196,6 +207,10 @@ private:
     
     // Lazy initialization of search tree
     void ensure_search_tree_initialized();
+    /** Port of Java AutorouteEngine.resetAllDoors(). */
+    void reset_all_doors();
+    /** The board trace angle restriction as the board-level enum used by the locator. */
+    board::AngleRestriction board_angle_restriction() const;
 
     /**
      * Removes all net dependent complete free space expansion rooms from the

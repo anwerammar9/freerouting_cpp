@@ -134,6 +134,10 @@ TEST(DrillPageTest, EmptyPageProducesSingleFreeDrillWithRoomsOnAllLayers)
     // The completed room is the free space left of the wall.
     EXPECT_EQ(drill->room_arr[0]->get_shape(), fr::geometry::planar::IntBox(0, 0, 4000, 10000));
     EXPECT_EQ(drill->room_arr[1]->get_shape(), fr::geometry::planar::IntBox(0, 0, 4000, 10000));
+
+    // The engine rooms live in the board search tree; remove them while the
+    // fixture objects linked into the tree still exist (Java calls clear() too).
+    engine.clear();
 }
 
 TEST(DrillPageTest, DrillsAreCachedByNetAndRecomputedAfterInvalidate)
@@ -169,10 +173,9 @@ TEST(DrillPageTest, DrillsAreCachedByNetAndRecomputedAfterInvalidate)
     ASSERT_EQ(still_cached.size(), 1u);
     EXPECT_EQ(still_cached[0], drills[0]);
 
-    // Maintain the autoroute search tree the way the router would when new
-    // items are added to the board, then invalidate so the drills are
+    // The board inserted the trace into its autoroute search tree already
+    // (Java SearchTreeManager.insert); invalidate so the drills are
     // recalculated and avoid the obstacle.
-    engine.get_autoroute_search_tree()->insert(trace);
     page.invalidate();
     auto recomputed = page.get_drills(&engine, false);
     EXPECT_GT(recomputed.size(), 1u);
@@ -181,6 +184,10 @@ TEST(DrillPageTest, DrillsAreCachedByNetAndRecomputedAfterInvalidate)
         // The obstacle trace has half width 50 around the center line y = 300.
         EXPECT_TRUE(drill->location.y <= 250 || drill->location.y >= 350);
     }
+
+    // The engine rooms live in the board search tree; remove them while the
+    // fixture objects linked into the tree still exist (Java calls clear() too).
+    engine.clear();
 }
 
 TEST(DrillPageTest, OverlappingObstacleCreatesMultipleDrillShapes)
@@ -260,7 +267,7 @@ TEST(DrillPageTest, AttachSmdKeepsSameDrillShapeWithCentreOfGravityLocation)
         insert_trace(board.get(),
                      {fr::geometry::planar::IntPoint(0, 500), fr::geometry::planar::IntPoint(1000, 500)},
                      {2});
-    engine.get_autoroute_search_tree()->insert(trace);
+    // The board inserted the trace into its autoroute tree already (Java SearchTreeManager.insert).
     page.invalidate();
     auto drills_split_smd = page.get_drills(&engine, true);
     EXPECT_GE(drills_split_smd.size(), 2u);
@@ -270,6 +277,10 @@ TEST(DrillPageTest, AttachSmdKeepsSameDrillShapeWithCentreOfGravityLocation)
         EXPECT_NE(drill->room_arr[0], nullptr);
         EXPECT_NE(drill->room_arr[1], nullptr);
     }
+
+    // The engine rooms live in the board search tree; remove them while the
+    // fixture objects linked into the tree still exist (Java calls clear() too).
+    engine.clear();
 }
 
 TEST(DrillPageTest, MazeSearchElementsPerLayer)

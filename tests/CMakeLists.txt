@@ -165,6 +165,13 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/src/board/OptViaAlgo_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/ForcedViaAlgo_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/Pin_center_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/board/Pin_shape_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/board/Package_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/board/Padstacks_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/board/BoardLibrary_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/board/Component_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/rules/ClearanceMatrix_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/rules/BoardRules_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/PullTightAlgo_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/RoutingBoard_stubs_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/Trace_test.cpp
@@ -231,6 +238,8 @@ if(BUILD_TESTS)
     # ---- gtest-based companion tests for compiled designforms classes ----
     set(DESIGNFORMS_TEST_SOURCES
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/Wiring_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/SpecctraDsnStreamReader_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/ParserShape_test.cpp
     )
 
     foreach(test_src IN LISTS DESIGNFORMS_TEST_SOURCES)
@@ -274,6 +283,7 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/src/geometry/planar/Circle_test.cpp
         ${CMAKE_SOURCE_DIR}/src/geometry/planar/Point_test.cpp
         ${CMAKE_SOURCE_DIR}/src/geometry/planar/TileShape_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/geometry/planar/ConvexTileShape_test.cpp
         ${CMAKE_SOURCE_DIR}/src/geometry/planar/Polyline_test.cpp
         ${CMAKE_SOURCE_DIR}/src/geometry/planar/PolygonShape_test.cpp
         ${CMAKE_SOURCE_DIR}/src/geometry/planar/Area_test.cpp

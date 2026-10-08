@@ -9,6 +9,8 @@
 namespace freerouting {
 namespace rules {
 
+class BoardRules;
+
 class Net
 {
 public:
@@ -85,6 +87,8 @@ public:
     int net_count() const { return static_cast<int>(net_arr_.size()); }
     int signal_net_count() const;
 
+    /** The rules owning this net list; new nets get its default net class (Java Net ctor). */
+    void set_rules(BoardRules* p_rules) { rules_ = p_rules; }
     void* get_board() const { return board_; }
     void set_board(void* p_board);
 
@@ -95,6 +99,7 @@ public:
 private:
     std::vector<Net*> net_arr_;
     void* board_;
+    BoardRules* rules_ = nullptr;
 };
 
 } // namespace rules

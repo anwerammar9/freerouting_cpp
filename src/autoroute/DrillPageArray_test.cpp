@@ -188,7 +188,7 @@ TEST(DrillPageArrayTest, InvalidateRecomputesAffectedPages)
         insert_trace(board.get(),
                      {fr::geometry::planar::IntPoint(6000, 7500), fr::geometry::planar::IntPoint(9000, 7500)},
                      {2});
-    engine.get_autoroute_search_tree()->insert(trace);
+    // The board inserted the trace into its autoroute tree already (Java SearchTreeManager.insert).
 
     // The cached value is still served until the page is invalidated.
     EXPECT_EQ(affected->get_drills(&engine, false).size(), 1u);
@@ -205,4 +205,8 @@ TEST(DrillPageArrayTest, InvalidateRecomputesAffectedPages)
         // inside the obstacle band, so check containment instead of the y band.
         EXPECT_FALSE(drill->get_shape().contains(fr::geometry::planar::IntPoint(7500, 7500)));
     }
+
+    // The engine rooms live in the board search tree; remove them while the
+    // fixture objects linked into the tree still exist (Java calls clear() too).
+    engine.clear();
 }

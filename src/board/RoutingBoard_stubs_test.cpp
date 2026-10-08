@@ -8,7 +8,10 @@
 #include "board/Trace.h"
 #include "geometry/planar/IntBox.h"
 #include "geometry/planar/Point.h"
+#include "geometry/planar/PolygonShape.h"
 #include "geometry/planar/Polyline.h"
+#include "board/SearchTreeManager.h"
+#include "board/ShapeSearchTree.h"
 #include "gtest/gtest.h"
 #include "rules/BoardRules.h"
 
@@ -45,11 +48,28 @@ TEST(RoutingBoardStubsTest, GetOutlineReturnsNullWithoutOutline)
 TEST(RoutingBoardStubsTest, GetOutlineReturnsInsertedOutline)
 {
     auto board = make_routing_board();
-    auto outline = std::make_unique<BoardOutline>();
-    BoardOutline* outline_ptr = outline.get();
-    board->add_item(outline_ptr);
-    outline.release();
+    auto square = std::make_shared<geometry::planar::PolygonShape>(std::vector<geometry::planar::IntPoint>{
+        { 0, 0 }, { 10000, 0 }, { 10000, 10000 }, { 0, 10000 } });
+    BoardOutline* outline_ptr = board->insert_outline({ square }, 1);
     EXPECT_EQ(board->get_outline(), outline_ptr);
+}
+
+TEST(RoutingBoardStubsTest, OutlineTreeShapesAreThinShapesAlongTheLinesOnEveryLayer)
+{
+    auto board = make_routing_board();
+    auto square = std::make_shared<geometry::planar::PolygonShape>(std::vector<geometry::planar::IntPoint>{
+        { 0, 0 }, { 10000, 0 }, { 10000, 10000 }, { 0, 10000 } });
+    BoardOutline* outline = board->insert_outline({ square }, 1);
+    EXPECT_EQ(4, outline->line_count());
+    const ShapeSearchTree* tree = board->get_search_tree_manager()->get_default_tree();
+    ASSERT_EQ(4 * board->get_layer_count(), outline->tree_shape_count(*tree));
+    // The first line of the square lies on y = 0; its tree shape is that line
+    // widened by the half width 100 of the outline.
+    const geometry::planar::IntBox box = outline->get_tree_shape(*tree, 0)->bounding_box();
+    EXPECT_LE(box.ur.y - box.ll.y, 2 * BoardOutline::kHalfWidth + 2);
+    EXPECT_TRUE(outline->is_obstacle(outline) == false);
+    EXPECT_TRUE(outline->contains(geometry::planar::IntPoint(5000, 5000)));
+    EXPECT_FALSE(outline->contains(geometry::planar::IntPoint(20000, 5000)));
 }
 
 TEST(RoutingBoardStubsTest, ContainsTraceTailsDetectsUncontactedTrace)

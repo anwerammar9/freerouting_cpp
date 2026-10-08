@@ -5,10 +5,12 @@
 #include "autoroute/DrillPage.h"
 #include "autoroute/DrillPageArray.h"
 #include "autoroute/ExpansionRoom.h"
+#include "autoroute/ItemAutorouteInfo.h"
 #include "autoroute/SortedRoomNeighbours.h"
 #include "board/Padstack.h"
 #include "board/RoutingBoard.h"
 #include "board/PolylineTrace.h"
+#include "board/SearchTreeManager.h"
 #include "board/ShapeSearchTree.h"
 #include "geometry/planar/Shape.h"
 #include "rules/BoardRules.h"
@@ -48,7 +50,7 @@ AutorouteEngine::AutorouteEngine(board::RoutingBoard* p_board, int p_trace_clear
         if (default_via_rule != nullptr && default_via_rule->via_count() > 0)
         {
             auto first_via = default_via_rule->get_via(0);
-            std::shared_ptr<board::Padstack> via_padstack =
+            board::Padstack* via_padstack =
                 first_via != nullptr ? first_via->get_padstack() : nullptr;
             if (via_padstack != nullptr)
             {
@@ -69,30 +71,27 @@ AutorouteEngine::AutorouteEngine(board::RoutingBoard* p_board, int p_trace_clear
     }
 }
 
-AutorouteEngine::~AutorouteEngine() = default;
+AutorouteEngine::~AutorouteEngine()
+{
+    // The search tree belongs to the board and outlives this engine, so the
+    // complete rooms owned by the engine must leave it (Java relies on GC and
+    // on clear() having been called).
+    if (autoroute_search_tree_ != nullptr)
+    {
+        for (auto& room : complete_expansion_rooms_)
+        {
+            room->remove_from_tree(*autoroute_search_tree_);
+        }
+    }
+}
 
 void AutorouteEngine::ensure_search_tree_initialized()
 {
-    if (autoroute_search_tree_)
+    // Java AutorouteEngine(): autorouteSearchTree =
+    // board.searchTreeManager.getAutorouteTree(traceClearanceClassIndex).
+    if (autoroute_search_tree_ == nullptr && board_ != nullptr && board_->get_search_tree_manager() != nullptr)
     {
-        return; // Already initialized
-    }
-    
-    if (board_ && trace_clearance_class_no_ > 0)
-    {
-        // The tree is built without clearance compensation; clearance is
-        // checked explicitly via overlapping_objects_with_clearance.
-        autoroute_search_tree_ = std::make_unique<board::ShapeSearchTree>(board_, 0);
-        
-        logger::FRLogger::instance().debug("Created autoroute search tree (clearance class " + 
-            std::to_string(trace_clearance_class_no_) + ")");
-        
-        auto items = board_->get_autoroute_items();
-        for (int i = 0; i < static_cast<int>(items.size()); ++i)
-        {
-            autoroute_search_tree_->insert(items[i]);
-        }
-        logger::FRLogger::instance().debug("Inserted " + std::to_string(items.size()) + " items into search tree");
+        autoroute_search_tree_ = board_->get_search_tree_manager()->get_autoroute_tree(trace_clearance_class_no_);
     }
 }
 
@@ -176,349 +175,146 @@ bool AutorouteEngine::route_all(int p_iteration_limit, datastructures::Stoppable
     return true;
 }
 
+// Port of Java AutorouteEngine.autorouteConnection(). The earlier C++ version
+// fell back to a self-invented grid A* router after a failed maze search; Java
+// has no such fallback, a failed maze search simply fails the connection.
 AutorouteAttemptResult AutorouteEngine::autoroute_connection(const std::set<board::Item*>& p_start_set,
                                            const std::set<board::Item*>& p_dest_set,
-                                           const AutorouteControl& p_ctrl)
+                                           const AutorouteControl& p_ctrl,
+                                           std::set<board::Item*>* p_ripped_item_list,
+                                           std::map<board::Item*, int>* p_ripup_costs)
 {
-    AutorouteAttemptResult result;
-    result.state = AutorouteAttemptState::NOT_ROUTED;
-
     if (board_ == nullptr)
     {
-        result.details = "No board set";
-        return result;
+        return AutorouteAttemptResult(AutorouteAttemptState::FAILED, "No board set");
     }
-
-    if (p_start_set.empty() || p_dest_set.empty())
-    {
-        result.details = "Empty start or destination set";
-        return result;
-    }
-
-    auto* start_item = *p_start_set.begin();
-    auto* dest_item = *p_dest_set.begin();
-
-    if (!start_item || !dest_item)
-    {
-        result.details = "Invalid start or destination";
-        return result;
-    }
-
-    if (start_item == dest_item)
-    {
-        result.state = AutorouteAttemptState::ROUTED;
-        result.details = "Already connected";
-        return result;
-    }
-
-    auto start_bbox = start_item->get_bounding_box();
-    auto dest_bbox = dest_item->get_bounding_box();
-
-    if (start_bbox.is_empty() || dest_bbox.is_empty())
-    {
-        result.details = "Invalid start or destination bounding box";
-        return result;
-    }
-
-    const int net_no = p_ctrl.net_no > 0 ? p_ctrl.net_no : net_no_;
-    const int layer = start_item->get_layer();
-    if (dest_item->get_layer() != layer)
-    {
-        logger::FRLogger::instance().warn(
-            "AutorouteEngine: layer change not supported yet, routing on layer " + std::to_string(layer));
-    }
-    const int half_width = p_ctrl.get_trace_half_width(layer);
-    if (half_width <= 0)
-    {
-        result.details = "Invalid trace half width";
-        return result;
-    }
-
-    auto center_of = [](const geometry::planar::IntBox& p_bbox)
-    {
-        return geometry::planar::IntPoint((p_bbox.ll.x + p_bbox.ur.x) / 2, (p_bbox.ll.y + p_bbox.ur.y) / 2);
-    };
-    const geometry::planar::IntPoint start_pt = center_of(start_bbox);
-    const geometry::planar::IntPoint dest_pt = center_of(dest_bbox);
-
-    if (start_pt == dest_pt)
-    {
-        result.state = AutorouteAttemptState::ROUTED;
-        result.details = "Start and destination are at the same location";
-        return result;
-    }
+    // Java callers always pass a ripped item list; use a local one otherwise.
+    std::set<board::Item*> local_ripped_items;
+    std::set<board::Item*>& ripped_item_list = p_ripped_item_list != nullptr ? *p_ripped_item_list
+                                                                              : local_ripped_items;
 
     ensure_search_tree_initialized();
-    if (!autoroute_search_tree_)
+    std::unique_ptr<MazeSearchAlgo> maze_search_algo =
+        MazeSearchAlgo::get_instance(p_start_set, p_dest_set, this, p_ctrl, stoppable_);
+    if (maze_search_algo == nullptr)
     {
-        result.details = "Search tree not available";
-        return result;
+        return AutorouteAttemptResult(AutorouteAttemptState::FAILED,
+            "Failed to route connection, because the maze search algorithm could not be created.");
     }
 
-    // ------------------------------------------------------------------
-    // Grid setup over the board bounding box.
-    // ------------------------------------------------------------------
-    namespace fp = freerouting::geometry::planar;
-    const fp::IntBox region = board_->get_bounding_box();
-    const int64_t max_cells = 3000000;
-    const int64_t min_cell = 64;
-    int64_t cell = std::max<int64_t>(min_cell, half_width * 2);
-    int64_t cols = std::max<int64_t>(1, (region.width() + cell - 1) / cell);
-    int64_t rows = std::max<int64_t>(1, (region.height() + cell - 1) / cell);
-    while (cols * rows > max_cells && cell < 200000)
+    MazeSearchAlgo::Result search_result = maze_search_algo->find_connection();
+    // Java findConnection() returns null when no destination door was reached.
+    const bool connection_found = search_result.destination_door != nullptr;
+
+    std::unique_ptr<FoundConnectionLocator> autoroute_result;
+    if (connection_found)
     {
-        cell *= 2;
-        cols = std::max<int64_t>(1, (region.width() + cell - 1) / cell);
-        rows = std::max<int64_t>(1, (region.height() + cell - 1) / cell);
-    }
-    if (cols * rows > 4 * max_cells)
-    {
-        result.details = "Routing region too large for maze router";
-        return result;
+        autoroute_result = FoundConnectionLocator::get_instance(&search_result, p_ctrl,
+            autoroute_search_tree_, board_angle_restriction(), &ripped_item_list, p_ripup_costs);
     }
 
-    auto clamp_to_grid = [&](const fp::IntPoint& p_pos)
+    // Always clean up the expansion rooms, regardless of the search outcome, so
+    // that stale rooms do not pollute subsequent routing attempts. The locator
+    // keeps only the connection geometry, so it stays valid.
+    if (!maintain_database_)
     {
-        int64_t gx = (p_pos.x - region.ll.x) / cell;
-        int64_t gy = (p_pos.y - region.ll.y) / cell;
-        return std::pair<int64_t, int64_t>{
-            std::clamp<int64_t>(gx, 0, cols - 1),
-            std::clamp<int64_t>(gy, 0, rows - 1)};
-    };
-    auto cell_center = [&](int64_t p_gx, int64_t p_gy)
+        clear();
+    }
+    else
     {
-        return fp::IntPoint(region.ll.x + p_gx * cell + cell / 2, region.ll.y + p_gy * cell + cell / 2);
-    };
-    auto to_index = [&](int64_t p_gx, int64_t p_gy) { return static_cast<size_t>(p_gy * cols + p_gx); };
+        reset_all_doors();
+    }
 
-    // ------------------------------------------------------------------
-    // Try expansion-room maze path (MazeSearchAlgo + FoundConnectionLocator + FoundConnectionInserter)
-    // ------------------------------------------------------------------
+    if (!connection_found)
     {
-        auto maze_algo = MazeSearchAlgo::get_instance(p_start_set, p_dest_set, this, p_ctrl, stoppable_);
-        if (maze_algo)
+        return AutorouteAttemptResult(AutorouteAttemptState::FAILED,
+            "Failed to route connection, because no connection was found between their nets.");
+    }
+    if (autoroute_result == nullptr || !autoroute_result->is_valid())
+    {
+        // Java distinguishes autorouteResult == null (FAILED) from
+        // connectionItems == null (SKIPPED); the C++ locator reports both as
+        // invalid.
+        return AutorouteAttemptResult(AutorouteAttemptState::FAILED, "Failed to route connection.");
+    }
+
+    if (!p_ctrl.is_layer_active(autoroute_result->start_layer)
+        || !p_ctrl.is_layer_active(autoroute_result->target_layer))
+    {
+        return AutorouteAttemptResult(AutorouteAttemptState::FAILED,
+            "Failed to route connection, because some of their layers are disabled.");
+    }
+
+    // Delete the ripped connections.
+    const board::Item::StopConnectionOption stop_connection_option = p_ctrl.remove_unconnected_vias
+        ? board::Item::StopConnectionOption::NONE
+        : board::Item::StopConnectionOption::FANOUT_VIA;
+    std::set<board::Item*> ripped_connections;
+    std::set<int> changed_nets;
+    for (board::Item* curr_ripped_item : ripped_item_list)
+    {
+        for (board::Item* item : curr_ripped_item->get_connection_items(stop_connection_option))
         {
-            MazeSearchAlgo::Result maze_res = maze_algo->find_connection();
-            if (maze_res.destination_door != nullptr)
-            {
-                // Determine angle restriction
-                rules::AngleRestriction rangle = rules::AngleRestriction::FORTY_FIVE;
-                if (board_ != nullptr)
-                {
-                    rangle = board_->get_rules().get_trace_angle_restriction();
-                }
-                board::AngleRestriction bangle = board::AngleRestriction::FORTYFIVE_DEGREE;
-                if (rangle == rules::AngleRestriction::RIGHT)
-                {
-                    bangle = board::AngleRestriction::NINETY_DEGREE;
-                }
-                else if (rangle == rules::AngleRestriction::FORTY_FIVE)
-                {
-                    bangle = board::AngleRestriction::FORTYFIVE_DEGREE;
-                }
-                else
-                {
-                    bangle = board::AngleRestriction::NONE;
-                }
-
-                auto locator = FoundConnectionLocator::get_instance(&maze_res, p_ctrl, autoroute_search_tree_.get(),
-                                                                    bangle, nullptr, nullptr);
-                if (locator && locator->is_valid())
-                {
-                    auto inserter = FoundConnectionInserter::get_instance(locator.get(), board_, p_ctrl);
-                    if (inserter)
-                    {
-                        result.state = AutorouteAttemptState::ROUTED;
-                        result.details = "Maze expansion route inserted";
-                        return result;
-                    }
-                }
-            }
+            ripped_connections.insert(item);
+        }
+        for (int i = 0; i < curr_ripped_item->net_count(); ++i)
+        {
+            changed_nets.insert(curr_ripped_item->get_net_no(i));
         }
     }
-
-    const auto [start_col, start_row] = clamp_to_grid(start_pt);
-    const auto [dest_col, dest_row] = clamp_to_grid(dest_pt);
-    const size_t start_idx = to_index(start_col, start_row);
-    const size_t dest_idx = to_index(dest_col, dest_row);
-    const size_t cell_count = static_cast<size_t>(cols * rows);
-
-    // ------------------------------------------------------------------
-    // Blocked cells: any cell whose area inflated by the trace half width
-    // and half clearance collides with an obstacle of another net.
-    // ------------------------------------------------------------------
-    std::vector<bool> blocked(cell_count, false);
-    const std::vector<int> ignore_nets{net_no};
-    const int clearance_class = p_ctrl.trace_clearance_class_no > 0 ? p_ctrl.trace_clearance_class_no : 1;
-    const int clearance = board_->get_rules().get_clearance_matrix()
-                              .get_value(clearance_class, clearance_class, layer, false);
-    const int64_t expand = half_width + std::max<int>(clearance, 0) / 2;
-
-    for (int64_t gy = 0; gy < rows; ++gy)
+    board_->remove_items(std::vector<board::Item*>(ripped_connections.begin(), ripped_connections.end()));
+    for (int curr_net_no : changed_nets)
     {
-        for (int64_t gx = 0; gx < cols; ++gx)
+        board_->remove_trace_tails(curr_net_no, stop_connection_option);
+    }
+
+    auto insert_found_connection_algo = FoundConnectionInserter::get_instance(autoroute_result.get(), board_, p_ctrl);
+    if (insert_found_connection_algo == nullptr)
+    {
+        return AutorouteAttemptResult(AutorouteAttemptState::FAILED,
+            "Failed to route connection, because the new connection could not be inserted.");
+    }
+    return AutorouteAttemptResult(AutorouteAttemptState::ROUTED);
+}
+
+board::AngleRestriction AutorouteEngine::board_angle_restriction() const
+{
+    switch (board_->get_rules().get_trace_angle_restriction())
+    {
+    case rules::AngleRestriction::RIGHT:
+        return board::AngleRestriction::NINETY_DEGREE;
+    case rules::AngleRestriction::FORTY_FIVE:
+        return board::AngleRestriction::FORTYFIVE_DEGREE;
+    default:
+        return board::AngleRestriction::NONE;
+    }
+}
+
+// Port of Java AutorouteEngine.resetAllDoors(): resets all doors for routing
+// the next connection when the autoroute database is retained.
+void AutorouteEngine::reset_all_doors()
+{
+    for (auto& room : complete_expansion_rooms_)
+    {
+        room->reset_doors();
+    }
+    for (int i = 0; i < board_->get_item_count(); ++i)
+    {
+        board::Item* item = board_->get_item(i);
+        if (item == nullptr)
         {
-            if (gx == start_col && gy == start_row)
-            {
-                continue;
-            }
-            if (gx == dest_col && gy == dest_row)
-            {
-                continue;
-            }
-            const fp::IntBox cell_box(
-                region.ll.x + gx * cell, region.ll.y + gy * cell,
-                region.ll.x + gx * cell + cell, region.ll.y + gy * cell + cell);
-            const fp::IntOctagon query_shape = cell_box.enlarge(static_cast<double>(expand));
-            std::set<board::SearchTreeObject*, board::TreeStorableLess> obstacles;
-            autoroute_search_tree_->overlapping_objects_with_clearance(
-                query_shape, layer, ignore_nets, clearance_class, obstacles);
-            if (!obstacles.empty())
-            {
-                blocked[to_index(gx, gy)] = true;
-            }
+            continue;
+        }
+        if (auto autoroute_info = item->get_autoroute_info_pur())
+        {
+            autoroute_info->reset_doors();
+            autoroute_info->set_precalculated_connection(nullptr);
         }
     }
-    blocked[start_idx] = false;
-    blocked[dest_idx] = false;
-
-    // ------------------------------------------------------------------
-    // A* search on the 4-neighbour grid (Manhattan heuristic).
-    // ------------------------------------------------------------------
-    std::vector<int64_t> gcost(cell_count, -1);
-    std::vector<int64_t> prev(cell_count, -1);
-    using QueueElem = std::pair<int64_t, int64_t>; // (f value, cell index)
-    std::priority_queue<QueueElem, std::vector<QueueElem>, std::greater<QueueElem>> open;
-    gcost[start_idx] = 0;
-    open.emplace(std::abs(dest_col - start_col) + std::abs(dest_row - start_row),
-                 static_cast<int64_t>(start_idx));
-
-    const int dir_x[4] = {1, -1, 0, 0};
-    const int dir_y[4] = {0, 0, 1, -1};
-    bool found = false;
-    while (!open.empty())
+    if (drill_page_array_)
     {
-        const auto [f_value, cur] = open.top();
-        (void)f_value;
-        open.pop();
-        if (cur == static_cast<int64_t>(dest_idx))
-        {
-            found = true;
-            break;
-        }
-        if (is_stop_requested())
-        {
-            break;
-        }
-        const int64_t cur_g = gcost[static_cast<size_t>(cur)];
-        const int64_t cur_col = cur % cols;
-        const int64_t cur_row = cur / cols;
-        for (int d = 0; d < 4; ++d)
-        {
-            const int64_t nx = cur_col + dir_x[d];
-            const int64_t ny = cur_row + dir_y[d];
-            if (nx < 0 || nx >= cols || ny < 0 || ny >= rows)
-            {
-                continue;
-            }
-            const size_t nidx = to_index(nx, ny);
-            if (blocked[nidx])
-            {
-                continue;
-            }
-            const int64_t ng = cur_g + 1;
-            if (gcost[nidx] != -1 && ng >= gcost[nidx])
-            {
-                continue;
-            }
-            gcost[nidx] = ng;
-            prev[nidx] = cur;
-            open.emplace(ng + std::abs(dest_col - nx) + std::abs(dest_row - ny),
-                         static_cast<int64_t>(nidx));
-        }
+        drill_page_array_->reset();
     }
-
-    if (!found)
-    {
-        result.state = AutorouteAttemptState::FAILED;
-        result.details = "No path found";
-        return result;
-    }
-
-    // ------------------------------------------------------------------
-    // Reconstruct the cell path and convert it to trace corner points.
-    // ------------------------------------------------------------------
-    std::vector<fp::IntPoint> points;
-    {
-        std::vector<std::pair<int64_t, int64_t>> cells;
-        int64_t cur = static_cast<int64_t>(dest_idx);
-        while (cur >= 0)
-        {
-            cells.emplace_back(cur % cols, cur / cols);
-            if (cur == static_cast<int64_t>(start_idx))
-            {
-                break;
-            }
-            cur = prev[static_cast<size_t>(cur)];
-        }
-        std::reverse(cells.begin(), cells.end());
-        for (const auto& [cx, cy] : cells)
-        {
-            const fp::IntPoint p = cell_center(cx, cy);
-            if (points.empty() || points.back() != p)
-            {
-                points.push_back(p);
-            }
-        }
-
-        if (points.size() < 2)
-        {
-            points = {start_pt, dest_pt};
-        }
-    }
-
-    if (points.size() >= 2)
-    {
-        points.front() = start_pt;
-        points.back() = dest_pt;
-    }
-
-    // Remove collinear intermediate corners.
-    std::vector<fp::IntPoint> simplified;
-    for (size_t i = 0; i < points.size(); ++i)
-    {
-        if (i > 0 && i + 1 < points.size())
-        {
-            const fp::IntPoint& a = points[i - 1];
-            const fp::IntPoint& b = points[i];
-            const fp::IntPoint& c = points[i + 1];
-            if (b.side_of(a, c) == fp::Side::COLLINEAR)
-            {
-                continue;
-            }
-        }
-        simplified.push_back(points[i]);
-    }
-    if (simplified.size() < 2)
-    {
-        simplified = points;
-    }
-
-    auto* trace = board_->add_polyline_trace(simplified, layer, half_width, std::vector<int>{net_no});
-    if (trace == nullptr)
-    {
-        result.state = AutorouteAttemptState::FAILED;
-        result.details = "Failed to create trace";
-        return result;
-    }
-    if (autoroute_search_tree_)
-    {
-        autoroute_search_tree_->insert(trace);
-    }
-
-    result.state = AutorouteAttemptState::ROUTED;
-    result.details = "Maze route found with " + std::to_string(simplified.size()) + " corners";
-    return result;
 }
 
 int AutorouteEngine::get_net_no() const
@@ -541,6 +337,10 @@ void AutorouteEngine::clear()
     incomplete_expansion_rooms_.clear();
     complete_expansion_rooms_.clear();
     expansion_room_instance_count_ = 0;
+    if (board_)
+    {
+        board_->clear_all_item_temporary_autoroute_data();
+    }
 }
 
 void AutorouteEngine::remove_net_dependent_rooms()

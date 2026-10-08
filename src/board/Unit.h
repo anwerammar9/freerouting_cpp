@@ -1,5 +1,8 @@
 #pragma once
 
+#include <algorithm>
+#include <cctype>
+#include <optional>
 #include <string>
 
 namespace freerouting {
@@ -31,6 +34,22 @@ public:
     static double scale(double p_value, Unit p_from_unit, Unit p_to_unit)
     {
         return p_value * micrometers(p_from_unit) / micrometers(p_to_unit);
+    }
+
+    /**
+     * Java Unit.fromString: valueOf(string.toUpperCase()), std::nullopt for an
+     * unknown unit.
+     */
+    static std::optional<Unit> parse(const std::string& p_string)
+    {
+        std::string upper = p_string;
+        std::transform(upper.begin(), upper.end(), upper.begin(),
+            [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+        if (upper == "MIL") return Unit::MIL;
+        if (upper == "INCH") return Unit::INCH;
+        if (upper == "MM") return Unit::MM;
+        if (upper == "UM") return Unit::UM;
+        return std::nullopt;
     }
 
     static Unit from_string(const std::string& p_string)

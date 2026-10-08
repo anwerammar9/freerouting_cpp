@@ -14,6 +14,10 @@ add_library(freerouting_board STATIC
     SearchTreeManager.cpp
     Pin.cpp
     Padstack.cpp
+    Padstacks.cpp
+    Package.cpp
+    BoardLibrary.cpp
+    RulesBoardAccess.cpp
     Via.cpp
     ChangedArea.cpp
     BoardOutline.cpp

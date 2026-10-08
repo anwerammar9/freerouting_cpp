@@ -12,6 +12,18 @@ add_library(freerouting_designforms STATIC
     specctra/SessionWriter.cpp
     specctra/Structure.cpp
     specctra/Wiring.cpp
+    specctra/parser/Circle.cpp
+    specctra/parser/DsnFile.cpp
+    specctra/parser/Keyword.cpp
+    specctra/parser/Layer.cpp
+    specctra/parser/Path.cpp
+    specctra/parser/Polygon.cpp
+    specctra/parser/Rectangle.cpp
+    specctra/parser/Rule.cpp
+    specctra/parser/Shape.cpp
+    specctra/parser/Resolution.cpp
+    specctra/parser/ScopeKeyword.cpp
+    specctra/parser/SpecctraDsnStreamReader.cpp
 )
 
 target_link_libraries(freerouting_designforms PUBLIC

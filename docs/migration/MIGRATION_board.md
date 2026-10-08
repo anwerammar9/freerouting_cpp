@@ -265,3 +265,12 @@ tie-pin path only uses octagon/octagon, so this increment is unaffected. Recorde
 tree consistent incl. the out-of-range guard, first-corner reduction, last-corner reduction of a
 3-corner trace with the first shape untouched, both no-op cases, null arguments) →
 **ctest 753/753** + run_tests PASSED.
+
+- **2026-10-08 (T418/T419)**: board library (`Padstacks`, `board::Package/Packages`, `BoardLibrary`,
+  Java-faithful `Component/Components` with 1-based ids), per-layer drill item shapes (`DrillItem::get_shape`,
+  `Pin::calculate_shapes`/`get_padstack_layer`, `Via::calculate_shapes`), Java tree shapes for drill items
+  and a working `SearchTreeManager` (autoroute trees are filled with the board items). `ConvexTileShape`
+  bridges the C++ split between `TileShape` and `Shape` for padstack shapes.
+- **2026-10-08 (T121)**: Java insert facade on RoutingBoard (`insert_item`, `insert_pin`, `insert_obstacle`,
+  `insert_via_obstacle`, `insert_component_obstacle`, `insert_component_outline`, `insert_conduction_area`,
+  `insert_outline`), Java `BoardOutline` item and Java tree shapes for outlines and obstacle/conduction areas.

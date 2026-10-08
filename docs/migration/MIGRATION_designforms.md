@@ -72,3 +72,21 @@
 - **Partial**: 12 classes (29%)
 - **Remaining**: 28 classes (68%)
 - **Blockers**: SpecctraDsnStreamReader (1467 lines) and SpecctraSesFileWriter (416 lines) are **critical** for full DSN-load route SES-write parity. The current Scanner pipeline now supports the basic headless path and carries padstack extents into board pins, but full padstack shapes and complete rule/network scope handling remain pending.
+
+- **2026-10-08 (found during T001/T417) — headless blocker**: `RoutingBoard::create_pins_from_parsed`
+  places all pins of a component on the component origin as 100x100 boxes in raw DSN units (no
+  resolution scaling, image pin offsets not found), e.g. all J2 pins of Issue034 at (60960,-53340).
+  Pins of different nets therefore overlap, `ShapeSearchTree::complete_shape` restrains every maze
+  start room to nothing, and every board routes 0 connections. Fix = T110–T115 (padstacks, images,
+  placement, Java CoordinateTransform with `bounds.offset(1000)`).
+- Issue006-LPC18XX_43XX_SCH.dsn is a binary OLE document, not a DSN; the parse error is correct.
+- **2026-10-08 (T101/T102)**: new parser package `src/designforms/specctra/parser/` (namespace
+  `specctra::parser`), built next to the old reader. Lexer `SpecctraDsnStreamReader` matches the Java
+  lexer token-for-token on all 76 test boards (`build/dsn_token_dump` + `tools/dsn_token_compare.py`;
+  the Java reference dumps come from a throwaway harness over the 2.1.0 jar). Facts verified against the
+  shipped jar, not the 2008 `.flex`: illegal characters are logged and skipped (so `+BATT` lexes as
+  `BATT`), `|`, `` ` ``, `{`, `}`, backspace and non-Latin letters are illegal, `007` is a Double.
+- **2026-10-08 (T103-T106)**: parser `Resolution`, `CoordinateTransform` (numeric part), `Layer`/`LayerStructure`,
+  `Shape` readers (`Rectangle`, `Circle`, `Polygon`, `PolygonPath`, `PolylinePath`, areas with windows),
+  `DsnFile` scope helpers and `Rule` (width/clearance/layer_rule) ported with tests. Next: T120 (BoardRules
+  parity) and T121 (BasicBoard insert facade) are prerequisites of the Structure/Library/Network scopes.

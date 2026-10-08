@@ -589,7 +589,7 @@ bool FoundConnectionInserter::insert_via(const geometry::planar::IntPoint& p_loc
         {
             continue;
         }
-        std::shared_ptr<board::Padstack> current_via_padstack = current_via_info->get_padstack();
+        board::Padstack* current_via_padstack = current_via_info->get_padstack();
         if (current_via_padstack == nullptr)
         {
             continue;

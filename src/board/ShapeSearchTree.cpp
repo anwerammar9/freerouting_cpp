@@ -1,7 +1,12 @@
 #include "board/ShapeSearchTree.h"
 #include "board/BasicBoard.h"
+#include "board/BoardOutline.h"
+#include "board/ObstacleArea.h"
+#include "board/RoutingBoard.h"
 #include "board/Item.h"
+#include "board/Padstack.h"
 #include "board/Pin.h"
+#include "board/Via.h"
 #include "board/PolylineTrace.h"
 #include "board/SearchTreeObject.h"
 #include "geometry/planar/FortyfiveDegreeBoundingDirections.h"
@@ -14,6 +19,7 @@
 #include "geometry/planar/RegularTileShape.h"
 #include "geometry/planar/Simplex.h"
 #include "logger/FRLogger.h"
+#include "rules/BoardRules.h"
 #include "rules/ClearanceMatrix.h"
 
 #include <algorithm>
@@ -111,7 +117,15 @@ void ShapeSearchTree::remove(Item* p_item)
     {
         return;
     }
-    std::vector<ShapeTree::Leaf*> entries = p_item->get_search_tree_entries(*this);
+    // The entries are taken from the item (Java SearchTreeManager.remove calls
+    // item.clearSearchTreeEntries()), and stay alive until they are unlinked.
+    std::vector<std::unique_ptr<ShapeTree::Leaf>> owned_entries = p_item->take_search_tree_entries(*this);
+    std::vector<ShapeTree::Leaf*> entries;
+    entries.reserve(owned_entries.size());
+    for (const auto& entry : owned_entries)
+    {
+        entries.push_back(entry.get());
+    }
     ::freerouting::datastructures::ShapeTree::remove(entries);
 }
 
@@ -723,6 +737,208 @@ std::vector<Item*> ShapeSearchTree::find_nearby(const fp::IntBox& p_box, int p_l
         }
     }
 
+    return result;
+}
+
+namespace {
+
+// Java ShapeSearchTree.DRILL_HOLE_CLEARANCE_MARGIN
+constexpr int kDrillHoleClearanceMargin = 10;
+
+// Port of Java ShapeSearchTree.drillHoleObstacle: the drill hole as a circle,
+// or nullptr if the hole clearance rule is disabled.
+std::unique_ptr<fp::Shape> drill_hole_obstacle(const BasicBoard* p_board, const DrillItem& p_drill_item)
+{
+    if (p_board == nullptr || p_board->get_rules().get_hole_clearance() <= 0 || p_drill_item.get_padstack() == nullptr)
+    {
+        return nullptr;
+    }
+    const double drill_radius = p_drill_item.get_padstack()->get_drill_radius();
+    if (drill_radius <= 0)
+    {
+        return nullptr;
+    }
+    return std::make_unique<fp::Circle>(p_drill_item.get_center(), static_cast<int64_t>(std::ceil(drill_radius)));
+}
+
+} // namespace
+
+// Port of Java ShapeSearchTree.drillHoleClearanceDelta: extra obstacle
+// inflation, so that copper of other nets stays hole_clearance away from the
+// drill hole of the item and not just from its copper pad.
+static int drill_hole_clearance_delta(const BasicBoard* p_board, int p_compensated_clearance_class_no,
+    const DrillItem& p_drill_item, const fp::Shape* p_shape, int p_layer)
+{
+    if (p_board == nullptr)
+    {
+        return 0;
+    }
+    const int hole_clearance = p_board->get_rules().get_hole_clearance();
+    if (hole_clearance <= 0 || p_shape == nullptr || p_drill_item.get_padstack() == nullptr)
+    {
+        return 0;
+    }
+    const Padstack* padstack = p_drill_item.get_padstack();
+    const double drill_radius = padstack->get_drill_radius();
+    if (drill_radius <= 0)
+    {
+        return 0;
+    }
+    double copper_radius;
+    if (padstack->is_hole_only())
+    {
+        copper_radius = drill_radius;
+    }
+    else
+    {
+        copper_radius = p_shape->border_distance(p_drill_item.get_center().to_float());
+        if (copper_radius <= 0)
+        {
+            const fp::Shape* pad_shape = padstack->get_shape(p_layer);
+            copper_radius = pad_shape == nullptr ? drill_radius : pad_shape->border_distance(fp::FloatPoint(0, 0));
+        }
+    }
+    const int clearance_class = p_compensated_clearance_class_no > 0 ? p_compensated_clearance_class_no
+                                                                     : rules::BoardRules::default_clearance_class();
+    const int copper_clearance = p_board->get_rules().get_clearance_matrix().get_value(
+        p_drill_item.get_clearance_class(), clearance_class, p_layer, false);
+    return std::max(0, static_cast<int>(std::ceil(drill_radius + hole_clearance + kDrillHoleClearanceMargin
+                                                 - copper_radius - copper_clearance)));
+}
+
+std::vector<std::shared_ptr<fp::TileShape>> ShapeSearchTree::calculate_tree_shapes(const DrillItem& p_drill_item) const
+{
+    // Port of Java ShapeSearchTree.calculateTreeShapes(DrillItem).
+    std::vector<std::shared_ptr<fp::TileShape>> result;
+    if (board_ == nullptr)
+    {
+        return result;
+    }
+    const int shape_count = p_drill_item.tile_shape_count();
+    result.resize(static_cast<size_t>(shape_count));
+    const rules::AngleRestriction angle_restriction = board_->get_rules().get_trace_angle_restriction();
+    for (int i = 0; i < shape_count; ++i)
+    {
+        const fp::Shape* curr_shape = p_drill_item.get_shape(i);
+        std::unique_ptr<fp::Shape> hole_shape;
+        if (curr_shape == nullptr)
+        {
+            hole_shape = drill_hole_obstacle(board_, p_drill_item);
+            curr_shape = hole_shape.get();
+        }
+        if (curr_shape == nullptr)
+        {
+            continue;
+        }
+        std::unique_ptr<fp::TileShape> curr_tile_shape;
+        if (angle_restriction == rules::AngleRestriction::RIGHT)
+        {
+            curr_tile_shape = std::make_unique<fp::IntBox>(curr_shape->bounding_box());
+        }
+        else if (angle_restriction == rules::AngleRestriction::FORTY_FIVE)
+        {
+            curr_tile_shape = std::make_unique<fp::IntOctagon>(
+                curr_shape->bounding_shape(fp::FortyfiveDegreeBoundingDirections::INSTANCE));
+        }
+        else
+        {
+            curr_tile_shape = curr_shape->bounding_tile();
+        }
+        int offset_width =
+            clearance_compensation_value(p_drill_item.get_clearance_class(), p_drill_item.shape_layer(i));
+        offset_width += drill_hole_clearance_delta(
+            board_, compensated_clearance_class_no_, p_drill_item, curr_shape, p_drill_item.shape_layer(i));
+        if (curr_tile_shape == nullptr)
+        {
+            logger::FRLogger::instance().warn("ShapeSearchTree.calculate_tree_shapes: shape is null");
+        }
+        else
+        {
+            curr_tile_shape = curr_tile_shape->enlarge(offset_width);
+        }
+        result[i] = std::move(curr_tile_shape);
+    }
+    return result;
+}
+
+std::vector<std::shared_ptr<fp::TileShape>> ShapeSearchTree::calculate_tree_shapes(
+    const BoardOutline& p_board_outline) const
+{
+    std::vector<std::shared_ptr<fp::TileShape>> result;
+    if (board_ == nullptr)
+    {
+        return result;
+    }
+    const int layer_count = board_->get_layer_count();
+    if (p_board_outline.keepout_outside_outline_generated())
+    {
+        const fp::Area* keepout = p_board_outline.get_keepout_area();
+        if (keepout == nullptr)
+        {
+            return result;
+        }
+        const std::vector<std::unique_ptr<fp::TileShape>>& convex_shapes = keepout->split_to_convex();
+        for (int layer = 0; layer < layer_count; ++layer)
+        {
+            for (const auto& curr_convex_shape : convex_shapes)
+            {
+                const int offset_width = clearance_compensation_value(p_board_outline.get_clearance_class(), layer);
+                result.push_back(curr_convex_shape->enlarge(offset_width));
+            }
+        }
+        return result;
+    }
+    // Only the line shapes of the outline are inserted as obstacles into the tree.
+    const int half_width = p_board_outline.get_half_width();
+    for (int layer = 0; layer < layer_count; ++layer)
+    {
+        for (int shape_index = 0; shape_index < p_board_outline.shape_count(); ++shape_index)
+        {
+            const fp::PolylineShape* curr_outline_shape = p_board_outline.get_shape(shape_index);
+            const int border_line_count = curr_outline_shape->border_line_count();
+            std::vector<fp::Line> curr_line_arr{ curr_outline_shape->border_line(border_line_count - 1),
+                curr_outline_shape->border_line(0), curr_outline_shape->border_line(0) };
+            for (int i = 0; i < border_line_count; ++i)
+            {
+                curr_line_arr[1] = curr_outline_shape->border_line(i);
+                curr_line_arr[2] = curr_outline_shape->border_line((i + 1) % border_line_count);
+                const fp::Polyline tmp_polyline(curr_line_arr);
+                const int cmp_value = clearance_compensation_value(p_board_outline.get_clearance_class(), layer);
+                result.push_back(tmp_polyline.offset_shape(half_width + cmp_value, 0));
+                curr_line_arr[0] = curr_line_arr[1];
+            }
+        }
+    }
+    return result;
+}
+
+std::vector<std::shared_ptr<fp::TileShape>> ShapeSearchTree::calculate_tree_shapes(
+    const ObstacleArea& p_obstacle_area) const
+{
+    std::vector<std::shared_ptr<fp::TileShape>> result;
+    if (board_ == nullptr)
+    {
+        return result;
+    }
+    const std::vector<std::unique_ptr<fp::TileShape>>& convex_shapes = p_obstacle_area.split_to_convex();
+    double max_tree_shape_width = 50000;
+    const auto* routing_board = dynamic_cast<const RoutingBoard*>(board_);
+    if (routing_board != nullptr && routing_board->communication() != nullptr
+        && routing_board->communication()->host_cad_exists())
+    {
+        max_tree_shape_width =
+            std::min(500 * routing_board->communication()->get_resolution(Unit::MIL), max_tree_shape_width);
+    }
+    for (const auto& curr_convex_shape : convex_shapes)
+    {
+        const int offset_width =
+            clearance_compensation_value(p_obstacle_area.get_clearance_class(), p_obstacle_area.get_layer());
+        std::unique_ptr<fp::TileShape> enlarged = curr_convex_shape->enlarge(offset_width);
+        for (auto& section : enlarged->divide_into_sections(max_tree_shape_width))
+        {
+            result.push_back(std::move(section));
+        }
+    }
     return result;
 }
 

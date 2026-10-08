@@ -7,7 +7,7 @@ namespace freerouting {
 namespace rules {
 
 ViaInfo::ViaInfo(const std::string& p_name,
-             std::shared_ptr<board::Padstack> p_padstack,
+             board::Padstack* p_padstack,
              int p_clearance_class,
              bool p_attach_smd_allowed,
              BoardRules* p_board_rules)
