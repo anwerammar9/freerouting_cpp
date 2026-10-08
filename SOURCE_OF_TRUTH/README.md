@@ -38,8 +38,9 @@ touch STOP                           # stop gracefully after the current task
 
 | Metric | Value |
 |--------|-------|
-| Build | green (WSL checkout `build/`, conan + cmake Release) |
-| Tests | ctest **761/761** (incl. `AllTests` = `run_tests`) |
+| Build | green (conan + cmake Release) |
+| Tests | ctest **851/851** (incl. `AllTests`), assert suite: run_tests (all passed) |
+| Class Map | 229/353 mapped (124 out of scope) |
 | Done | geometry, rules, datastructures, logger, board model, expansion rooms, maze search, connection locator/inserter, trace shove, fanout, `RoutingBoard::autoroute` (WP-1 … WP-10 Inc V) |
 | Critical path | DSN → Route → SES |
 

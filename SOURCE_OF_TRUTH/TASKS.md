@@ -48,7 +48,8 @@ The script picks the **first `[ ]`/`[~]` task whose deps are all `[x]`**.
   - done when: both scripts run on all 8 boards without aborting (C++ crashes/timeouts are reported as
     rows, not fatal) and E2E_STATUS.md exists with today's numbers.
   - result: tools/e2e_compare.sh + tools/e2e_all.sh (board list read from test_java_boards.sh), docs/migration/E2E_STATUS.md generated 2026-10-08: all 8 boards run without timeouts after T417, but every board routes 0 wires (root cause: T110-T115 pin geometry). Issue006-LPC18XX_43XX_SCH.dsn is a binary OLE file, not a DSN (Java has no baseline either) — parse error is correct. ctest 788/788.
-- [ ] T002 | deps: - | Reconcile JavaToCppClassMap.csv with the real C++ names
+- [x] T002 | deps: - | Reconcile JavaToCppClassMap.csv with the real C++ names
+  - result: tools/class_map_check.py created; CSV reconciled; script exits 0 (ok=229, out_of_scope=124, issues=0); README Quick Status updated with class map counts. ctest 851/851, run_tests passed.
   - what: the CSV is name-based and wrong for renamed ports (MazeSearchEngine→MazeSearchAlgo,
     TraceShover→ShoveTraceAlgo, TraceTightener*→PullTightAlgo*, ViaOptimizer→OptViaAlgo,
     ForcedViaInserter→ForcedViaAlgo, ForcedPadRouter→ForcedPadAlgo, IntPoint/FloatPoint→Point.h,
