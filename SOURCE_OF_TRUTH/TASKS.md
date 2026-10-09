@@ -148,8 +148,16 @@ net classes, keepouts) equal Java's. T110 adds the count dump used as acceptance
   - java: parser/Structure.java (layer/boundary/plane sections), Layer.java (67), LayerStructure.java (69), Plane.java (84)
   - cpp: src/designforms/specctra/Structure.{h,cpp}
   - result: landed in `src/designforms/specctra/parser/` (like T104/T105), not the legacy `specctra/Structure.*` (that path is the old Scanner reader). `parser/Structure` (ScopeKeyword subclass; BoardConstructionInfo, read_layer_scope with type/use_net/layer rules, read_boundary_scope + add_boundary_shape, default rules; sets `ReadScopeParameter::layer_structure`, defers create_board/inserts to T109), `parser/Plane` (read_scope -> plane_list, Allegro window skipping). `Keyword::STRUCTURE_SCOPE`/`PLANE_SCOPE` are now the real classes. `Layer`/`LayerStructure` were already ported (T103/T104). Structure_test 13. ctest 864/864, run_tests PASSED.
-- [ ] T108 | deps: T107 | Structure part 2: keepout / via_keepout / wire_keepout, via list, snap_angle, control
+- [x] T108 | deps: T107 | Structure part 2: keepout / via_keepout / wire_keepout, via list, snap_angle, control
   - java: parser/Structure.java remaining read sections
+  - result: `parser/Structure`: read_via_padstacks (`(spare ...)` appended last, unknown sub-scopes skipped,
+    nullopt on error like Java null), read_snap_angle (→ `ReadScopeParameter::snap_angle`, default
+    FORTYFIVE_DEGREE, invalid token keeps default), read_control_scope (→ `via_at_smd_allowed`) and the
+    keepout/via_keepout/place_keepout `Shape::read_area_scope` collections (new `ReadScopeParameter`
+    `keepout_list`/`via_keepout_list`/`place_keepout_list`). `wire_keepout` lexes to `Keyword::KEEPOUT`
+    so the KEEPOUT branch covers it. `via_padstack_names` is now `std::optional` to keep Java null vs
+    empty. Board creation / keepout insertion / autoroute_settings / flip_style deferred to T109/T112.
+    Structure_test 23 (+10). ctest 874/874, run_tests PASSED.
 - [ ] T109 | deps: T108 | Structure part 3: autoroute settings scope + create_board (outline, keepouts → board)
   - java: parser/AutorouteSettings.java (243), Structure.java create_board / insert_* parts
 - [ ] T110 | deps: T105,T106,T121 | Library part 1: padstacks → board Padstacks; board-count dump

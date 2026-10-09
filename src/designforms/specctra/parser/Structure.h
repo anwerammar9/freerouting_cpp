@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "board/AngleRestriction.h"
 #include "designforms/specctra/parser/Rule.h"
 #include "designforms/specctra/parser/ScopeKeyword.h"
 #include "designforms/specctra/parser/Shape.h"
@@ -52,6 +53,12 @@ public:
     static bool read_boundary_scope(IJFlexScanner& p_scanner, BoardConstructionInfo& p_info);
     /** Adds a boundary shape to the construction info. Java Structure.addBoundaryShape. */
     static void add_boundary_shape(BoardConstructionInfo& p_info, std::unique_ptr<Shape> p_shape);
+    /** Reads a (via ...) padstack name list. Java Structure.readViaPadstacks; nullopt on error. */
+    static std::optional<std::vector<std::string>> read_via_padstacks(IJFlexScanner& p_scanner);
+    /** Reads a (snap_angle ...) scope. Java Structure.readSnapAngle; nullopt on error. */
+    static std::optional<board::AngleRestriction> read_snap_angle(IJFlexScanner& p_scanner);
+    /** Reads a (control ...) scope. Java Structure.readControlScope. */
+    static bool read_control_scope(ReadScopeParameter& p_par);
 };
 
 } // namespace freerouting::designforms::specctra::parser

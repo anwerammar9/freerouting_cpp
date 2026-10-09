@@ -174,5 +174,134 @@ TEST(LayerStructureTest, GetNoMapsTopAndBottomOnUnknownNames)
     EXPECT_EQ(3, layers.signal_layer_count());
 }
 
+TEST(StructureTest, ReadViaPadstacksReadsNormalAndSpareVias)
+{
+    SpecctraDsnStreamReader scanner("Top Via1 (spare Spare1 Spare2))", true);
+    std::optional<std::vector<std::string>> via_names = Structure::read_via_padstacks(scanner);
+    ASSERT_TRUE(via_names.has_value());
+    ASSERT_EQ(4u, via_names->size());
+    EXPECT_EQ("Top", (*via_names)[0]);
+    EXPECT_EQ("Via1", (*via_names)[1]);
+    EXPECT_EQ("Spare1", (*via_names)[2]);
+    EXPECT_EQ("Spare2", (*via_names)[3]);
+}
+
+TEST(StructureTest, ReadViaPadstacksSkipsUnknownSubScopes)
+{
+    SpecctraDsnStreamReader scanner("Top (unknown_scope (nested 1)) Via1)", true);
+    std::optional<std::vector<std::string>> via_names = Structure::read_via_padstacks(scanner);
+    ASSERT_TRUE(via_names.has_value());
+    ASSERT_EQ(2u, via_names->size());
+    EXPECT_EQ("Top", (*via_names)[0]);
+    EXPECT_EQ("Via1", (*via_names)[1]);
+}
+
+TEST(StructureTest, ReadSnapAngleReadsAllRestrictions)
+{
+    {
+        SpecctraDsnStreamReader scanner("ninety_degree)", true);
+        std::optional<board::AngleRestriction> angle = Structure::read_snap_angle(scanner);
+        ASSERT_TRUE(angle.has_value());
+        EXPECT_EQ(board::AngleRestriction::NINETY_DEGREE, *angle);
+    }
+    {
+        SpecctraDsnStreamReader scanner("fortyfive_degree)", true);
+        std::optional<board::AngleRestriction> angle = Structure::read_snap_angle(scanner);
+        ASSERT_TRUE(angle.has_value());
+        EXPECT_EQ(board::AngleRestriction::FORTYFIVE_DEGREE, *angle);
+    }
+    {
+        SpecctraDsnStreamReader scanner("none)", true);
+        std::optional<board::AngleRestriction> angle = Structure::read_snap_angle(scanner);
+        ASSERT_TRUE(angle.has_value());
+        EXPECT_EQ(board::AngleRestriction::NONE, *angle);
+    }
+}
+
+TEST(StructureTest, ReadSnapAngleRejectsUnexpectedToken)
+{
+    SpecctraDsnStreamReader scanner("diagonal)", true);
+    EXPECT_FALSE(Structure::read_snap_angle(scanner).has_value());
+}
+
+TEST(StructureTest, ReadScopeReadsSnapAngle)
+{
+    SpecctraDsnStreamReader scanner("(layer F.Cu (type signal))(snap_angle ninety_degree))", true);
+    ReadScopeParameter par(scanner);
+    ASSERT_TRUE(Keyword::STRUCTURE_SCOPE->read_scope(par));
+    EXPECT_EQ(board::AngleRestriction::NINETY_DEGREE, par.snap_angle);
+}
+
+TEST(StructureTest, ReadScopeDefaultSnapAngleIsFortyFiveDegree)
+{
+    SpecctraDsnStreamReader scanner("(layer F.Cu (type signal)))", true);
+    ReadScopeParameter par(scanner);
+    ASSERT_TRUE(Keyword::STRUCTURE_SCOPE->read_scope(par));
+    EXPECT_EQ(board::AngleRestriction::FORTYFIVE_DEGREE, par.snap_angle);
+}
+
+TEST(StructureTest, ReadControlScopeReadsViaAtSmd)
+{
+    SpecctraDsnStreamReader scanner("(via_at_smd on))", true);
+    ReadScopeParameter par(scanner);
+    ASSERT_TRUE(Structure::read_control_scope(par));
+    EXPECT_TRUE(par.via_at_smd_allowed);
+
+    SpecctraDsnStreamReader off_scanner("(via_at_smd off))", true);
+    ReadScopeParameter off_par(off_scanner);
+    ASSERT_TRUE(Structure::read_control_scope(off_par));
+    EXPECT_FALSE(off_par.via_at_smd_allowed);
+}
+
+TEST(StructureTest, ReadControlScopeSkipsUnknownSubScopes)
+{
+    SpecctraDsnStreamReader scanner("(unknown_scope (nested 1))(via_at_smd on))", true);
+    ReadScopeParameter par(scanner);
+    ASSERT_TRUE(Structure::read_control_scope(par));
+    EXPECT_TRUE(par.via_at_smd_allowed);
+}
+
+TEST(StructureTest, ReadScopeReadsViaListControlAndKeepouts)
+{
+    SpecctraDsnStreamReader scanner(
+        "(layer F.Cu (type signal))"
+        "(via Top Via1)"
+        "(control (via_at_smd on))"
+        "(boundary (rect pcb 0 0 100 100))"
+        "(keepout k1 (rect F.Cu 0 0 10 10))"
+        "(via_keepout vk1 (rect F.Cu 0 0 5 5))"
+        "(place_keepout pk1 (rect F.Cu 20 20 30 30)))",
+        true);
+    ReadScopeParameter par(scanner);
+    ASSERT_TRUE(Keyword::STRUCTURE_SCOPE->read_scope(par));
+    ASSERT_TRUE(par.via_padstack_names.has_value());
+    ASSERT_EQ(2u, par.via_padstack_names->size());
+    EXPECT_EQ("Top", (*par.via_padstack_names)[0]);
+    EXPECT_EQ("Via1", (*par.via_padstack_names)[1]);
+    EXPECT_TRUE(par.via_at_smd_allowed);
+    ASSERT_EQ(1u, par.keepout_list.size());
+    EXPECT_EQ("k1", par.keepout_list[0].area_name);
+    ASSERT_EQ(1u, par.keepout_list[0].shape_list.size());
+    EXPECT_EQ("F.Cu", par.keepout_list[0].shape_list[0]->layer->name);
+    ASSERT_EQ(1u, par.via_keepout_list.size());
+    EXPECT_EQ("vk1", par.via_keepout_list[0].area_name);
+    ASSERT_EQ(1u, par.place_keepout_list.size());
+    EXPECT_EQ("pk1", par.place_keepout_list[0].area_name);
+}
+
+TEST(StructureTest, ReadScopeReadsKeepoutWithWindowAndClearanceClass)
+{
+    SpecctraDsnStreamReader scanner(
+        "(layer F.Cu (type signal))"
+        "(keepout k1 (rect F.Cu 0 0 10 10) (window (rect F.Cu 2 2 3 3)) (clearance_class wide)))",
+        true);
+    ReadScopeParameter par(scanner);
+    ASSERT_TRUE(Keyword::STRUCTURE_SCOPE->read_scope(par));
+    ASSERT_EQ(1u, par.keepout_list.size());
+    // the border plus one window hole
+    EXPECT_EQ(2u, par.keepout_list[0].shape_list.size());
+    EXPECT_EQ("wide", par.keepout_list[0].clearance_class_name);
+}
+
 } // namespace
 } // namespace freerouting::designforms::specctra::parser

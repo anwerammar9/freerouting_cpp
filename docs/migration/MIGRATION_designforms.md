@@ -104,3 +104,14 @@
   of `Structure.read_scope` is intentionally deferred to T108/T109; the remaining structure scopes
   (`keepout`, `via_keepout`, `place_keepout`, `via` list, `snap_angle`, `control`, `flip_style`,
   `autoroute_settings`) are `skip_scope`d for now. Structure_test 13 tests.
+- **2026-10-10 (T108)**: `Structure` now reads the remaining non-board-creation scopes of the structure
+  scope: the `via` padstack name list (`read_via_padstacks`, `(spare ...)` sub-scopes appended at the
+  end, unknown sub-scopes skipped), `snap_angle` (`read_snap_angle` → `ReadScopeParameter::snap_angle`,
+  default `FORTYFIVE_DEGREE`, invalid token leaves the default), `control` (`read_control_scope` →
+  `via_at_smd_allowed`; unknown sub-scopes skipped) and `keepout` / `via_keepout` / `place_keepout`
+  areas (`Shape::read_area_scope` results collected in `ReadScopeParameter::keepout_list`,
+  `via_keepout_list`, `place_keepout_list`). Note the lexer maps `wire_keepout` to `Keyword::KEEPOUT`,
+  so the KEEPOUT branch covers it. `via_padstack_names` became `std::optional` to preserve Java's
+  null-vs-empty distinction (read by `Network` later). Java's `createBoard` + keepout/plane insertion +
+  `autoroute_settings` + `flip_style` remain deferred to T109/T112. Structure_test 23 tests
+  (+10). ctest 874/874, run_tests PASSED.

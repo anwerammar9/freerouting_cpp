@@ -67,10 +67,67 @@ bool Structure::read_scope(ReadScopeParameter& p_par) const
                     info.default_rules.insert(info.default_rules.end(), rules->begin(), rules->end());
                 }
             }
+            else if (next_token.is(Keyword::VIA))
+            {
+                p_par.via_padstack_names = read_via_padstacks(p_par.scanner);
+            }
+            else if (next_token.is(Keyword::KEEPOUT))
+            {
+                if (p_par.layer_structure == nullptr)
+                {
+                    p_par.layer_structure = std::make_shared<LayerStructure>(info.layer_info);
+                }
+                std::optional<Shape::ReadAreaScopeResult> area =
+                    Shape::read_area_scope(p_par.scanner, p_par.layer_structure.get(), false);
+                if (area)
+                {
+                    // Java adds null areas to the list and crashes on insertion; skip them instead.
+                    p_par.keepout_list.push_back(std::move(*area));
+                }
+            }
+            else if (next_token.is(Keyword::VIA_KEEPOUT))
+            {
+                if (p_par.layer_structure == nullptr)
+                {
+                    p_par.layer_structure = std::make_shared<LayerStructure>(info.layer_info);
+                }
+                std::optional<Shape::ReadAreaScopeResult> area =
+                    Shape::read_area_scope(p_par.scanner, p_par.layer_structure.get(), false);
+                if (area)
+                {
+                    // See keepout branch above.
+                    p_par.via_keepout_list.push_back(std::move(*area));
+                }
+            }
+            else if (next_token.is(Keyword::PLACE_KEEPOUT))
+            {
+                if (p_par.layer_structure == nullptr)
+                {
+                    p_par.layer_structure = std::make_shared<LayerStructure>(info.layer_info);
+                }
+                std::optional<Shape::ReadAreaScopeResult> area =
+                    Shape::read_area_scope(p_par.scanner, p_par.layer_structure.get(), false);
+                if (area)
+                {
+                    // See keepout branch above.
+                    p_par.place_keepout_list.push_back(std::move(*area));
+                }
+            }
+            else if (next_token.is(Keyword::CONTROL))
+            {
+                read_ok = read_control_scope(p_par);
+            }
+            else if (next_token.is(Keyword::SNAP_ANGLE))
+            {
+                std::optional<board::AngleRestriction> snap_angle = read_snap_angle(p_par.scanner);
+                if (snap_angle)
+                {
+                    p_par.snap_angle = *snap_angle;
+                }
+            }
             else
             {
-                // keepout / via_keepout / via list / snap_angle / control:
-                // T108, autoroute_settings and create_board: T109
+                // autoroute_settings and flip_style: T109/T112; Java skips unknown scopes.
                 ScopeKeyword::skip_scope(p_par.scanner);
             }
         }
@@ -80,7 +137,8 @@ bool Structure::read_scope(ReadScopeParameter& p_par) const
         }
     }
     // Java creates the board from the construction info and inserts the
-    // keepouts and planes here; that part of read_scope follows with createBoard (T109).
+    // keepouts, planes and missing power planes here; that part of read_scope
+    // follows with createBoard (T109).
     return true;
 }
 
@@ -249,6 +307,119 @@ void Structure::add_boundary_shape(BoardConstructionInfo& p_info, std::unique_pt
     {
         warn("Structure.add_boundary_shape: unexpected layer at boundary");
     }
+}
+
+std::optional<std::vector<std::string>> Structure::read_via_padstacks(IJFlexScanner& p_scanner)
+{
+    auto& log = logger::FRLogger::instance();
+    std::vector<std::string> normal_vias;
+    std::vector<std::string> spare_vias;
+    for (;;)
+    {
+        const Token next_token = p_scanner.next_token();
+        if (next_token.is_eof())
+        {
+            // Java catches the scanner IOException and returns null.
+            return std::nullopt;
+        }
+        if (next_token.is(Keyword::CLOSED_BRACKET))
+        {
+            break;
+        }
+        if (next_token.is(Keyword::OPEN_BRACKET))
+        {
+            const Token after_open = p_scanner.next_token();
+            if (after_open.is(Keyword::SPARE))
+            {
+                std::optional<std::vector<std::string>> spares = read_via_padstacks(p_scanner);
+                if (!spares)
+                {
+                    return std::nullopt;
+                }
+                spare_vias = std::move(*spares);
+            }
+            else
+            {
+                ScopeKeyword::skip_scope(p_scanner);
+            }
+        }
+        else if (next_token.is_string())
+        {
+            normal_vias.push_back(next_token.string_value);
+        }
+        else
+        {
+            log.warn("Structure.read_via_padstack: String expected at '" + p_scanner.get_scope_identifier() + "'");
+            return std::nullopt;
+        }
+    }
+    // add the spare vias to the end of the list
+    normal_vias.insert(normal_vias.end(), spare_vias.begin(), spare_vias.end());
+    return normal_vias;
+}
+
+std::optional<board::AngleRestriction> Structure::read_snap_angle(IJFlexScanner& p_scanner)
+{
+    auto& log = logger::FRLogger::instance();
+    board::AngleRestriction snap_angle;
+    const Token next_token = p_scanner.next_token();
+    if (next_token.is(Keyword::NINETY_DEGREE))
+    {
+        snap_angle = board::AngleRestriction::NINETY_DEGREE;
+    }
+    else if (next_token.is(Keyword::FORTYFIVE_DEGREE))
+    {
+        snap_angle = board::AngleRestriction::FORTYFIVE_DEGREE;
+    }
+    else if (next_token.is(Keyword::NONE))
+    {
+        snap_angle = board::AngleRestriction::NONE;
+    }
+    else
+    {
+        log.warn("Structure.read_snap_angle_scope: unexpected token at '" + p_scanner.get_scope_identifier() + "'");
+        return std::nullopt;
+    }
+    const Token closing = p_scanner.next_token();
+    if (!closing.is(Keyword::CLOSED_BRACKET))
+    {
+        log.warn("Structure.read_snap_angle_scope: closing bracket expected at '" + p_scanner.get_scope_identifier() + "'");
+        return std::nullopt;
+    }
+    return snap_angle;
+}
+
+bool Structure::read_control_scope(ReadScopeParameter& p_par)
+{
+    auto& log = logger::FRLogger::instance();
+    Token next_token;
+    for (;;)
+    {
+        const Token prev_token = next_token;
+        next_token = p_par.scanner.next_token();
+        if (next_token.is_eof())
+        {
+            log.warn("Structure.read_control_scope: unexpected end of file at '" + p_par.scanner.get_scope_identifier() + "'");
+            return false;
+        }
+        if (next_token.is(Keyword::CLOSED_BRACKET))
+        {
+            // end of scope
+            break;
+        }
+        if (prev_token.is(Keyword::OPEN_BRACKET))
+        {
+            if (next_token.is(Keyword::VIA_AT_SMD))
+            {
+                p_par.via_at_smd_allowed = DsnFile::read_on_off_scope(p_par.scanner);
+            }
+            else
+            {
+                ScopeKeyword::skip_scope(p_par.scanner);
+            }
+        }
+    }
+    return true;
 }
 
 } // namespace freerouting::designforms::specctra::parser

@@ -6,6 +6,7 @@
 
 #include <optional>
 
+#include "board/AngleRestriction.h"
 #include "board/Unit.h"
 #include "designforms/specctra/parser/CoordinateTransform.h"
 #include "designforms/specctra/parser/IJFlexScanner.h"
@@ -52,10 +53,23 @@ public:
 
     /** The layer structure read so far; created from the layer scopes. Java layerStructure. */
     std::shared_ptr<LayerStructure> layer_structure;
-    /** The via padstack names of the structure scope. Java viaPadstackNames. */
-    std::vector<std::string> via_padstack_names;
+    /**
+     * The via padstack names of the structure scope. Java viaPadstackNames; nullopt when the
+     * (via ...) scope could not be read (Java null).
+     */
+    std::optional<std::vector<std::string>> via_padstack_names;
     /** The planes of the structure scope. Java planeList. */
     std::vector<PlaneInfo> plane_list;
+    /** The keepouts of the (keepout ...) scopes. Java Structure.readScope keepoutList. */
+    std::vector<Shape::ReadAreaScopeResult> keepout_list;
+    /** The keepouts of the (via_keepout ...) scopes. Java Structure.readScope viaKeepoutList. */
+    std::vector<Shape::ReadAreaScopeResult> via_keepout_list;
+    /** The keepouts of the (place_keepout ...) scopes. Java Structure.readScope placeKeepoutList. */
+    std::vector<Shape::ReadAreaScopeResult> place_keepout_list;
+    /** Whether vias may be placed on smd pads. Java viaAtSmdAllowed (control scope). */
+    bool via_at_smd_allowed = false;
+    /** The snap angle of the structure scope. Java snapAngle, defaults to FORTYFIVE_DEGREE. */
+    board::AngleRestriction snap_angle = board::AngleRestriction::FORTYFIVE_DEGREE;
 };
 
 } // namespace freerouting::designforms::specctra::parser
