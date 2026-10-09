@@ -90,3 +90,17 @@
   `Shape` readers (`Rectangle`, `Circle`, `Polygon`, `PolygonPath`, `PolylinePath`, areas with windows),
   `DsnFile` scope helpers and `Rule` (width/clearance/layer_rule) ported with tests. Next: T120 (BoardRules
   parity) and T121 (BasicBoard insert facade) are prerequisites of the Structure/Library/Network scopes.
+- **2026-10-09 (T107)**: parser `Structure` and `Plane` ported in `parser/` (namespace
+  `specctra::parser`), and `Keyword::STRUCTURE_SCOPE` / `Keyword::PLANE_SCOPE` are now the real
+  `Structure` / `Plane` classes (virtual `read_scope` dispatch via the existing `ScopeKeyword` base,
+  like `Resolution`). `Structure` reads the `layer` scopes (type signal/power/jumper, `use_net`,
+  layer rules), the `boundary` scopes (`bounding_shape` for pcb, polyline/polygon paths and signal
+  shapes into `outline_shapes`, `clearance_class`) and default `rule` scopes into its
+  `BoardConstructionInfo`, and it reads `plane` scopes into `ReadScopeParameter::plane_list` (via
+  `Plane`, which also reproduces the Allegro `skip_window_scopes` quirk). Layers already existed from
+  T103/T104; `ReadScopeParameter` gained `layer_structure`, `via_padstack_names` and `plane_list`.
+  `layer_structure` is only materialised when a plane/keepout needs it (Java parity — after only layer
+  scopes it stays null). Java's final `createBoard` + keepout/plane/insert + autoroute-settings block
+  of `Structure.read_scope` is intentionally deferred to T108/T109; the remaining structure scopes
+  (`keepout`, `via_keepout`, `place_keepout`, `via` list, `snap_angle`, `control`, `flip_style`,
+  `autoroute_settings`) are `skip_scope`d for now. Structure_test 13 tests.

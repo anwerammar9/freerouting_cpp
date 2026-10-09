@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -8,6 +9,8 @@
 #include "board/Unit.h"
 #include "designforms/specctra/parser/CoordinateTransform.h"
 #include "designforms/specctra/parser/IJFlexScanner.h"
+#include "designforms/specctra/parser/Layer.h"
+#include "designforms/specctra/parser/Shape.h"
 
 namespace freerouting::designforms::specctra::parser {
 
@@ -19,6 +22,13 @@ namespace freerouting::designforms::specctra::parser {
 class ReadScopeParameter
 {
 public:
+    /** A plane read from a (plane ...) scope. Java ReadScopeParameter.PlaneInfo. */
+    struct PlaneInfo
+    {
+        Shape::ReadAreaScopeResult area;
+        std::string net_name;
+    };
+
     explicit ReadScopeParameter(IJFlexScanner& p_scanner) : scanner(p_scanner) {}
 
     IJFlexScanner& scanner;
@@ -39,6 +49,13 @@ public:
     /** From the resolution scope. Java unit / resolution (defaults MIL, 100). */
     board::Unit unit = board::Unit::MIL;
     int resolution = 100;
+
+    /** The layer structure read so far; created from the layer scopes. Java layerStructure. */
+    std::shared_ptr<LayerStructure> layer_structure;
+    /** The via padstack names of the structure scope. Java viaPadstackNames. */
+    std::vector<std::string> via_padstack_names;
+    /** The planes of the structure scope. Java planeList. */
+    std::vector<PlaneInfo> plane_list;
 };
 
 } // namespace freerouting::designforms::specctra::parser

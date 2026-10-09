@@ -1,7 +1,9 @@
 #include "designforms/specctra/parser/Keyword.h"
 
+#include "designforms/specctra/parser/Plane.h"
 #include "designforms/specctra/parser/Resolution.h"
 #include "designforms/specctra/parser/ScopeKeyword.h"
+#include "designforms/specctra/parser/Structure.h"
 
 namespace freerouting::designforms::specctra::parser {
 
@@ -73,7 +75,7 @@ const KeywordInstance k_PLACE("place");
 const ScopeKeyword k_PLACE_CONTROL("place_control"); // Java: new PlaceControl()
 const KeywordInstance k_PLACE_KEEPOUT("place_keepout");
 const ScopeKeyword k_PLACEMENT_SCOPE("placement"); // Java: new Placement()
-const ScopeKeyword k_PLANE_SCOPE("plane"); // Java: new Plane()
+const Plane k_PLANE_SCOPE; // Java: new Plane()
 const KeywordInstance k_PLANE_VIA_COSTS("plane_via_costs");
 const KeywordInstance k_PREFERRED_DIRECTION("preferred_direction");
 const KeywordInstance k_PREFERRED_DIRECTION_TRACE_COSTS("preferred_direction_trace_costs");
@@ -102,7 +104,7 @@ const KeywordInstance k_SPARE("spare");
 const KeywordInstance k_START_PASS_NO("start_pass_no");
 const KeywordInstance k_START_RIPUP_COSTS("start_ripup_costs");
 const KeywordInstance k_STRING_QUOTE("string_quote");
-const ScopeKeyword k_STRUCTURE_SCOPE("structure"); // Java: new Structure()
+const Structure k_STRUCTURE_SCOPE; // Java: new Structure()
 const KeywordInstance k_TYPE("type");
 const KeywordInstance k_USE_LAYER("use_layer");
 const KeywordInstance k_USE_NET("use_net");

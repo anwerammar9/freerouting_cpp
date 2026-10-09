@@ -144,9 +144,10 @@ net classes, keepouts) equal Java's. T110 adds the count dump used as acceptance
     TileShape::divide_into_sections: area obstacles were bounding-box octagons before. The DRC outline
     special case (not in Java) now uses BoardOutline::contains. ctest 851/851. Still open for T107: the
     RoutingBoard ctor does not insert the outline (Java does) — Structure.createBoard must call insert_outline.
-- [ ] T107 | deps: T105,T106,T121 | Structure part 1: layers, LayerStructure, boundary, planes
+- [x] T107 | deps: T105,T106,T121 | Structure part 1: layers, LayerStructure, boundary, planes
   - java: parser/Structure.java (layer/boundary/plane sections), Layer.java (67), LayerStructure.java (69), Plane.java (84)
   - cpp: src/designforms/specctra/Structure.{h,cpp}
+  - result: landed in `src/designforms/specctra/parser/` (like T104/T105), not the legacy `specctra/Structure.*` (that path is the old Scanner reader). `parser/Structure` (ScopeKeyword subclass; BoardConstructionInfo, read_layer_scope with type/use_net/layer rules, read_boundary_scope + add_boundary_shape, default rules; sets `ReadScopeParameter::layer_structure`, defers create_board/inserts to T109), `parser/Plane` (read_scope -> plane_list, Allegro window skipping). `Keyword::STRUCTURE_SCOPE`/`PLANE_SCOPE` are now the real classes. `Layer`/`LayerStructure` were already ported (T103/T104). Structure_test 13. ctest 864/864, run_tests PASSED.
 - [ ] T108 | deps: T107 | Structure part 2: keepout / via_keepout / wire_keepout, via list, snap_angle, control
   - java: parser/Structure.java remaining read sections
 - [ ] T109 | deps: T108 | Structure part 3: autoroute settings scope + create_board (outline, keepouts → board)
