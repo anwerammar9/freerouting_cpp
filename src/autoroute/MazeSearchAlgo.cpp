@@ -43,11 +43,11 @@ using geometry::planar::TileShape;
 using logger::FRLogger;
 
 MazeSearchAlgo::MazeSearchAlgo(board::RoutingBoard* p_board, datastructures::Stoppable* p_stoppable)
-    : board_(p_board)
+    : expansion_engine_(std::make_unique<MazeExpansionEngine>(this))
+    , board_(p_board)
     , stoppable_(p_stoppable)
     , fanout_diagnostics_(std::make_unique<MazeFanoutDiagnostics>(control_))
     , ripup_resolver_(std::make_unique<MazeRipupResolver>(this))
-    , expansion_engine_(std::make_unique<MazeExpansionEngine>(this))
 {
     random_generator_.set_seed(control_.ripup_costs);
 }

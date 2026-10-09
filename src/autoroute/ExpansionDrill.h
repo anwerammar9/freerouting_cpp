@@ -25,7 +25,7 @@ public:
 
     geometry::planar::IntBox get_shape() const override;
     int get_dimension() const override { return 2; }
-    CompleteExpansionRoom* other_room(CompleteExpansionRoom* p_room) override { return nullptr; }
+    CompleteExpansionRoom* other_room(CompleteExpansionRoom* p_room) override { (void)p_room; return nullptr; }
     int maze_search_element_count() const override;
     MazeSearchElement* get_maze_search_element(int p_no) override;
     void reset() override;

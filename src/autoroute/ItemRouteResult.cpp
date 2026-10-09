@@ -27,13 +27,13 @@ ItemRouteResult::ItemRouteResult(int p_item_id,
                                int p_incomplete_count_before,
                                int p_incomplete_count_after)
     : item_id_(p_item_id)
+    , improvement_percentage_(0.0f)
     , via_count_before_(p_via_count_before)
     , via_count_after_(p_via_count_after)
     , trace_length_before_(p_trace_length_before)
     , trace_length_after_(p_trace_length_after)
     , incomplete_count_before_(p_incomplete_count_before)
     , incomplete_count_after_(p_incomplete_count_after)
-    , improvement_percentage_(0.0f)
 {
     // Determine if the routing was improved
     if (incomplete_count_after_ < incomplete_count_before_) {

@@ -76,12 +76,14 @@ void GlobalSettings::lock_user_data_path()
 
 bool GlobalSettings::save_to_file(const std::string& p_path) const
 {
+    (void)p_path;
     // TODO: Implement JSON serialization
     return false;
 }
 
 bool GlobalSettings::load_from_file(const std::string& p_path)
 {
+    (void)p_path;
     // TODO: Implement JSON deserialization
     return false;
 }

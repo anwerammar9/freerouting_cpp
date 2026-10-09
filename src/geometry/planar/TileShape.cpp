@@ -724,8 +724,8 @@ bool TileShape::is_intersected_interior_by(const IntPoint& p_start_point, const 
         Side border_line_side_of_end_point = border_line_side_of_end_point_arr[static_cast<size_t>(i)];
         if (border_line_side_of_start_point != border_line_side_of_end_point)
         {
-            if (border_line_side_of_start_point == Side::COLLINEAR && border_line_side_of_end_point == Side::ON_THE_LEFT
-                || border_line_side_of_end_point == Side::COLLINEAR && border_line_side_of_start_point == Side::ON_THE_LEFT)
+            if ((border_line_side_of_start_point == Side::COLLINEAR && border_line_side_of_end_point == Side::ON_THE_LEFT)
+                || (border_line_side_of_end_point == Side::COLLINEAR && border_line_side_of_start_point == Side::ON_THE_LEFT))
             {
                 // the interior of shape is not intersected.
                 continue;
@@ -741,8 +741,8 @@ bool TileShape::is_intersected_interior_by(const IntPoint& p_start_point, const 
             {
                 next_corner_side = segment_line.side_of(this->corner(next_corner_index));
             }
-            if (prev_corner_side == Side::ON_THE_LEFT && next_corner_side == Side::ON_THE_RIGHT
-                || prev_corner_side == Side::ON_THE_RIGHT && next_corner_side == Side::ON_THE_LEFT)
+            if ((prev_corner_side == Side::ON_THE_LEFT && next_corner_side == Side::ON_THE_RIGHT)
+                || (prev_corner_side == Side::ON_THE_RIGHT && next_corner_side == Side::ON_THE_LEFT))
             {
                 // this line segment crosses a border line of this shape
                 return true;

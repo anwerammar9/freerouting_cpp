@@ -188,6 +188,7 @@ TEST(DrillPageArrayTest, InvalidateRecomputesAffectedPages)
         insert_trace(board.get(),
                      {fr::geometry::planar::IntPoint(6000, 7500), fr::geometry::planar::IntPoint(9000, 7500)},
                      {2});
+    (void)trace;
     // The board inserted the trace into its autoroute tree already (Java SearchTreeManager.insert).
 
     // The cached value is still served until the page is invalidated.

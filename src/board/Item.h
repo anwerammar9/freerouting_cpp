@@ -109,7 +109,7 @@ public:
     virtual bool is_obstacle(const Item* p_other) const;
 
     /** Returns the unique contact point between this item and p_other, or nullptr. */
-    virtual const ::freerouting::geometry::planar::Point* normal_contact_point(const Item* p_other) const { return nullptr; }
+    virtual const ::freerouting::geometry::planar::Point* normal_contact_point(const Item* p_other) const { (void)p_other; return nullptr; }
 
     /** Returns true if this item is not contacted at either endpoint (Trace/Via override). */
     virtual bool is_tail() const { return false; }
@@ -156,7 +156,7 @@ public:
     virtual bool is_shove_fixed() const;
 
     /** Returns true if this item can be drilled through at the given net number. */
-    virtual bool is_drillable(int p_net_no) const { return false; }
+    virtual bool is_drillable(int p_net_no) const { (void)p_net_no; return false; }
 
     /** Returns uncontacted endpoints used for ratsnest display. */
     virtual std::vector<std::shared_ptr<::freerouting::geometry::planar::Point>> get_ratsnest_corners() const { return {}; }

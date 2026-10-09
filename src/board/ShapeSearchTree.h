@@ -64,6 +64,10 @@ public:
     using LeafLess = freerouting::datastructures::MinAreaTree::LeafLess;
     using TreeEntry = freerouting::datastructures::ShapeTree::TreeEntry;
 
+    // Keep the base MinAreaTree/ShapeTree insert() overloads visible next to
+    // the Item/Storable insert overloads declared below.
+    using MinAreaTree::insert;
+
     /**
      * Creates a new ShapeSearchTree with forty-five degree bounding
      * directions. p_compensated_clearance_class_no is the clearance class

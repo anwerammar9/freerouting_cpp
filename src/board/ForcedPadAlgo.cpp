@@ -383,6 +383,7 @@ geometry::planar::IntOctagon ForcedPadAlgo::calc_check_shape_for_from_side(const
                                                                            const geometry::planar::Point& p_shape_center,
                                                                            const geometry::planar::Line& p_border_line)
 {
+    (void)p_shape;
     geometry::planar::FloatPoint shape_center = p_shape_center.to_float();
     geometry::planar::FloatPoint offset_projection = shape_center.projection_approx(p_border_line);
 
@@ -445,10 +446,10 @@ bool ForcedPadAlgo::in_front_of_pad(const geometry::planar::Line& p_line,
                      || std::min(line_a->x + line_a->y, line_b->x + line_b->y) >= pad_octagon.right_top + diag_width;
             if (p_with_sides && !result)
             {
-                result = std::max(line_a->x, line_b->x) <= pad_octagon.left - p_width
-                         && std::min(line_a->x - line_a->y, line_b->x - line_b->y) <= pad_octagon.left_top - diag_width
-                         || std::min(line_a->x, line_b->x) >= pad_octagon.right + p_width
-                         && std::min(line_a->x + line_a->y, line_b->x + line_b->y) >= pad_octagon.right_top + diag_width;
+                result = (std::max(line_a->x, line_b->x) <= pad_octagon.left - p_width
+                         && std::min(line_a->x - line_a->y, line_b->x - line_b->y) <= pad_octagon.left_top - diag_width)
+                         || (std::min(line_a->x, line_b->x) >= pad_octagon.right + p_width
+                         && std::min(line_a->x + line_a->y, line_b->x + line_b->y) >= pad_octagon.right_top + diag_width);
             }
             break;
         }
@@ -459,10 +460,10 @@ bool ForcedPadAlgo::in_front_of_pad(const geometry::planar::Line& p_line,
                      || std::max(line_a->x, line_b->x) <= pad_octagon.left - p_width;
             if (p_with_sides && !result)
             {
-                result = std::min(line_a->x, line_b->x) <= pad_octagon.left - p_width
-                         && std::max(line_a->x + line_a->y, line_b->x + line_b->y) <= pad_octagon.left_bottom - diag_width
-                         || std::max(line_a->y, line_b->y) >= pad_octagon.top + p_width
-                         && std::min(line_a->x + line_a->y, line_b->x + line_b->y) >= pad_octagon.right_top + diag_width;
+                result = (std::min(line_a->x, line_b->x) <= pad_octagon.left - p_width
+                         && std::max(line_a->x + line_a->y, line_b->x + line_b->y) <= pad_octagon.left_bottom - diag_width)
+                         || (std::max(line_a->y, line_b->y) >= pad_octagon.top + p_width
+                         && std::min(line_a->x + line_a->y, line_b->x + line_b->y) >= pad_octagon.right_top + diag_width);
             }
             break;
         }
@@ -473,10 +474,10 @@ bool ForcedPadAlgo::in_front_of_pad(const geometry::planar::Line& p_line,
                      || std::max(line_a->x + line_a->y, line_b->x + line_b->y) <= pad_octagon.left_bottom - diag_width;
             if (p_with_sides && !result)
             {
-                result = std::max(line_a->y, line_b->y) <= pad_octagon.bottom - p_width
-                         && std::min(line_a->x + line_a->y, line_b->x + line_b->y) <= pad_octagon.left_bottom - diag_width
-                         || std::min(line_a->y, line_b->y) >= pad_octagon.top + p_width
-                         && std::min(line_a->x - line_a->y, line_b->x - line_b->y) <= pad_octagon.left_top - diag_width;
+                result = (std::max(line_a->y, line_b->y) <= pad_octagon.bottom - p_width
+                         && std::min(line_a->x + line_a->y, line_b->x + line_b->y) <= pad_octagon.left_bottom - diag_width)
+                         || (std::min(line_a->y, line_b->y) >= pad_octagon.top + p_width
+                         && std::min(line_a->x - line_a->y, line_b->x - line_b->y) <= pad_octagon.left_top - diag_width);
             }
             break;
         }
@@ -487,10 +488,10 @@ bool ForcedPadAlgo::in_front_of_pad(const geometry::planar::Line& p_line,
                      || std::max(line_a->x + line_a->y, line_b->x + line_b->y) <= pad_octagon.left_bottom - diag_width;
             if (p_with_sides && !result)
             {
-                result = std::min(line_a->y, line_b->y) <= pad_octagon.bottom - p_width
-                         && std::min(line_a->x - line_a->y, line_b->x - line_b->y) >= pad_octagon.right_bottom + diag_width
-                         || std::min(line_a->x, line_b->x) <= pad_octagon.left - p_width
-                         && std::max(line_a->x - line_a->y, line_b->x - line_b->y) <= pad_octagon.left_top - diag_width;
+                result = (std::min(line_a->y, line_b->y) <= pad_octagon.bottom - p_width
+                         && std::min(line_a->x - line_a->y, line_b->x - line_b->y) >= pad_octagon.right_bottom + diag_width)
+                         || (std::min(line_a->x, line_b->x) <= pad_octagon.left - p_width
+                         && std::max(line_a->x - line_a->y, line_b->x - line_b->y) <= pad_octagon.left_top - diag_width);
             }
             break;
         }
@@ -501,10 +502,10 @@ bool ForcedPadAlgo::in_front_of_pad(const geometry::planar::Line& p_line,
                      || std::min(line_a->x - line_a->y, line_b->x - line_b->y) >= pad_octagon.right_bottom + diag_width;
             if (p_with_sides && !result)
             {
-                result = std::min(line_a->x, line_b->x) >= pad_octagon.right + p_width
-                         && std::max(line_a->x - line_a->y, line_b->x - line_b->y) >= pad_octagon.right_bottom + diag_width
-                         || std::max(line_a->x, line_b->x) <= pad_octagon.left - p_width
-                         && std::min(line_a->x + line_a->y, line_b->x + line_b->y) <= pad_octagon.left_bottom - diag_width;
+                result = (std::min(line_a->x, line_b->x) >= pad_octagon.right + p_width
+                         && std::max(line_a->x - line_a->y, line_b->x - line_b->y) >= pad_octagon.right_bottom + diag_width)
+                         || (std::max(line_a->x, line_b->x) <= pad_octagon.left - p_width
+                         && std::min(line_a->x + line_a->y, line_b->x + line_b->y) <= pad_octagon.left_bottom - diag_width);
             }
             break;
         }
@@ -515,10 +516,10 @@ bool ForcedPadAlgo::in_front_of_pad(const geometry::planar::Line& p_line,
                      || std::min(line_a->x - line_a->y, line_b->x - line_b->y) >= pad_octagon.right_bottom + diag_width;
             if (p_with_sides && !result)
             {
-                result = std::max(line_a->x, line_b->x) >= pad_octagon.right + p_width
-                         && std::min(line_a->x + line_a->y, line_b->x + line_b->y) >= pad_octagon.right_top + diag_width
-                         || std::min(line_a->y, line_b->y) <= pad_octagon.bottom - p_width
-                         && std::max(line_a->x + line_a->y, line_b->x + line_b->y) <= pad_octagon.left_bottom - diag_width;
+                result = (std::max(line_a->x, line_b->x) >= pad_octagon.right + p_width
+                         && std::min(line_a->x + line_a->y, line_b->x + line_b->y) >= pad_octagon.right_top + diag_width)
+                         || (std::min(line_a->y, line_b->y) <= pad_octagon.bottom - p_width
+                         && std::max(line_a->x + line_a->y, line_b->x + line_b->y) <= pad_octagon.left_bottom - diag_width);
             }
             break;
         }
@@ -529,10 +530,10 @@ bool ForcedPadAlgo::in_front_of_pad(const geometry::planar::Line& p_line,
                      || std::min(line_a->x - line_a->y, line_b->x - line_b->y) >= pad_octagon.right_bottom + diag_width;
             if (p_with_sides && !result)
             {
-                result = std::max(line_a->y, line_b->y) <= pad_octagon.bottom - p_width
-                         && std::max(line_a->x - line_a->y, line_b->x - line_b->y) >= pad_octagon.right_bottom + diag_width
-                         || std::min(line_a->y, line_b->y) >= pad_octagon.top + p_width
-                         && std::max(line_a->x + line_a->y, line_b->x + line_b->y) >= pad_octagon.right_top + diag_width;
+                result = (std::max(line_a->y, line_b->y) <= pad_octagon.bottom - p_width
+                         && std::max(line_a->x - line_a->y, line_b->x - line_b->y) >= pad_octagon.right_bottom + diag_width)
+                         || (std::min(line_a->y, line_b->y) >= pad_octagon.top + p_width
+                         && std::max(line_a->x + line_a->y, line_b->x + line_b->y) >= pad_octagon.right_top + diag_width);
             }
             break;
         }
@@ -543,10 +544,10 @@ bool ForcedPadAlgo::in_front_of_pad(const geometry::planar::Line& p_line,
                      || std::min(line_a->x, line_b->x) >= pad_octagon.right + p_width;
             if (p_with_sides && !result)
             {
-                result = std::max(line_a->y, line_b->y) >= pad_octagon.top + p_width
-                         && std::max(line_a->x - line_a->y, line_b->x - line_b->y) <= pad_octagon.left_top - diag_width
-                         || std::max(line_a->x, line_b->x) >= pad_octagon.right + p_width
-                         && std::min(line_a->x - line_a->y, line_b->x - line_b->y) >= pad_octagon.right_bottom + diag_width;
+                result = (std::max(line_a->y, line_b->y) >= pad_octagon.top + p_width
+                         && std::max(line_a->x - line_a->y, line_b->x - line_b->y) <= pad_octagon.left_top - diag_width)
+                         || (std::max(line_a->x, line_b->x) >= pad_octagon.right + p_width
+                         && std::min(line_a->x - line_a->y, line_b->x - line_b->y) >= pad_octagon.right_bottom + diag_width);
             }
             break;
         }

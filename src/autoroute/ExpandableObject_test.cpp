@@ -24,6 +24,7 @@ public:
     }
 
     CompleteExpansionRoom* other_room(CompleteExpansionRoom* p_room) override {
+        (void)p_room;
         return nullptr; // Mock implementation
     }
 

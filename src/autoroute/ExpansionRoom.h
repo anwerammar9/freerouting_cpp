@@ -105,9 +105,9 @@ public:
     int compare_to(const datastructures::ShapeTree::Storable& p_other) const override;
 
     // ================= board::SearchTreeObject =================
-    bool is_obstacle(int p_net_no) const override { return true; }
-    bool is_trace_obstacle(int p_net_no) const override { return true; }
-    int shape_layer(int p_index) const override { return get_layer(); }
+    bool is_obstacle(int p_net_no) const override { (void)p_net_no; return true; }
+    bool is_trace_obstacle(int p_net_no) const override { (void)p_net_no; return true; }
+    int shape_layer(int p_index) const override { (void)p_index; return get_layer(); }
     bool is_free_space_room() const override { return true; }
     int get_id() const override { return room_id_; }
 

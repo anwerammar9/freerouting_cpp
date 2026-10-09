@@ -556,7 +556,7 @@ bool ShapeTraceEntries::calculate_stack_levels()
         }
         // Find next foreign/own occurrence to determine level change
         EntryPoint* check = cur->next;
-        int idx = 0, next_foreign_idx = 0, last_own_idx = 0;
+        int next_foreign_idx = 0, last_own_idx = 0;
         EntryPoint* last_own = nullptr;
         EntryPoint* first_foreign = nullptr;
         int n = 0;

@@ -163,6 +163,7 @@ void AutorouteEngine::init_connection(int p_net_no, datastructures::Stoppable* p
 
 bool AutorouteEngine::route_all(int p_iteration_limit, datastructures::Stoppable* p_stoppable)
 {
+    (void)p_iteration_limit;
     stoppable_ = p_stoppable;
 
     if (board_ == nullptr)

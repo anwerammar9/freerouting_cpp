@@ -26,6 +26,9 @@ class RegularTileShape : public TileShape
 public:
     ~RegularTileShape() override = default;
 
+    // Keep the base contains() overloads visible next to the overloads below.
+    using TileShape::contains;
+
     /**
      * Compares the edgelines of index p_edge_no of this regular TileShape and
      * p_other. Returns Side.ON_THE_LEFT, if the edgeline of this shape is to

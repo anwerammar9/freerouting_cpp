@@ -12,10 +12,10 @@ ExpansionDrill::ExpansionDrill(const geometry::planar::IntBox& p_shape,
                                const geometry::planar::IntPoint& p_location,
                                int p_first_layer,
                                int p_last_layer)
-    : shape_(p_shape),
-      location(p_location),
+    : location(p_location),
       first_layer(p_first_layer),
-      last_layer(p_last_layer)
+      last_layer(p_last_layer),
+      shape_(p_shape)
 {
     int layer_count = p_last_layer - p_first_layer + 1;
     room_arr.resize(layer_count, nullptr);

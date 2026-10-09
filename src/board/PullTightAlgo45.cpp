@@ -19,7 +19,7 @@ namespace gp = freerouting::geometry::planar;
 
 namespace {
 
-gp::IntPoint to_int_point(const gp::Point& p_point)
+[[maybe_unused]] gp::IntPoint to_int_point(const gp::Point& p_point)
 {
     if (const auto* int_point = dynamic_cast<const gp::IntPoint*>(&p_point))
     {
@@ -33,7 +33,7 @@ gp::IntPoint to_int_point(const gp::Point& p_point)
  * Exact when the direction is an IntDirection; otherwise returns nullopt.
  * Mirrors Java new Line(Point, Direction).
  */
-std::optional<gp::Line> line_through_point(const gp::IntPoint& p_point,
+[[maybe_unused]] std::optional<gp::Line> line_through_point(const gp::IntPoint& p_point,
                                            const gp::Direction& p_dir)
 {
     if (const auto* int_dir = dynamic_cast<const gp::IntDirection*>(&p_dir))

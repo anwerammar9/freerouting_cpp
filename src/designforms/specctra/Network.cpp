@@ -28,6 +28,7 @@ bool Network::skip_scope(Scanner& p_scanner)
 
 bool Network::read_via_scope(Scanner& p_scanner, Result& p_result)
 {
+    (void)p_result;
     while (!p_scanner.eof())
     {
         Scanner::Token token = p_scanner.next_token();
@@ -47,6 +48,7 @@ bool Network::read_via_scope(Scanner& p_scanner, Result& p_result)
 
 bool Network::read_class_scope(Scanner& p_scanner, Result& p_result)
 {
+    (void)p_result;
     std::string class_name = p_scanner.read_string();
 
     while (!p_scanner.eof())

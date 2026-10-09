@@ -263,6 +263,7 @@ std::vector<geometry::planar::IntPoint> try_via_centers = try_shove_via_points(p
                 }
             }
         }
+        (void)new_via_center;
         if (!found)
         {
             continue;
@@ -348,6 +349,7 @@ std::vector<geometry::planar::IntPoint> MoveDrillItemAlgo::try_shove_via_points(
             std::unique_ptr<geometry::planar::TileShape> enlarged_via_shape = curr_via_shape->offset(0.5 * clearance_value);
             via_shape = enlarged_via_shape.get();
         }
+        (void)via_shape;
         if (p_extended_check)
         {
             try_count = 4;

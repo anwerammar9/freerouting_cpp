@@ -31,7 +31,7 @@ namespace {
  * Java geometry::planar::TileShape.is_outside(geometry::planar::Point) accepts any point; the C++ port only
  * provides the geometry::planar::IntPoint overload.
  */
-geometry::planar::IntPoint to_int_point(const geometry::planar::Point& p_point)
+[[maybe_unused]] geometry::planar::IntPoint to_int_point(const geometry::planar::Point& p_point)
 {
     if (const auto* int_point = dynamic_cast<const geometry::planar::IntPoint*>(&p_point))
     {

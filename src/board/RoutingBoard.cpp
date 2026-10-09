@@ -71,6 +71,9 @@ bool RoutingBoard::remove_items_and_pull_tight(const std::vector<Item*>& p_item_
                                                 int p_tidy_width,
                                                 int p_pull_tight_accuracy)
 {
+    (void)p_item_list;
+    (void)p_tidy_width;
+    (void)p_pull_tight_accuracy;
     return true;
 }
 
@@ -89,6 +92,7 @@ void RoutingBoard::opt_changed_area(const std::vector<int>& p_nets_to_optimize,
                                     std::function<bool()> p_cancel_callback,
                                     int64_t p_time_limit_ms)
 {
+    (void)p_cancel_callback;
     if (!changed_area_ || p_tidy_region == nullptr || p_tidy_region->is_empty())
     {
         return;

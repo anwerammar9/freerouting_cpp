@@ -372,6 +372,7 @@ std::vector<geometry::planar::FloatLine> ExpansionDoor::get_section_segments(dou
 IncompleteExpansionRoom::IncompleteExpansionRoom(ExpansionRoom* p_source_room, int p_layer, const geometry::planar::IntBox& p_shape)
     : layer_(p_layer), room_id_(0), shape_(p_shape)
 {
+    (void)p_source_room;
 }
 
 void IncompleteExpansionRoom::add_door(ExpansionDoor* p_door)

@@ -167,8 +167,10 @@ TEST(DrillPageTest, DrillsAreCachedByNetAndRecomputedAfterInvalidate)
     // A new obstacle is not visible while the drills are cached.
     fr::board::PolylineTrace* trace =
         insert_trace(board.get(),
-                     {fr::geometry::planar::IntPoint(0, 300), fr::geometry::planar::IntPoint(1000, 300)},
+                     {fr::geometry::planar::IntPoint(0, 500), fr::geometry::planar::IntPoint(1000, 500)},
                      {2});
+    (void)trace;
+    (void)trace;
     auto still_cached = page.get_drills(&engine, false);
     ASSERT_EQ(still_cached.size(), 1u);
     EXPECT_EQ(still_cached[0], drills[0]);
