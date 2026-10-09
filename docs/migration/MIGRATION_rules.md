@@ -45,3 +45,7 @@
   via infos/rules, net-class management, default trace widths (Java defaults min 100000 / max 100 — fixtures
   must set trace widths like a DSN does), default via rule/diameter and clearance-class removal. Functions
   that read board::Padstack/Item live in `src/board/RulesBoardAccess.cpp` to avoid a rules->board link cycle.
+- **2026-10-09 (T004)**: warning hygiene. `NetClass` ctor loop index changed `size_t` -> `int`
+  (`-Wsign-compare`), and `DefaultItemClearanceClasses` gained an explicitly defaulted copy-assignment
+  operator to silence `-Wdeprecated-copy` (it already had a user copy ctor). Full clean build is warning-free
+  from `src/`; no behaviour change.

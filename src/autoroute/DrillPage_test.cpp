@@ -265,10 +265,9 @@ TEST(DrillPageTest, AttachSmdKeepsSameDrillShapeWithCentreOfGravityLocation)
     EXPECT_EQ(drills_smd[0]->room_arr.size(), 2u);
 
     // attach_smd does not change the drill shape of an obstacle split page.
-    fr::board::PolylineTrace* trace =
-        insert_trace(board.get(),
-                     {fr::geometry::planar::IntPoint(0, 500), fr::geometry::planar::IntPoint(1000, 500)},
-                     {2});
+    insert_trace(board.get(),
+                 {fr::geometry::planar::IntPoint(0, 500), fr::geometry::planar::IntPoint(1000, 500)},
+                 {2});
     // The board inserted the trace into its autoroute tree already (Java SearchTreeManager.insert).
     page.invalidate();
     auto drills_split_smd = page.get_drills(&engine, true);

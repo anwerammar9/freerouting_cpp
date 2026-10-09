@@ -27,7 +27,7 @@ NetClass::NetClass(const std::string& p_name,
       minimum_trace_length_(0),
       maximum_trace_length_(0)
 {
-    for (size_t i = 0; i < p_layer_structure.layer_count(); ++i)
+    for (int i = 0; i < p_layer_structure.layer_count(); ++i)
     {
         active_routing_layer_arr_[i] = p_layer_structure.get_layer(i)->is_signal;
     }

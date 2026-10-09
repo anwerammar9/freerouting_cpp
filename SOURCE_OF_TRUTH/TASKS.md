@@ -66,8 +66,17 @@ The script picks the **first `[ ]`/`[~]` task whose deps are all `[x]`**.
     the dividing shape is IntOctagon/IntBox the C++ returns hole-minus-divide instead of Java's result.
   - done when: gtests for all 9 hole/divide type combinations match the Java semantics; ctest green.
   - result: The inverted Simplex-hole branches had already been fixed in f00c632 but were untested. Added the missing Java IntBox.cutout simplify() of each piece (TileShape::cutout -> private cutout_pieces) and 27 parameterized gtests (9 divide x hole combinations x {area = divide - overlap, disjoint hole, simplify only for IntBox}); reinstating the old inverted branch makes them fail. ctest 788/788.
-- [ ] T004 | deps: - | Clean `-Wunused-*` warnings (Item.h, ClearanceMatrix.cpp, SearchTreeManager.cpp, FRLogger.cpp)
+- [x] T004 | deps: - | Clean `-Wunused-*` warnings (Item.h, ClearanceMatrix.cpp, SearchTreeManager.cpp, FRLogger.cpp)
   - done when: a clean full build prints zero warnings from `src/`; no behaviour change.
+  - result: full clean build (`cmake --build build --clean-first`) now prints 0 warnings from `src/`
+    (was 6). The four files named in the task were already clean; the actual remaining warnings were
+    fixed: NetClass.cpp:30 sign-compare (size_t -> int loop index), DefaultItemClearanceClasses.h
+    implicitly-declared copy-assignment deprecated because of the user copy ctor (added defaulted
+    `operator=`), Trace_test.cpp:1 literal `\n` in `#include <cstdio>\n#include <memory>` split into
+    two lines, DrillPage_test.cpp unused `trace` variable (kept the side-effecting `insert_trace`
+    call), NamedAlgorithm_test.cpp unused `p_event` param cast to void, RoutingBoardFanout_test.cpp
+    unused `add_component` helper marked `[[maybe_unused]]`. No behaviour change. ctest 851/851,
+    run_tests PASSED.
 
 ## Phase 1 — DSN reader parity (`io/specctra/parser`, Java ≈ 11.4k lines, C++ ≈ 2.2k)
 

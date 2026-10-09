@@ -68,7 +68,7 @@ Pin* insert_smd_pin(RoutingBoard* p_board, const geometry::planar::IntPoint& p_c
 }
 
 /** Adds a component with one package pin at p_rel_x, p_rel_y. */
-void add_component(RoutingBoard* p_board, const std::string& p_name, int p_no,
+[[maybe_unused]] void add_component(RoutingBoard* p_board, const std::string& p_name, int p_no,
     const geometry::planar::IntPoint& p_location, int p_rel_x, int p_rel_y, int p_pin_no,
     double p_rotation = 0.0)
 {
