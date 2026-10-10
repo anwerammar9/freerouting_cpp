@@ -274,3 +274,10 @@ tree consistent incl. the out-of-range guard, first-corner reduction, last-corne
 - **2026-10-08 (T121)**: Java insert facade on RoutingBoard (`insert_item`, `insert_pin`, `insert_obstacle`,
   `insert_via_obstacle`, `insert_component_obstacle`, `insert_component_outline`, `insert_conduction_area`,
   `insert_outline`), Java `BoardOutline` item and Java tree shapes for outlines and obstacle/conduction areas.
+
+- **2026-10-10 (spec review, no code change)**: two parity gaps found while writing the per-task specs
+  (`SOURCE_OF_TRUTH/plans/`): (1) **item order** — Java `Item.compareTo` returns `other.id - this.id` and the board item
+  list is a `ConcurrentSkipListMap`, so `getItems()` and every `TreeSet<Item>` iterate newest-first; C++ iterates
+  `items_` oldest-first and uses 118 pointer-ordered `std::set<Item*>` (not reproducible between runs) → T011a/b;
+  (2) **search tree variants** — Java's autoroute tree is `ShapeSearchTree45Degree` / `ShapeSearchTree90Degree` for 45° /
+  90° boards (`SearchTreeManager.getAutorouteTree`); the C++ subclasses are empty and never instantiated → T506a/b.

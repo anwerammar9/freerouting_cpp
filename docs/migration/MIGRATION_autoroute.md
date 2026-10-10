@@ -891,3 +891,11 @@ inverting its expectation (+1 element) → **ctest 755/755** + run_tests PASSED.
   `RoutingBoard::autoroute` (interim until the T401–T409 pipeline port); its previous loop used a
   default, board-less `AutorouteControl`, so `MazeSearchAlgo::get_instance` could never succeed.
   Remaining reason for 0 routed connections: DSN pin geometry (see MIGRATION_designforms.md).
+
+- **2026-10-10 (spec review, no code change)**: pipeline specs written in `SOURCE_OF_TRUTH/plans/TrackC_pipeline.md`.
+  Facts verified in the Java source: the live pass path is `AutoroutePassRunner.runSingleThread` (multi-thread path is dead,
+  T416 closed); `BoardHistory.MAX_HISTORY_SIZE = 30`; batch-loop constants `STOP_AT_PASS_MINIMUM = 8`,
+  `STOP_AT_PASS_MODULO = 4`, `STAGNATION_PASS_LIMIT = 10`, `STAGNATION_SCORE_THRESHOLD = 0.5`,
+  `MAXIMUM_TRIES_ON_THE_SAME_BOARD = 3`; default scoring is `V2_CONTINUOUS` (router) / `V2_LOWER_BOUND` (optimizer, needs
+  `BoardStatisticsBounds`); Java emits `compare_trace_*` records (`--debug.enable_detailed_logging=true`) that the M3
+  first-divergence tool consumes — C++ must emit the same records at the same call sites.

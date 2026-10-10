@@ -25,7 +25,8 @@ touch STOP                           # stop gracefully after the current task
 | File | Contents |
 |------|----------|
 | `TASKS.md` | **The task queue — what to do next** |
-| `ROADMAP.md` | Gates for "100 % headless", milestones M0–M8, benchmark design (Java vs C++) |
+| `ROADMAP.md` | Roadmap + execution playbook for smaller models: gates, milestones M0–M8, findings, benchmark summary, kickoff prompt |
+| `plans/` | **Per-task specs** (one file per milestone; every open task has a `- spec:` pointer): Java methods + line ranges, C++ targets, reuse, steps, tests, acceptance |
 | `01_MEMORY.md` | Architecture, conventions, patterns, dependency graph, gotchas |
 | `CONVENTIONS.md` | C++20 patterns, naming, testing |
 | `02_PROGRESS.md` | Historical, module-by-module status with per-increment logs (large) |
