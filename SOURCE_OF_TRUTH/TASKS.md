@@ -141,11 +141,17 @@ The script picks the **first `[ ]`/`[~]` task whose deps are all `[x]`**.
     a different corner than Java. One shared header-only `JavaRandom` (+ `java_shuffle`) replaces the private copy.
     (The `normalizeAllTraces` HashMap order moved to T116, where that method is ported.)
   - done when: golden values from a throwaway Java program (`new Random(99)`, `nextInt`, `nextDouble`, `Collections.shuffle`) match; ctest green.
-- [ ] T010a | deps: T009 | Determinism: PlanarDelaunayTriangulation part 1 (Corner/Edge/Triangle/TriangleGraph, corner insertion, seeded shuffle)
+- [x] T010a | deps: T009 | Determinism: PlanarDelaunayTriangulation part 1 (Corner/Edge/Triangle/TriangleGraph, corner insertion, seeded shuffle)
   - spec: SOURCE_OF_TRUTH/plans/M0_oracles.md (section T010a)
   - java: datastructures/PlanarDelaunayTriangulation.java (≈ lines 1-500 of 978)
   - cpp: src/datastructures/PlanarDelaunayTriangulation.{h,cpp,_test.cpp} (C++ today: 191 lines, different algorithm, no shuffle)
-- [ ] T010b | deps: T010a | Determinism: PlanarDelaunayTriangulation part 2 (legalisation/flips, degenerate edges, result edges)
+- [x] T010b | deps: T010a | Determinism: PlanarDelaunayTriangulation part 2 (legalisation/flips, degenerate edges, result edges)
+  - result: T010a+T010b done together (the Edge/Triangle/DAG classes are mutually dependent; a half port would not
+    compile). Full Java-faithful port (de Berg incremental insertion, search DAG, flips, border splits, degenerate
+    edges, Java's unused-edge id quirk in splitAtInnerPoint, TreeSet-by-id result order, insideCircle tolerance) with
+    the seeded `java_shuffle` from T009. Public API unchanged (NetIncompletes untouched). 7 golden tests from the jar
+    (three, square — Java returns 4 edges —, collinear, duplicate corners, co-circular, 20 random points, validate);
+    the old C++-specific expectations were replaced. ctest 902/902.
   - spec: SOURCE_OF_TRUTH/plans/M0_oracles.md (section T010b)
   - java: datastructures/PlanarDelaunayTriangulation.java (≈ lines 500-978)
   - done when: golden edge sets from Java (co-circular, collinear, duplicate points) match; NetIncompletes tests green.
