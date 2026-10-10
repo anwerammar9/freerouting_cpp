@@ -166,3 +166,8 @@
   (`docs/migration/baseline.json`). Issue103-Board-Unrouted uses the full 30 min job limit in Java (optimizer cut short,
   state still COMPLETED) — treat its baseline as wall-clock limited; use a longer `--timeout` or optimizer off for
   parity comparisons on that board.
+- **2026-10-10 (T109b)**: structure rules → `BoardRules` (`Structure::update_board_rules` / `set_clearance_rule` and
+  helpers). Verified against Java `Structure.setClearanceRule` output for default/layer clearances, `wire_*` pairs
+  (creates via/smd/pin/area classes and their default item clearance classes), `smd_to_turn_gap`, quoted names and the
+  2-element pair form. Note Java's comment "pairs with more than 1 underline are not implemented" is wrong: the code
+  splits at the first `_`, so `smd_via_same_net` creates classes `smd` and `via_same_net` — reproduced.

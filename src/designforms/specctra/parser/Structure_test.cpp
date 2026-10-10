@@ -12,6 +12,14 @@
 #include "designforms/specctra/parser/SpecctraDsnStreamReader.h"
 #include "designforms/specctra/parser/Path.h"
 
+#include <sstream>
+
+#include "board/Layer.h"
+#include "rules/BoardRules.h"
+#include "rules/ClearanceMatrix.h"
+#include "rules/DefaultItemClearanceClasses.h"
+#include "rules/NetClass.h"
+
 namespace freerouting::designforms::specctra::parser {
 namespace {
 
@@ -301,6 +309,157 @@ TEST(StructureTest, ReadScopeReadsKeepoutWithWindowAndClearanceClass)
     // the border plus one window hole
     EXPECT_EQ(2u, par.keepout_list[0].shape_list.size());
     EXPECT_EQ("wide", par.keepout_list[0].clearance_class_name);
+}
+
+// ---- T109b: board rules from the structure scope. Expected strings were printed by Java
+// Structure.setClearanceRule (2.1.0 jar) on a 2-layer board, CoordinateTransform(10, 0, 0), quote '"'.
+
+struct RulesFixture
+{
+    board::LayerStructure layers{std::vector<std::shared_ptr<board::Layer>>{
+        std::make_shared<board::Layer>("Top", true), std::make_shared<board::Layer>("Bottom", true)}};
+    rules::BoardRules rules{layers, rules::ClearanceMatrix::get_default_instance(layers, 0)};
+};
+
+std::string dump(rules::BoardRules& p_rules, bool p_result)
+{
+    rules::ClearanceMatrix& m = p_rules.get_clearance_matrix();
+    std::ostringstream out;
+    out << "result=" << (p_result ? "true" : "false") << " classes=";
+    for (int i = 0; i < m.get_class_count(); ++i)
+    {
+        out << m.get_name(i) << (i + 1 < m.get_class_count() ? "," : "");
+    }
+    out << " values=";
+    for (int l = 0; l < 2; ++l)
+    {
+        for (int i = 0; i < m.get_class_count(); ++i)
+        {
+            for (int j = 0; j < m.get_class_count(); ++j)
+            {
+                out << m.get_value(i, j, l, false) << ' ';
+            }
+        }
+        out << "| ";
+    }
+    auto& d = p_rules.get_default_net_class()->get_default_item_clearance_classes();
+    out << "defaults via=" << d.get(rules::ItemClass::VIA) << " smd=" << d.get(rules::ItemClass::SMD)
+        << " pin=" << d.get(rules::ItemClass::PIN) << " area=" << d.get(rules::ItemClass::AREA);
+    std::ostringstream edge;
+    edge << p_rules.get_pin_edge_to_turn_dist();
+    std::string edge_text = edge.str();
+    if (edge_text.find('.') == std::string::npos)
+    {
+        edge_text += ".0"; // Java prints doubles with a fraction part
+    }
+    out << " pinEdge=" << edge_text;
+    return out.str();
+}
+
+std::string run_rule(double p_value, int p_layer, std::vector<std::string> p_pairs)
+{
+    RulesFixture f;
+    const bool result = Structure::set_clearance_rule(
+        ClearanceRule(p_value, std::move(p_pairs)), p_layer, CoordinateTransform(10, 0, 0), f.rules, "\"");
+    return dump(f.rules, result);
+}
+
+TEST(StructureRulesTest, DefaultClearanceOnAllLayers)
+{
+    EXPECT_EQ("result=false classes=null,default values=0 0 0 204 | 0 0 0 204 | defaults via=1 smd=1 pin=1 area=1 "
+              "pinEdge=0.0",
+        run_rule(20.25, -1, {}));
+}
+
+TEST(StructureRulesTest, DefaultClearanceOnOneLayer)
+{
+    EXPECT_EQ("result=false classes=null,default values=0 0 0 0 | 0 0 0 300 | defaults via=1 smd=1 pin=1 area=1 "
+              "pinEdge=0.0",
+        run_rule(30, 1, {}));
+}
+
+TEST(StructureRulesTest, WirePairCreatesTheDefaultClearanceClasses)
+{
+    EXPECT_EQ("result=false classes=null,default,via,smd,pin,area values=0 0 0 0 0 0 0 0 300 0 0 0 0 300 0 0 0 0 0 0 0 0 "
+              "0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 300 0 0 0 0 300 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | "
+              "defaults via=2 smd=3 pin=4 area=5 pinEdge=0.0",
+        run_rule(30, -1, {"wire_via"}));
+}
+
+TEST(StructureRulesTest, SmdToTurnGapSetsThePinEdgeDistance)
+{
+    EXPECT_EQ("result=true classes=null,default values=0 0 0 0 | 0 0 0 0 | defaults via=1 smd=1 pin=1 area=1 "
+              "pinEdge=250.0",
+        run_rule(25, -1, {"smd_to_turn_gap"}));
+}
+
+TEST(StructureRulesTest, ThreePartNameSplitsAtTheFirstUnderscoreLikeJava)
+{
+    EXPECT_EQ("result=false classes=null,default,smd,via_same_net values=0 0 0 0 0 0 0 0 0 0 0 100 0 0 100 0 | 0 0 0 0 0 "
+              "0 0 0 0 0 0 100 0 0 100 0 | defaults via=1 smd=2 pin=1 area=1 pinEdge=0.0",
+        run_rule(10, -1, {"smd_via_same_net"}));
+}
+
+TEST(StructureRulesTest, QuotedClassName)
+{
+    EXPECT_EQ("result=false classes=null,default,via,smd,pin,area,a b values=0 0 0 0 0 0 0 0 0 0 0 0 0 200 0 0 0 0 0 0 0 0 "
+              "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 200 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 200 0 0 0 0 0 0 0 0 0 0 0 "
+              "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 200 0 0 0 0 0 | defaults via=2 smd=3 pin=4 area=5 pinEdge=0.0",
+        run_rule(20, -1, {"\"a b\"_wire"}));
+}
+
+TEST(StructureRulesTest, TwoElementPairStripsQuotesAndUnderscoresLikeJava)
+{
+    EXPECT_EQ("result=false classes=null,default,x,y values=0 0 0 0 0 0 0 0 0 0 0 150 0 0 150 0 | 0 0 0 0 0 0 0 0 0 0 0 "
+              "150 0 0 150 0 | defaults via=1 smd=1 pin=1 area=1 pinEdge=0.0",
+        run_rule(15, -1, {"\"x\"", "_\"_y\""}));
+}
+
+TEST(StructureRulesTest, PairOnOneLayer)
+{
+    EXPECT_EQ("result=false classes=null,default,pin,smd values=0 0 0 0 0 0 0 0 0 0 0 120 0 0 120 0 | 0 0 0 0 0 0 0 0 0 0 "
+              "0 0 0 0 0 0 | defaults via=1 smd=3 pin=2 area=1 pinEdge=0.0",
+        run_rule(12, 0, {"pin_smd"}));
+}
+
+TEST(StructureRulesTest, UpdateBoardRulesAppliesWidthsAndPinEdgeDefault)
+{
+    SpecctraDsnStreamReader scanner("(layer Top (type signal) (rule (width 4)))(layer Bottom (type signal))"
+                                    "(rule (width 2.5) (clearance 1.5)))",
+        true);
+    Structure::BoardConstructionInfo info;
+    ReadScopeParameter par(scanner);
+    // Read the scopes the way Structure::read_scope does, then apply the rules.
+    for (;;)
+    {
+        Token t = scanner.next_token();
+        if (t.is(Keyword::CLOSED_BRACKET) || t.is_eof())
+        {
+            break;
+        }
+        if (t.is(Keyword::OPEN_BRACKET))
+        {
+            Token k = scanner.next_token();
+            if (k.is(Keyword::LAYER))
+            {
+                ASSERT_TRUE(Structure::read_layer_scope(scanner, info, "\""));
+            }
+            else if (k.is(Keyword::RULE))
+            {
+                auto rules = Rule::read_scope(scanner);
+                ASSERT_TRUE(rules.has_value());
+                info.default_rules.insert(info.default_rules.end(), rules->begin(), rules->end());
+            }
+        }
+    }
+    par.layer_structure = std::make_shared<LayerStructure>(info.layer_info);
+    par.coordinate_transform = CoordinateTransform(10, 0, 0);
+    RulesFixture f;
+    Structure::update_board_rules(par, info, f.rules);
+    EXPECT_EQ(13, f.rules.get_default_trace_half_width(1)); // round(25 / 2) = round(12.5) = 13
+    EXPECT_EQ(20, f.rules.get_default_trace_half_width(0)); // layer rule width 4 -> 40 / 2
+    EXPECT_EQ(16, f.rules.get_clearance_matrix().get_value(1, 1, 0, false)); // 15 -> even 16
+    EXPECT_DOUBLE_EQ(f.rules.get_min_trace_half_width(), f.rules.get_pin_edge_to_turn_dist());
 }
 
 } // namespace

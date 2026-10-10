@@ -6,7 +6,10 @@
 #include <vector>
 
 #include "board/AngleRestriction.h"
+#include "designforms/specctra/parser/CoordinateTransform.h"
 #include "designforms/specctra/parser/Rule.h"
+#include "rules/BoardRules.h"
+#include "rules/ClearanceMatrix.h"
 #include "designforms/specctra/parser/ScopeKeyword.h"
 #include "designforms/specctra/parser/Shape.h"
 
@@ -59,6 +62,31 @@ public:
     static std::optional<board::AngleRestriction> read_snap_angle(IJFlexScanner& p_scanner);
     /** Reads a (control ...) scope. Java Structure.readControlScope. */
     static bool read_control_scope(ReadScopeParameter& p_par);
+
+    /**
+     * Updates the board rules from the rules read from the structure scope: clearance rules on all
+     * layers, default trace widths, layer dependent rules, and the pin-edge-to-turn distance.
+     * Java Structure.updateBoardRules.
+     */
+    static void update_board_rules(
+        const ReadScopeParameter& p_par, const BoardConstructionInfo& p_info, rules::BoardRules& p_board_rules);
+    /**
+     * Converts a dsn clearance rule into a board clearance rule. p_layer < 0 sets it on all layers.
+     * Returns true, if "smd_to_turn_gap" was found. Java Structure.setClearanceRule.
+     */
+    static bool set_clearance_rule(const ClearanceRule& p_rule, int p_layer, const CoordinateTransform& p_transform,
+        rules::BoardRules& p_board_rules, const std::string& p_string_quote);
+    /** Java Structure.containsWireClearancePair. */
+    static bool contains_wire_clearance_pair(const std::vector<std::string>& p_clearance_pairs);
+    /** Appends the clearance classes via, smd, pin and area. Java Structure.createDefaultClearanceClasses. */
+    static void create_default_clearance_classes(rules::BoardRules& p_board_rules);
+    /**
+     * Appends a clearance class and makes it the default class of its item class in the default net
+     * class. Returns its index. Java Structure.appendClearanceClass.
+     */
+    static int append_clearance_class(rules::BoardRules& p_board_rules, const std::string& p_name);
+    /** True, if all clearance values on both layers are equal. Java Structure.clearanceEquals. */
+    static bool clearance_equals(const rules::ClearanceMatrix& p_matrix, int p_layer_1, int p_layer_2);
 };
 
 } // namespace freerouting::designforms::specctra::parser

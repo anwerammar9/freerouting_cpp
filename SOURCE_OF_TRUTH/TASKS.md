@@ -266,7 +266,12 @@ net classes, keepouts) equal Java's. T110 adds the count dump used as acceptance
     `freerouting_settings` no longer links `freerouting_autoroute` (header-only use; it formed a cycle with
     the RESCAN link groups) and `freerouting_settings` was added to every RESCAN group that holds
     `freerouting_designforms`. AutorouteSettings_test 13. ctest 887/887 (incl. AllTests/run_tests).
-- [ ] T109b | deps: T109a | Structure part 3b: board rules from the structure (clearance rules, default classes)
+- [x] T109b | deps: T109a | Structure part 3b: board rules from the structure (clearance rules, default classes)
+  - result: parser `Structure::update_board_rules`, `set_clearance_rule`, `contains_wire_clearance_pair`,
+    `create_default_clearance_classes`, `append_clearance_class`, `clearance_equals` (Java Structure 611-855) with Java
+    quirks (double `_` strip in 2-element pairs, `split(…,2)` keeps trailing empty, `smd_via_same_net` creates classes
+    `smd`/`via_same_net`, `(int) Math.round`). 8 golden tests from the jar (Java `setClearanceRule` output incl. odd→even
+    clearance) + 1 update_board_rules test. Structure_test 32. ctest 915/915.
   - spec: SOURCE_OF_TRUTH/plans/M1_dsn_reader.md (section T109b)
   - java: parser/Structure.java updateBoardRules / setClearanceRule / containsWireClearancePair /
     createDefaultClearanceClasses / appendClearanceClass / clearanceEquals (lines 611-855, ~245)

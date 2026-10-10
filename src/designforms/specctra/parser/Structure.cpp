@@ -1,5 +1,11 @@
 #include "designforms/specctra/parser/Structure.h"
 
+#include <cmath>
+
+#include <cctype>
+
+#include <algorithm>
+
 #include "designforms/specctra/parser/AutorouteSettings.h"
 #include "designforms/specctra/parser/DsnFile.h"
 #include "designforms/specctra/parser/Keyword.h"
@@ -7,6 +13,8 @@
 #include "designforms/specctra/parser/ReadScopeParameter.h"
 #include "designforms/specctra/parser/SpecctraDsnStreamReader.h"
 #include "logger/FRLogger.h"
+#include "rules/DefaultItemClearanceClasses.h"
+#include "rules/NetClass.h"
 
 namespace freerouting::designforms::specctra::parser {
 
@@ -14,7 +22,267 @@ namespace {
 
 void warn(const std::string& p_message) { logger::FRLogger::instance().warn(p_message); }
 
+/** Java (int) Math.round(double): floor(x + 0.5). */
+int java_round(double p_value) { return static_cast<int>(std::floor(p_value + 0.5)); }
+
+/** Java String.split(p_separator, 2) for a literal separator: trailing empty strings are kept. */
+std::vector<std::string> split_once(const std::string& p_value, const std::string& p_separator)
+{
+    const size_t pos = p_value.find(p_separator);
+    if (pos == std::string::npos || p_separator.empty())
+    {
+        return {p_value};
+    }
+    return {p_value.substr(0, pos), p_value.substr(pos + p_separator.size())};
+}
+
+bool starts_with(const std::string& p_value, const std::string& p_prefix)
+{
+    return p_value.compare(0, p_prefix.size(), p_prefix) == 0;
+}
+
+bool ends_with(const std::string& p_value, const std::string& p_suffix)
+{
+    return p_value.size() >= p_suffix.size()
+        && p_value.compare(p_value.size() - p_suffix.size(), p_suffix.size(), p_suffix) == 0;
+}
+
+/** Java equalsIgnoreCase for ASCII names. */
+bool equals_ignore_case(const std::string& p_a, const std::string& p_b)
+{
+    if (p_a.size() != p_b.size())
+    {
+        return false;
+    }
+    for (size_t i = 0; i < p_a.size(); ++i)
+    {
+        if (std::tolower(static_cast<unsigned char>(p_a[i])) != std::tolower(static_cast<unsigned char>(p_b[i])))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+std::string remove_quotes(std::string p_value)
+{
+    p_value.erase(std::remove(p_value.begin(), p_value.end(), '"'), p_value.end());
+    return p_value;
+}
+
 } // namespace
+
+void Structure::update_board_rules(
+    const ReadScopeParameter& p_par, const BoardConstructionInfo& p_info, rules::BoardRules& p_board_rules)
+{
+    const CoordinateTransform& transform = *p_par.coordinate_transform;
+    bool smd_to_turn_gap_found = false;
+    // update the clearance matrix
+    for (const std::shared_ptr<Rule>& current_object : p_info.default_rules)
+    {
+        if (const auto* current_rule = dynamic_cast<const ClearanceRule*>(current_object.get()))
+        {
+            if (set_clearance_rule(*current_rule, -1, transform, p_board_rules, p_par.string_quote))
+            {
+                smd_to_turn_gap_found = true;
+            }
+        }
+    }
+    // update width rules
+    for (const std::shared_ptr<Rule>& current_object : p_info.default_rules)
+    {
+        if (const auto* rule = dynamic_cast<const WidthRule*>(current_object.get()))
+        {
+            const int trace_halfwidth = java_round(transform.dsn_to_board(rule->value) / 2);
+            p_board_rules.set_default_trace_half_widths(trace_halfwidth);
+        }
+    }
+    for (const LayerRule& layer_rule : p_info.layer_dependent_rules)
+    {
+        const int layer_index = p_par.layer_structure->get_no(layer_rule.layer_name);
+        if (layer_index < 0)
+        {
+            continue;
+        }
+        for (const std::shared_ptr<Rule>& current_object : layer_rule.rules)
+        {
+            if (const auto* rule = dynamic_cast<const WidthRule*>(current_object.get()))
+            {
+                const int trace_halfwidth = java_round(transform.dsn_to_board(rule->value) / 2);
+                p_board_rules.set_default_trace_half_width(layer_index, trace_halfwidth);
+            }
+            else if (const auto* current_rule = dynamic_cast<const ClearanceRule*>(current_object.get()))
+            {
+                set_clearance_rule(*current_rule, layer_index, transform, p_board_rules, p_par.string_quote);
+            }
+        }
+    }
+    if (!smd_to_turn_gap_found)
+    {
+        p_board_rules.set_pin_edge_to_turn_dist(p_board_rules.get_min_trace_half_width());
+    }
+}
+
+bool Structure::set_clearance_rule(const ClearanceRule& p_rule, int p_layer, const CoordinateTransform& p_transform,
+    rules::BoardRules& p_board_rules, const std::string& p_string_quote)
+{
+    bool result = false;
+    rules::ClearanceMatrix& matrix = p_board_rules.get_clearance_matrix();
+    const int current_clearance = java_round(p_transform.dsn_to_board(p_rule.value));
+    if (p_rule.clearance_class_pairs.empty())
+    {
+        if (p_layer < 0)
+        {
+            matrix.set_default_value(current_clearance);
+        }
+        else
+        {
+            matrix.set_default_value(p_layer, current_clearance);
+        }
+        return result;
+    }
+    if (contains_wire_clearance_pair(p_rule.clearance_class_pairs))
+    {
+        create_default_clearance_classes(p_board_rules);
+    }
+
+    for (std::string current_string : p_rule.clearance_class_pairs)
+    {
+        if (equals_ignore_case(current_string, "smd_to_turn_gap"))
+        {
+            p_board_rules.set_pin_edge_to_turn_dist(current_clearance);
+            result = true;
+            continue;
+        }
+        std::vector<std::string> current_pair(2);
+        if (p_rule.clearance_class_pairs.size() == 2)
+        {
+            current_pair[0] = p_rule.clearance_class_pairs[0];
+            current_pair[1] = p_rule.clearance_class_pairs[1];
+            for (int i = 0; i < 2; ++i)
+            {
+                current_pair[i] = remove_quotes(current_pair[i]);
+                // Java parity: the leading '_' of the second name is checked inside this loop,
+                // i.e. twice (once before and once after its quotes are removed).
+                if (starts_with(current_pair[1], "_"))
+                {
+                    current_pair[1] = current_pair[1].substr(1);
+                }
+            }
+        }
+        else if (!p_string_quote.empty() && starts_with(current_string, p_string_quote))
+        {
+            // split at the second occurrence of the string quote
+            current_string = current_string.substr(p_string_quote.size());
+            current_pair = split_once(current_string, p_string_quote);
+            if (current_pair.size() != 2 || !starts_with(current_pair[1], "_"))
+            {
+                warn("Structure.set_clearance_rule: '_' expected at '" + current_string + "'");
+                warn("You probably get this error because your clearance rule name has spaces or "
+                     "special characters in its name. Please change them first, and try again.");
+                continue;
+            }
+            current_pair[1] = current_pair[1].substr(1);
+        }
+        else
+        {
+            current_pair = split_once(current_string, "_");
+            if (current_pair.size() != 2)
+            {
+                // pairs with more than 1 underline like smd_via_same_net are not implemented
+                continue;
+            }
+        }
+
+        int first_class_no = current_pair[0] == "wire" ? 1 : matrix.get_no(current_pair[0]); // 1 = default class
+        if (first_class_no < 0)
+        {
+            first_class_no = append_clearance_class(p_board_rules, current_pair[0]);
+        }
+        int second_class_no = current_pair[1] == "wire" ? 1 : matrix.get_no(current_pair[1]);
+        if (second_class_no < 0)
+        {
+            second_class_no = append_clearance_class(p_board_rules, current_pair[1]);
+        }
+        if (p_layer < 0)
+        {
+            matrix.set_value(first_class_no, second_class_no, current_clearance);
+            matrix.set_value(second_class_no, first_class_no, current_clearance);
+        }
+        else
+        {
+            matrix.set_value(first_class_no, second_class_no, p_layer, current_clearance);
+            matrix.set_value(second_class_no, first_class_no, p_layer, current_clearance);
+        }
+    }
+    return result;
+}
+
+bool Structure::contains_wire_clearance_pair(const std::vector<std::string>& p_clearance_pairs)
+{
+    for (const std::string& current_pair : p_clearance_pairs)
+    {
+        if (starts_with(current_pair, "wire_") || ends_with(current_pair, "_wire"))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void Structure::create_default_clearance_classes(rules::BoardRules& p_board_rules)
+{
+    append_clearance_class(p_board_rules, "via");
+    append_clearance_class(p_board_rules, "smd");
+    append_clearance_class(p_board_rules, "pin");
+    append_clearance_class(p_board_rules, "area");
+}
+
+int Structure::append_clearance_class(rules::BoardRules& p_board_rules, const std::string& p_name)
+{
+    rules::ClearanceMatrix& matrix = p_board_rules.get_clearance_matrix();
+    matrix.append_class(p_name);
+    const int result = matrix.get_no(p_name);
+    rules::DefaultItemClearanceClasses& defaults =
+        p_board_rules.get_default_net_class()->get_default_item_clearance_classes();
+    if (p_name == "via")
+    {
+        defaults.set(rules::ItemClass::VIA, result);
+    }
+    else if (p_name == "pin")
+    {
+        defaults.set(rules::ItemClass::PIN, result);
+    }
+    else if (p_name == "smd")
+    {
+        defaults.set(rules::ItemClass::SMD, result);
+    }
+    else if (p_name == "area")
+    {
+        defaults.set(rules::ItemClass::AREA, result);
+    }
+    // other names: unsupported item classes are ignored (Java switch default)
+    return result;
+}
+
+bool Structure::clearance_equals(const rules::ClearanceMatrix& p_matrix, int p_layer_1, int p_layer_2)
+{
+    if (p_layer_1 == p_layer_2)
+    {
+        return true;
+    }
+    for (int i = 1; i < p_matrix.get_class_count(); ++i)
+    {
+        for (int j = i; j < p_matrix.get_class_count(); ++j)
+        {
+            if (p_matrix.get_value(i, j, p_layer_1, false) != p_matrix.get_value(i, j, p_layer_2, false))
+            {
+                return false;
+            }
+        }
+    }
+    return true;
+}
 
 bool Structure::read_scope(ReadScopeParameter& p_par) const
 {
