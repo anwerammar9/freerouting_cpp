@@ -181,3 +181,6 @@
   multi-layer pads; padstack counts of 6 E2E boards equal the Java harness. Note: a `(parser (string_quote "))` scope
   breaks generic scope skipping (the lone quote starts a string), so boards like empty_board need T125 before their
   structure is read.
+- **2026-10-10 (T111)**: images → board packages (`Library::create_board_packages`) and the part library reader.
+  Package dump equals the Java reader for a DSN with duplicate/variant image names, back-side images, pin rotations,
+  outline paths and keepouts. Circular areas use the new `geometry::planar::CircleArea` adapter.

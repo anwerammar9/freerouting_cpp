@@ -245,6 +245,7 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/AutorouteSettings_test.cpp
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/NetList_test.cpp
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/Library_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/Component_test.cpp
     )
 
     foreach(test_src IN LISTS DESIGNFORMS_TEST_SOURCES)
@@ -291,6 +292,7 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/src/geometry/planar/ConvexTileShape_test.cpp
         ${CMAKE_SOURCE_DIR}/src/geometry/planar/Polyline_test.cpp
         ${CMAKE_SOURCE_DIR}/src/geometry/planar/PolygonShape_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/geometry/planar/CircleArea_test.cpp
         ${CMAKE_SOURCE_DIR}/src/geometry/planar/Area_test.cpp
         ${CMAKE_SOURCE_DIR}/src/geometry/planar/Shape_test.cpp
         ${CMAKE_SOURCE_DIR}/src/geometry/planar/Rational_test.cpp

@@ -316,7 +316,13 @@ net classes, keepouts) equal Java's. T110 adds the count dump used as acceptance
   - java: parser/Library.java (padstack part), core/library/Padstacks.java (84)
   - also: add a test helper (or `freerouting --dump-board-counts <dsn>`) printing layer/net/component/
     pin/padstack/netclass/keepout counts; used as acceptance by T111–T118.
-- [ ] T111 | deps: T110 | Library part 2: images / Package + PartLibrary + LogicalParts + BoardLibrary
+- [x] T111 | deps: T110 | Library part 2: images / Package + PartLibrary + LogicalParts + BoardLibrary
+  - result: parser `Package` (image read: pins incl. rotation before/after the pin name, side, outlines, keepout /
+    via_keepout / place_keepout areas) and `PartLibrary` (logical part mappings and parts into ReadScopeParameter; board
+    insertion is T115); `Library::create_board_packages` (cleaned padstack lookup, rounded relative pin locations,
+    outline widths/closed flags, generated keepout names, `::<n>` de-duplication with Java's identical-pins check).
+    New geometry `CircleArea` adapter (Java Circle is an Area; C++ Circle is not) used by `to_board_area` for circular
+    keepouts/planes. Golden package dump from the jar matches. Library_test 4, CircleArea_test 3. ctest 935/935.
   - spec: SOURCE_OF_TRUTH/plans/M1_dsn_reader.md (section T111)
   - java: parser/Package.java (425), PartLibrary.java (351), core/library/{Packages,LogicalParts,BoardLibrary}.java
 - [ ] T112 | deps: T111 | Placement: Component, ComponentPlacement, PlaceControl

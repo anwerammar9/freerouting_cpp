@@ -1,6 +1,8 @@
 #include "designforms/specctra/parser/Keyword.h"
 
+#include "designforms/specctra/parser/Component.h"
 #include "designforms/specctra/parser/Library.h"
+#include "designforms/specctra/parser/PartLibrary.h"
 #include "designforms/specctra/parser/Plane.h"
 #include "designforms/specctra/parser/Resolution.h"
 #include "designforms/specctra/parser/ScopeKeyword.h"
@@ -29,7 +31,7 @@ const KeywordInstance k_CIRCLE("circle");
 const KeywordInstance k_CLASS("class");
 const KeywordInstance k_CLASS_CLASS("class_class");
 const KeywordInstance k_CLASSES("classes");
-const ScopeKeyword k_COMPONENT_SCOPE("component"); // Java: new Component()
+const Component k_COMPONENT_SCOPE; // Java: new Component()
 const KeywordInstance k_CONSTANT("constant");
 const KeywordInstance k_CONTROL("control");
 const KeywordInstance k_CLEARANCE("clearance");
@@ -67,13 +69,13 @@ const KeywordInstance k_OPEN_BRACKET("(");
 const KeywordInstance k_ORDER("order");
 const KeywordInstance k_OUTLINE("outline");
 const KeywordInstance k_PADSTACK("padstack");
-const ScopeKeyword k_PART_LIBRARY_SCOPE("part_library"); // Java: new PartLibrary()
+const PartLibrary k_PART_LIBRARY_SCOPE; // Java: new PartLibrary()
 const ScopeKeyword k_PARSER_SCOPE("parser"); // Java: new Parser()
 const ScopeKeyword k_PCB_SCOPE("pcb"); // Java: new ScopeKeyword
 const KeywordInstance k_PIN("pin");
 const KeywordInstance k_PINS("pins");
 const KeywordInstance k_PLACE("place");
-const ScopeKeyword k_PLACE_CONTROL("place_control"); // Java: new PlaceControl()
+const PlaceControl k_PLACE_CONTROL; // Java: new PlaceControl()
 const KeywordInstance k_PLACE_KEEPOUT("place_keepout");
 const ScopeKeyword k_PLACEMENT_SCOPE("placement"); // Java: new Placement()
 const Plane k_PLANE_SCOPE; // Java: new Plane()

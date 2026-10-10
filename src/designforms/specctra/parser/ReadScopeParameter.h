@@ -9,11 +9,13 @@
 
 #include "board/AngleRestriction.h"
 #include "board/Unit.h"
+#include "designforms/specctra/parser/ComponentPlacement.h"
 #include "designforms/specctra/parser/CoordinateTransform.h"
 #include "designforms/specctra/parser/IJFlexScanner.h"
 #include "designforms/specctra/parser/Layer.h"
 #include "designforms/specctra/parser/MinimalBoardManager.h"
 #include "designforms/specctra/parser/NetList.h"
+#include "designforms/specctra/parser/PartLibrary.h"
 #include "designforms/specctra/parser/Shape.h"
 
 namespace freerouting::settings {
@@ -52,6 +54,14 @@ public:
 
     /** The nets of the network scope; always present (Java initialises it). Java netlist. */
     NetList netlist;
+
+    /** Component placements of the placement scope, inserted by the network scope. Java placementList. */
+    std::vector<ComponentPlacement> placement_list;
+
+    /** The logical part mappings of the part library (pin and gate swap). Java logicalPartMappings. */
+    std::vector<PartLibrary::LogicalPartMapping> logical_part_mappings;
+    /** The logical parts of the part library. Java logicalParts. */
+    std::vector<PartLibrary::LogicalPart> logical_parts;
 
     /** Warnings collected during parsing. Java ReadScopeParameter.warnings. */
     std::vector<std::string> warnings;

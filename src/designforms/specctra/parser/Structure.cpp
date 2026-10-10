@@ -7,6 +7,7 @@
 #include <algorithm>
 
 #include "designforms/specctra/parser/AutorouteSettings.h"
+#include "designforms/specctra/parser/Component.h"
 #include "designforms/specctra/parser/DsnFile.h"
 #include "designforms/specctra/parser/Keyword.h"
 #include "designforms/specctra/parser/Path.h"
@@ -297,6 +298,8 @@ bool Structure::read_scope(ReadScopeParameter& p_par) const
 {
     auto& log = logger::FRLogger::instance();
     BoardConstructionInfo info;
+    // If true, components on the back side are rotated before mirroring (Java flipStyleRotateFirst).
+    bool flip_style_rotate_first = false;
     Token next_token;
     for (;;)
     {
@@ -414,9 +417,13 @@ bool Structure::read_scope(ReadScopeParameter& p_par) const
                         AutorouteSettings::read_scope(p_par.scanner, *p_par.layer_structure);
                 }
             }
+            else if (next_token.is(Keyword::FLIP_STYLE))
+            {
+                // The correct location is the place_control scope, but Electra writes it here (Java).
+                flip_style_rotate_first = PlaceControl::read_flip_style_rotate_first(p_par.scanner);
+            }
             else
             {
-                // flip_style: T112; Java skips unknown scopes.
                 ScopeKeyword::skip_scope(p_par.scanner);
             }
         }
@@ -436,8 +443,10 @@ bool Structure::read_scope(ReadScopeParameter& p_par) const
     {
         return false;
     }
-    // flip_style inside the structure scope (Electra) is read by PlaceControl (T112); until then the
-    // flag keeps its default (false).
+    if (flip_style_rotate_first)
+    {
+        board->set_flip_style_rotate_first(true);
+    }
 
     // insert the keepouts
     for (const Shape::ReadAreaScopeResult& current_area : p_par.keepout_list)

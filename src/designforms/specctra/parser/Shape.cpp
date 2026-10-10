@@ -12,6 +12,7 @@
 #include "designforms/specctra/parser/ScopeKeyword.h"
 #include "geometry/planar/ConvexTileShape.h"
 #include "geometry/planar/PolygonShape.h"
+#include "geometry/planar/CircleArea.h"
 #include "geometry/planar/PolylineArea.h"
 #include "geometry/planar/TileShape.h"
 #include "logger/FRLogger.h"
@@ -513,6 +514,10 @@ std::shared_ptr<fp::Area> to_board_area(std::unique_ptr<fp::Shape> p_shape)
     {
         p_shape.release();
         return std::shared_ptr<fp::Area>(area);
+    }
+    if (const auto* circle = dynamic_cast<const fp::Circle*>(p_shape.get()))
+    {
+        return std::make_shared<fp::CircleArea>(*circle); // Java Circle is an Area
     }
     std::shared_ptr<fp::PolylineShape> border = to_polyline_shape_impl(std::move(p_shape));
     if (border == nullptr)

@@ -1,16 +1,21 @@
 #include "designforms/specctra/parser/Library.h"
 
 #include <regex>
+#include <cmath>
+#include <cctype>
 #include <string>
 #include <vector>
 
 #include "board/BoardLibrary.h"
+#include "board/Package.h"
 #include "board/Padstacks.h"
 #include "board/RoutingBoard.h"
 #include "designforms/specctra/parser/CoordinateTransform.h"
 #include "designforms/specctra/parser/DsnFile.h"
 #include "designforms/specctra/parser/Keyword.h"
 #include "designforms/specctra/parser/Layer.h"
+#include "designforms/specctra/parser/Package.h"
+#include "designforms/specctra/parser/Path.h"
 #include "designforms/specctra/parser/ReadScopeParameter.h"
 #include "designforms/specctra/parser/Shape.h"
 #include "geometry/planar/ConvexTileShape.h"
@@ -121,7 +126,175 @@ std::unique_ptr<fp::Shape> to_convex_pad_shape(
     return convex_shape;
 }
 
+/** Java Library.arePackagePinsIdentical. */
+bool are_package_pins_identical(const board::Package* p_package, const std::vector<board::Package::Pin>& p_pins)
+{
+    if (p_package == nullptr)
+    {
+        return false; // Java: (pkg1 == null) == (p2 == null) with a non-null pin array
+    }
+    if (p_package->pin_count() != static_cast<int>(p_pins.size()))
+    {
+        return false;
+    }
+    for (size_t i = 0; i < p_pins.size(); ++i)
+    {
+        const board::Package::Pin* pin1 = p_package->get_pin(static_cast<int>(i));
+        const board::Package::Pin& pin2 = p_pins[i];
+        if (pin1 == nullptr)
+        {
+            return false;
+        }
+        if (pin1->name != pin2.name || pin1->padstack_id != pin2.padstack_id)
+        {
+            return false;
+        }
+        const fp::FloatPoint loc1 = pin1->relative_location.to_float();
+        const fp::FloatPoint loc2 = pin2.relative_location.to_float();
+        if (std::abs(loc1.x - loc2.x) > 0.001 || std::abs(loc1.y - loc2.y) > 0.001)
+        {
+            return false;
+        }
+        if (std::abs(pin1->rotation_in_degree - pin2.rotation_in_degree) > 0.001)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool equals_ignore_case(const std::string& p_a, const std::string& p_b)
+{
+    if (p_a.size() != p_b.size())
+    {
+        return false;
+    }
+    for (size_t i = 0; i < p_a.size(); ++i)
+    {
+        if (std::tolower(static_cast<unsigned char>(p_a[i])) != std::tolower(static_cast<unsigned char>(p_b[i])))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+/** Java Library.generateMissingKeepoutNames: if any keepout has no name, all get generated names. */
+void generate_missing_keepout_names(const std::string& p_keepout_type, std::vector<Shape::ReadAreaScopeResult>& p_list)
+{
+    bool all_names_existing = true;
+    for (const Shape::ReadAreaScopeResult& keepout : p_list)
+    {
+        if (keepout.area_name.empty())
+        {
+            all_names_existing = false;
+            break;
+        }
+    }
+    if (all_names_existing)
+    {
+        return;
+    }
+    int current_name_index = 1;
+    for (Shape::ReadAreaScopeResult& keepout : p_list)
+    {
+        keepout.area_name = p_keepout_type + std::to_string(current_name_index);
+        ++current_name_index;
+    }
+}
+
+int java_round(double p_value) { return static_cast<int>(std::floor(p_value + 0.5)); }
+
+std::vector<board::Package::Keepout> to_board_keepouts(
+    const std::vector<Shape::ReadAreaScopeResult>& p_keepouts, const CoordinateTransform& p_transform)
+{
+    std::vector<board::Package::Keepout> result;
+    for (const Shape::ReadAreaScopeResult& keepout : p_keepouts)
+    {
+        board::Package::Keepout board_keepout;
+        board_keepout.name = keepout.area_name;
+        board_keepout.area = to_board_area(Shape::transform_area_to_board_rel(keepout.shape_list, p_transform));
+        board_keepout.layer = keepout.shape_list.front()->layer->no;
+        result.push_back(std::move(board_keepout));
+    }
+    return result;
+}
+
 } // namespace
+
+void Library::create_board_packages(std::vector<Package>& p_package_list, ReadScopeParameter& p_par,
+    board::RoutingBoard& p_board)
+{
+    const CoordinateTransform& transform = *p_par.coordinate_transform;
+    p_board.library().packages() = board::Packages();
+    for (Package& current_package : p_package_list)
+    {
+        std::vector<board::Package::Pin> pins;
+        for (const Package::PinInfo& pin_info : current_package.pin_info_arr)
+        {
+            const int rel_x = java_round(transform.dsn_to_board(pin_info.rel_coor[0]));
+            const int rel_y = java_round(transform.dsn_to_board(pin_info.rel_coor[1]));
+            const std::string cleaned_lookup_name = clean_padstack_name(pin_info.padstack_name);
+            const board::Padstack* board_padstack = p_board.library().padstacks().get(cleaned_lookup_name);
+            if (board_padstack == nullptr)
+            {
+                warn("Library.read_scope: board padstack '" + pin_info.padstack_name + "' (cleaned: '"
+                    + cleaned_lookup_name + "') not found at '" + p_par.scanner.get_scope_identifier() + "'");
+                return; // Java returns false from readScope here; the caller already ended the scope
+            }
+            pins.push_back(board::Package::Pin{
+                pin_info.pin_name, board_padstack->get_id(), fp::IntVector(rel_x, rel_y), pin_info.rotation});
+        }
+        std::vector<std::shared_ptr<fp::Shape>> outlines;
+        std::vector<double> outline_widths;
+        std::vector<bool> outline_is_closed;
+        for (const std::unique_ptr<Shape>& current_shape : current_package.outline)
+        {
+            outlines.push_back(std::shared_ptr<fp::Shape>(current_shape->transform_to_board_rel(transform)));
+            if (const auto* path = dynamic_cast<const Path*>(current_shape.get()))
+            {
+                outline_widths.push_back(path->width);
+                const std::vector<double>& coords = path->coordinate_arr;
+                bool closed = false;
+                if (coords.size() >= 4)
+                {
+                    closed = coords[0] == coords[coords.size() - 2] && coords[1] == coords[coords.size() - 1];
+                }
+                outline_is_closed.push_back(closed);
+            }
+            else
+            {
+                outline_widths.push_back(0.0);
+                outline_is_closed.push_back(true); // non-path shapes (polygons, rects) are closed
+            }
+        }
+        generate_missing_keepout_names("keepout_", current_package.keepouts);
+        generate_missing_keepout_names("via_keepout_", current_package.via_keepouts);
+        generate_missing_keepout_names("place_keepout_", current_package.place_keepouts);
+        std::vector<board::Package::Keepout> keepouts = to_board_keepouts(current_package.keepouts, transform);
+        std::vector<board::Package::Keepout> via_keepouts = to_board_keepouts(current_package.via_keepouts, transform);
+        std::vector<board::Package::Keepout> place_keepouts =
+            to_board_keepouts(current_package.place_keepouts, transform);
+
+        static const std::regex kVariantSuffix("::\\d+$");
+        const std::string base_package_name = std::regex_replace(current_package.name, kVariantSuffix, "");
+        for (int suffix = 0;; ++suffix)
+        {
+            const std::string test_name = suffix == 0 ? base_package_name : base_package_name + "::" + std::to_string(suffix);
+            const board::Package* existing_package = p_board.library().packages().get(test_name, current_package.is_front);
+            if (existing_package == nullptr || !equals_ignore_case(existing_package->get_name(), test_name))
+            {
+                p_board.library().packages().add(test_name, pins, outlines, outline_widths, outline_is_closed, keepouts,
+                    via_keepouts, place_keepouts, current_package.is_front);
+                break;
+            }
+            if (are_package_pins_identical(existing_package, pins))
+            {
+                break;
+            }
+        }
+    }
+}
 
 bool Library::read_padstack_scope(IJFlexScanner& p_scanner, const LayerStructure& p_layer_structure,
     const CoordinateTransform& p_transform, board::Padstacks& p_board_padstacks)
@@ -235,6 +408,7 @@ bool Library::read_scope(ReadScopeParameter& p_par) const
         return false;
     }
     board->library().padstacks() = board::Padstacks(board->get_layer_count());
+    std::vector<Package> package_list;
     Token next_token;
     for (;;)
     {
@@ -259,13 +433,22 @@ bool Library::read_scope(ReadScopeParameter& p_par) const
                     return false;
                 }
             }
+            else if (next_token.is(Keyword::IMAGE))
+            {
+                std::optional<Package> current_package = Package::read_scope(p_par.scanner, *p_par.layer_structure);
+                if (!current_package.has_value())
+                {
+                    return false;
+                }
+                package_list.push_back(std::move(*current_package));
+            }
             else
             {
-                // (image ...) -> Package.readScope and the package creation follow with T111.
                 ScopeKeyword::skip_scope(p_par.scanner);
             }
         }
     }
+    create_board_packages(package_list, p_par, *board);
     return true;
 }
 
