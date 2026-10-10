@@ -1,5 +1,6 @@
 #include "designforms/specctra/parser/Keyword.h"
 
+#include "designforms/specctra/parser/Library.h"
 #include "designforms/specctra/parser/Plane.h"
 #include "designforms/specctra/parser/Resolution.h"
 #include "designforms/specctra/parser/ScopeKeyword.h"
@@ -50,7 +51,7 @@ const KeywordInstance k_KEEPOUT("keepout");
 const KeywordInstance k_LAYER("layer");
 const KeywordInstance k_LAYER_RULE("layer_rule");
 const KeywordInstance k_LENGTH("length");
-const ScopeKeyword k_LIBRARY_SCOPE("library"); // Java: new Library()
+const Library k_LIBRARY_SCOPE; // Java: new Library()
 const KeywordInstance k_LOCK_TYPE("lock_type");
 const KeywordInstance k_LOGICAL_PART("logical_part");
 const KeywordInstance k_LOGICAL_PART_MAPPING("logical_part_mapping");

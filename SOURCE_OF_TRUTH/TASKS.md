@@ -304,7 +304,14 @@ net classes, keepouts) equal Java's. T110 adds the count dump used as acceptance
   - done when: a structure scope creates a RoutingBoard with outline (T121 `insert_outline`), keepouts as
     obstacle areas, planes as conduction areas; gtests with hand-written snippets. Note: `place_keepout`,
     `wire_keepout`, `via_keepout` appear in (almost) no test DSN — cover them with snippets.
-- [ ] T110 | deps: T109c | Library part 1: padstacks → board Padstacks
+- [x] T110 | deps: T109c | Library part 1: padstacks → board Padstacks
+  - result: `parser::Library` (Keyword LIBRARY_SCOPE is now the real class) with `read_padstack_scope` (name `.\d+`
+    suffix removed, shapes per layer, attach/absolute, convex hull + single piece + Simplex.simplify for non-convex
+    pads, offset(1) workaround for non-area pads, duplicate names ignored) and `read_scope` (fresh Padstacks; images
+    skipped until T111). Golden padstack dump from the jar matches (Library_test 2). Padstack counts equal the Java
+    harness on BBD_Mars-64, Issue026, Issue034, Issue070, Issue103-Unrouted, Issue107 (read through PCB_SCOPE);
+    empty_board creates no board yet because its `(string_quote ")` parser scope needs T125. The board-count dump moved
+    to T117 (`--dump-board-counts`). ctest 930/930.
   - spec: SOURCE_OF_TRUTH/plans/M1_dsn_reader.md (section T110)
   - java: parser/Library.java (padstack part), core/library/Padstacks.java (84)
   - also: add a test helper (or `freerouting --dump-board-counts <dsn>`) printing layer/net/component/

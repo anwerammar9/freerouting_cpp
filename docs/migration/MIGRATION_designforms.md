@@ -176,3 +176,8 @@
   these, the C++ item list (ids, types, layers, nets) equals the Java reference harness output. Layering choices: the
   board-side `Communication` stores the coordinate transform as numbers; parsed shapes become board areas through
   `to_board_area` (C++ `Area` derives from `Shape`, the inverse of Java).
+- **2026-10-10 (T110)**: `parser::Library` reads padstacks (images follow in T111). Per-layer pad shapes match the Java
+  reader for circles, rects, concave polygons (convex hull → Simplex), zero-size rects (offset(1) → IntBox ±1) and
+  multi-layer pads; padstack counts of 6 E2E boards equal the Java harness. Note: a `(parser (string_quote "))` scope
+  breaks generic scope skipping (the lone quote starts a string), so boards like empty_board need T125 before their
+  structure is read.
