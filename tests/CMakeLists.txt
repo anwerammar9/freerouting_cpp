@@ -385,6 +385,18 @@ if(BUILD_TESTS)
     )
     gtest_discover_tests(Observers_test)
 
+    add_executable(JavaRandom_test
+        ${CMAKE_SOURCE_DIR}/src/datastructures/JavaRandom_test.cpp
+    )
+    target_include_directories(JavaRandom_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/src
+    )
+    target_link_libraries(JavaRandom_test PRIVATE
+        GTest::gtest_main
+    )
+    gtest_discover_tests(JavaRandom_test)
+
     add_executable(PlanarDelaunayTriangulation_test
         ${CMAKE_SOURCE_DIR}/src/datastructures/PlanarDelaunayTriangulation_test.cpp
     )

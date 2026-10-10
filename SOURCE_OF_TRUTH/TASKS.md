@@ -130,7 +130,11 @@ The script picks the **first `[ ]`/`[~]` task whose deps are all `[x]`**.
     Issue070, Issue103-Board-Unrouted) have no baseline: record WHY (timeout / error) per board.
   - done when: `java_output_ses/<board>_java.{ses,json,log}` exist for every board Java can route, with a
     `baseline.json` summary (seconds, exit code, timed_out flag).
-- [ ] T009 | deps: - | Determinism: one `java.util.Random` port (JavaRandom.h); fix the PolygonShape LCG multiplier
+- [x] T009 | deps: - | Determinism: one `java.util.Random` port (JavaRandom.h); fix the PolygonShape LCG multiplier
+  - result: header-only `src/datastructures/JavaRandom.h` (setSeed/next/nextInt/nextInt(bound)/nextDouble + `java_shuffle`)
+    verified against JDK 25 output (JavaRandom_test 8); PolygonShape uses it (thread_local, re-seeded per split like Java)
+    instead of the private LCG with the wrong multiplier. PolygonShapeSplitTest 3 golden splits from the Java jar
+    (comb/L/arrow); the comb test fails with the old 0x5DEECE66 multiplier. MazeRandom left unchanged. ctest 898/898.
   - spec: SOURCE_OF_TRUTH/plans/M0_oracles.md (section T009)
   - cpp: src/datastructures/JavaRandom.h (+ _test), src/geometry/planar/PolygonShape.cpp (~line 67)
   - what: `PolygonShape.cpp` multiplies by `0x5DEECE66ULL`, Java uses `0x5DEECE66D`, so `split_to_convex` starts at

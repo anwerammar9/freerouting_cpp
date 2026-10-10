@@ -1,4 +1,6 @@
 #include "geometry/planar/PolygonShape.h"
+
+#include "datastructures/JavaRandom.h"
 #include "geometry/planar/Polygon.h"
 #include "geometry/planar/Polyline.h"
 #include "geometry/planar/Vector.h"
@@ -14,67 +16,16 @@
 #include <limits>
 #include <numeric>
 #include <sstream>
-#include <random>
 #include <vector>
 
 namespace freerouting::geometry::planar {
 
 namespace {
 
-// Replicate java.util.Random with the same seed and sequence to match the
-// decomposition produced by the Java PolygonShape.split_to_convex_recu.
-struct JavaRandomFixed
-{
-    uint64_t seed;
-
-    explicit JavaRandomFixed(uint64_t p_seed = 99)
-    {
-        reset(p_seed);
-    }
-
-    void reset(uint64_t p_seed = 99)
-    {
-        // seed = (initial ^ 0x5DEECE66DL) as Java does
-        seed = static_cast<uint64_t>(static_cast<int64_t>(p_seed) ^ 0x5DEECE66DLL) & 0xFFFFFFFFFFFFULL;
-    }
-
-    int next_int(int bound)
-    {
-        if (bound <= 0)
-        {
-            return 0;
-        }
-        if ((bound & (bound - 1)) == 0)
-        {
-            advance();
-            return static_cast<int>((static_cast<uint64_t>(bound) * next_bits(31)) >> 31);
-        }
-        for (;;)
-        {
-            advance();
-            uint32_t bits = next_bits(31);
-            uint32_t val = bits % static_cast<uint32_t>(bound);
-            if (static_cast<int32_t>(bits) - static_cast<int32_t>(val) + (bound - 1) >= 0)
-            {
-                return static_cast<int>(val);
-            }
-        }
-    }
-
-private:
-    void advance()
-    {
-        seed = (seed * 0x5DEECE66ULL + 0xBULL) & 0xFFFFFFFFFFFFULL;
-    }
-
-    uint32_t next_bits(int bits)
-    {
-        return static_cast<uint32_t>(seed >> (48 - bits));
-    }
-};
-
-// Caching a static instance per thread-local RNG avoids pollution of callers.
-static thread_local JavaRandomFixed g_java_random{99};
+// Java PolygonShape keeps one static java.util.Random (seed 99) that splitToConvex re-seeds
+// before each split. C++ uses one instance per thread so concurrent optimizer workers stay
+// deterministic (Java shares it between threads, a race).
+static thread_local datastructures::JavaRandom g_java_random{99};
 
 // Division point: axis-aligned split through a concave corner.
 struct DivisionPoint
@@ -871,7 +822,7 @@ const std::vector<std::unique_ptr<TileShape>>& PolygonShape::split_to_convex() c
 {
     if (!precalculated_convex_pieces)
     {
-        g_java_random.reset(99);
+        g_java_random.set_seed(99);
         precalculated_convex_pieces =
             std::make_shared<std::vector<std::unique_ptr<TileShape>>>(split_to_convex_recu());
     }

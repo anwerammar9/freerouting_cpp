@@ -147,6 +147,61 @@ TEST_F(PolygonShapeTest, Intersects)
     EXPECT_FALSE(shape.intersects(far_circle));
 }
 
+// Golden pieces printed by Java PolygonShape.splitToConvex (freerouting 2.1.0 jar). The start
+// corner of the split comes from java.util.Random(99); the old C++ LCG used multiplier
+// 0x5DEECE66 instead of 0x5DEECE66D and split these shapes differently.
+std::vector<std::vector<IntPoint>> split_corners(const PolygonShape& p_shape)
+{
+    std::vector<std::vector<IntPoint>> result;
+    for (const auto& piece : p_shape.split_to_convex())
+    {
+        std::vector<IntPoint> corners;
+        for (int i = 0; i < piece->border_line_count(); ++i)
+        {
+            corners.push_back(piece->corner(i));
+        }
+        result.push_back(corners);
+    }
+    return result;
+}
+
+TEST(PolygonShapeSplitTest, MatchesJavaForComb)
+{
+    const PolygonShape comb({IntPoint(0, 0), IntPoint(70, 0), IntPoint(70, 40), IntPoint(60, 40), IntPoint(60, 10),
+        IntPoint(40, 10), IntPoint(40, 40), IntPoint(30, 40), IntPoint(30, 10), IntPoint(10, 10), IntPoint(10, 40),
+        IntPoint(0, 40)});
+    const std::vector<std::vector<IntPoint>> expected = {
+        {IntPoint(0, 10), IntPoint(10, 10), IntPoint(10, 40), IntPoint(0, 40)},
+        {IntPoint(0, 0), IntPoint(30, 0), IntPoint(30, 10), IntPoint(0, 10)},
+        {IntPoint(30, 10), IntPoint(40, 10), IntPoint(40, 40), IntPoint(30, 40)},
+        {IntPoint(30, 0), IntPoint(60, 0), IntPoint(60, 10), IntPoint(30, 10)},
+        {IntPoint(60, 0), IntPoint(70, 0), IntPoint(70, 40), IntPoint(60, 40)},
+    };
+    EXPECT_EQ(expected, split_corners(comb));
+}
+
+TEST(PolygonShapeSplitTest, MatchesJavaForLShape)
+{
+    const PolygonShape l_shape({IntPoint(0, 0), IntPoint(40, 0), IntPoint(40, 10), IntPoint(10, 10), IntPoint(10, 30),
+        IntPoint(0, 30)});
+    const std::vector<std::vector<IntPoint>> expected = {
+        {IntPoint(0, 10), IntPoint(10, 10), IntPoint(10, 30), IntPoint(0, 30)},
+        {IntPoint(0, 0), IntPoint(40, 0), IntPoint(40, 10), IntPoint(0, 10)},
+    };
+    EXPECT_EQ(expected, split_corners(l_shape));
+}
+
+TEST(PolygonShapeSplitTest, MatchesJavaForArrow)
+{
+    const PolygonShape arrow({IntPoint(0, 0), IntPoint(50, 20), IntPoint(0, 40), IntPoint(15, 20)});
+    const std::vector<std::vector<IntPoint>> expected = {
+        {IntPoint(0, 0), IntPoint(15, 6), IntPoint(15, 20)},
+        {IntPoint(15, 6), IntPoint(50, 20), IntPoint(15, 34)},
+        {IntPoint(15, 20), IntPoint(15, 34), IntPoint(0, 40)},
+    };
+    EXPECT_EQ(expected, split_corners(arrow));
+}
+
 } // namespace
 } // namespace planar
 } // namespace geometry

@@ -73,3 +73,9 @@
 - **Note**: Geometry primitives are the foundation - must be complete before board/autoroute can be fully migrated- **2026-10-08 (T003)**: `TileShape::cutout(TileShape)` verified for all 9 Simplex/IntOctagon/IntBox
   combinations (27 parameterized gtests); added Java `IntBox.cutout`'s per-piece `simplify()`. The
   inverted-branch bug noted in 03_MISSING §2.1 was already fixed in f00c632.
+
+- **2026-10-10 (T009)**: `PolygonShape::split_to_convex` now draws its start corner from the shared
+  `datastructures::JavaRandom` (bit-exact `java.util.Random`, seed 99, re-seeded per split). The previous private LCG
+  multiplied by `0x5DEECE66` instead of `0x5DEECE66D`, so concave shapes were split differently from Java (golden tests
+  from the jar in `PolygonShape_test.cpp`, suite `PolygonShapeSplitTest`). Deliberate deviation: the generator is
+  `thread_local` (Java shares one static instance between threads).
