@@ -17,6 +17,19 @@ else
   mapfile -t BOARDS < <(sed -n '/^BOARDS=(/,/^)/p' "$ROOT/test_java_boards.sh" | grep -o '"[^"]*\.dsn"' | tr -d '"')
 fi
 
+# Preserve the "Java baselines" section written by tools/java_baseline.sh (T008):
+# this script owns the C++-vs-Java table, java_baseline.sh owns the Java-side summary.
+BEGIN_MARK="<!-- java-baseline:begin -->"
+END_MARK="<!-- java-baseline:end -->"
+JAVA_SECTION=""
+if [[ -f "$STATUS_MD" ]]; then
+  JAVA_SECTION="$(awk -v b="$BEGIN_MARK" -v e="$END_MARK" '
+    $0 == b { f = 1 }
+    f { print }
+    $0 == e { f = 0 }
+  ' "$STATUS_MD" 2>/dev/null)"
+fi
+
 rows=()
 for board in "${BOARDS[@]}"; do
   dsn="$board"
@@ -39,5 +52,9 @@ done
     echo "| $row |"
   done
 } >"$STATUS_MD"
+
+if [[ -n "$JAVA_SECTION" ]]; then
+  printf '\n%s\n' "$JAVA_SECTION" >>"$STATUS_MD"
+fi
 
 echo "wrote $STATUS_MD"

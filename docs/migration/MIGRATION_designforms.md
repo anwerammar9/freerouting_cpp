@@ -162,3 +162,7 @@
   (JAVA25_HOME/FREEROUTING_JAR optional). ctest 887/887. This sets the exact JSON contract for
   `freerouting --dump-board-counts` (T117); the C++ reader must emit the same schema and per-type counts
   (`obstacle_areas` counts only the plain `ObstacleArea` concrete class).
+- **2026-10-10 (T008)**: Java baselines for the 8 E2E boards via `tools/java_baseline.sh --tier e2e --mode st`
+  (`docs/migration/baseline.json`). Issue103-Board-Unrouted uses the full 30 min job limit in Java (optimizer cut short,
+  state still COMPLETED) — treat its baseline as wall-clock limited; use a longer `--timeout` or optimizer off for
+  parity comparisons on that board.

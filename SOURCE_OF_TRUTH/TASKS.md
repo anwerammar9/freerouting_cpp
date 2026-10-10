@@ -115,7 +115,13 @@ The script picks the **first `[ ]`/`[~]` task whose deps are all `[x]`**.
     0 failures; 116 success + Issue006 parse_error (binary OLE, "(pcb" header check as expected). Oracle set confirmed
     deterministic (bit-identical re-run), item-id descending order OK. 1 file (Issue289 FHT-VGA) > 2 MB -> items_omitted.
     Gotcha: the jar is Java-25 classfiles but env JAVA_HOME=JDK21, so build.sh/prefer JAVA25_HOME (JDK 25 javac). ctest 887/887, jar run_all green.
-- [ ] T008 | deps: - | Java baseline runner (replaces test_java_boards.sh)
+- [x] T008 | deps: - | Java baseline runner (replaces test_java_boards.sh)
+  - result: tools/java_baseline.sh (tiers smoke/tiny/small/medium/large/stress/e2e/all, st/mt mode, fresh --user_data_path,
+    -Xmx2g, --router.result_json manifest, `time -v`, reason classification, new `hit_job_timeout` flag) writes
+    java_output_ses/<board>_java.{ses,json,log,time}, docs/migration/baseline.json and a marked section in E2E_STATUS.md
+    (tools/e2e_all.sh preserves it). e2e tier, st: 7/8 boards routed (BBD_Mars-64 170 s, Issue070 318 s, Issue103
+    1806 s and cut by the 30 min job limit — wall-clock limited); Issue006 = parse error (binary OLE file, correct).
+    The 4 previously missing baselines were the old 180 s timeout + Issue006. No C++ change; ctest unaffected.
   - spec: SOURCE_OF_TRUTH/plans/M0_oracles.md (section T008)
   - cpp: tools/java_baseline.sh (+ docs in docs/migration/E2E_STATUS.md)
   - what: run the jar headlessly per board with a clean `--user_data_path`, `-mt 1`, fixed `-mp`, explicit
