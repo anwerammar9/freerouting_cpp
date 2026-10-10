@@ -11,6 +11,7 @@
 #include "designforms/specctra/parser/CoordinateTransform.h"
 #include "designforms/specctra/parser/IJFlexScanner.h"
 #include "designforms/specctra/parser/Layer.h"
+#include "designforms/specctra/parser/NetList.h"
 #include "designforms/specctra/parser/Shape.h"
 
 namespace freerouting::settings {
@@ -37,6 +38,9 @@ public:
     explicit ReadScopeParameter(IJFlexScanner& p_scanner) : scanner(p_scanner) {}
 
     IJFlexScanner& scanner;
+
+    /** The nets of the network scope; always present (Java initialises it). Java netlist. */
+    NetList netlist;
 
     /** Warnings collected during parsing. Java ReadScopeParameter.warnings. */
     std::vector<std::string> warnings;

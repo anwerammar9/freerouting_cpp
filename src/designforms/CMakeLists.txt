@@ -17,6 +17,7 @@ add_library(freerouting_designforms STATIC
     specctra/parser/DsnFile.cpp
     specctra/parser/Keyword.cpp
     specctra/parser/Layer.cpp
+    specctra/parser/NetList.cpp
     specctra/parser/Path.cpp
     specctra/parser/Plane.cpp
     specctra/parser/Polygon.cpp

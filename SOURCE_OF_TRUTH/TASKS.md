@@ -278,7 +278,10 @@ net classes, keepouts) equal Java's. T110 adds the count dump used as acceptance
   - cpp: src/designforms/specctra/parser/Structure.{h,cpp}
   - done when: gtests build a BoardRules from `(rule ...)`/`(structure (rule ...))` snippets (width,
     clearance with `type` pairs, `default`/`wire_wire` etc.) and the clearance matrix equals Java's values.
-- [ ] T126 | deps: - | Parser Net, Net::Id, Net::Pin, NetList (moved forward from T113: Structure needs the netlist for planes)
+- [x] T126 | deps: - | Parser Net, Net::Id, Net::Pin, NetList (moved forward from T113: Structure needs the netlist for planes)
+  - result: parser `Net` (header-only: `Id`, `Pin` with Java compareTo order via defaulted `<=>`, optional pin set =
+    Java null until setPins) and `NetList` (`std::map<Net::Id, unique_ptr<Net>>`, add_net returns nullptr for an
+    existing id, get_nets in id order); `ReadScopeParameter::netlist`. NetList_test 4. ctest 919/919.
   - spec: SOURCE_OF_TRUTH/plans/M1_dsn_reader.md (section T126)
   - java: parser/NetList.java (56), parser/Net.java (129, read part; write part is T204c)
   - cpp: src/designforms/specctra/parser/{Net,NetList}.{h,cpp,_test.cpp}; `ReadScopeParameter::netlist`

@@ -243,6 +243,7 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/ParserShape_test.cpp
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/Structure_test.cpp
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/AutorouteSettings_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/NetList_test.cpp
     )
 
     foreach(test_src IN LISTS DESIGNFORMS_TEST_SOURCES)
