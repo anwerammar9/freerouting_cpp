@@ -5,6 +5,7 @@
 
 #include <gtest/gtest.h>
 
+#include "designforms/specctra/parser/DsnFile.h"
 #include "designforms/specctra/parser/Keyword.h"
 #include "designforms/specctra/parser/Rectangle.h"
 #include "designforms/specctra/parser/ReadScopeParameter.h"
@@ -13,6 +14,16 @@
 #include "designforms/specctra/parser/Path.h"
 
 #include <sstream>
+
+#include "board/BoardOutline.h"
+#include "geometry/planar/Polygon.h"
+#include "geometry/planar/PolygonShape.h"
+#include "board/ComponentObstacleArea.h"
+#include "board/ConductionArea.h"
+#include "board/ObstacleArea.h"
+#include "board/RoutingBoard.h"
+#include "board/ViaObstacleArea.h"
+#include "rules/Net.h"
 
 #include "board/Layer.h"
 #include "rules/BoardRules.h"
@@ -133,7 +144,7 @@ TEST(StructureTest, ReadScopeCollectsLayersBoundaryAndPlanes)
 TEST(StructureTest, ReadScopeSkipsUnknownScopes)
 {
     SpecctraDsnStreamReader scanner(
-        "(layer F.Cu (type signal))(control (via_at_smd on))(rule (width 10))"
+        "(layer F.Cu (type signal))(boundary (rect pcb 0 0 100 100))(control (via_at_smd on))(rule (width 10))"
         "(plane GND (rect F.Cu 0 0 10 10)))",
         true);
     ReadScopeParameter par(scanner);
@@ -234,7 +245,7 @@ TEST(StructureTest, ReadSnapAngleRejectsUnexpectedToken)
 
 TEST(StructureTest, ReadScopeReadsSnapAngle)
 {
-    SpecctraDsnStreamReader scanner("(layer F.Cu (type signal))(snap_angle ninety_degree))", true);
+    SpecctraDsnStreamReader scanner("(layer F.Cu (type signal))(boundary (rect pcb 0 0 100 100))(snap_angle ninety_degree))", true);
     ReadScopeParameter par(scanner);
     ASSERT_TRUE(Keyword::STRUCTURE_SCOPE->read_scope(par));
     EXPECT_EQ(board::AngleRestriction::NINETY_DEGREE, par.snap_angle);
@@ -242,7 +253,7 @@ TEST(StructureTest, ReadScopeReadsSnapAngle)
 
 TEST(StructureTest, ReadScopeDefaultSnapAngleIsFortyFiveDegree)
 {
-    SpecctraDsnStreamReader scanner("(layer F.Cu (type signal)))", true);
+    SpecctraDsnStreamReader scanner("(layer F.Cu (type signal))(boundary (rect pcb 0 0 100 100)))", true);
     ReadScopeParameter par(scanner);
     ASSERT_TRUE(Keyword::STRUCTURE_SCOPE->read_scope(par));
     EXPECT_EQ(board::AngleRestriction::FORTYFIVE_DEGREE, par.snap_angle);
@@ -300,7 +311,7 @@ TEST(StructureTest, ReadScopeReadsViaListControlAndKeepouts)
 TEST(StructureTest, ReadScopeReadsKeepoutWithWindowAndClearanceClass)
 {
     SpecctraDsnStreamReader scanner(
-        "(layer F.Cu (type signal))"
+        "(layer F.Cu (type signal))(boundary (rect pcb 0 0 100 100))"
         "(keepout k1 (rect F.Cu 0 0 10 10) (window (rect F.Cu 2 2 3 3)) (clearance_class wide)))",
         true);
     ReadScopeParameter par(scanner);
@@ -460,6 +471,145 @@ TEST(StructureRulesTest, UpdateBoardRulesAppliesWidthsAndPinEdgeDefault)
     EXPECT_EQ(20, f.rules.get_default_trace_half_width(0)); // layer rule width 4 -> 40 / 2
     EXPECT_EQ(16, f.rules.get_clearance_matrix().get_value(1, 1, 0, false)); // 15 -> even 16
     EXPECT_DOUBLE_EQ(f.rules.get_min_trace_half_width(), f.rules.get_pin_edge_to_turn_dist());
+}
+
+// ---- T109c: board creation. The expected item lists were produced by the Java reference harness
+// (tools/java_ref/BoardCounts.java) for the same structure wrapped in (pcb s1 (resolution um 10) ...).
+
+std::string item_type(const board::Item* p_item)
+{
+    if (dynamic_cast<const board::BoardOutline*>(p_item) != nullptr)
+    {
+        return "BoardOutline";
+    }
+    if (dynamic_cast<const board::ConductionArea*>(p_item) != nullptr)
+    {
+        return "ConductionArea";
+    }
+    if (dynamic_cast<const board::ViaObstacleArea*>(p_item) != nullptr)
+    {
+        return "ViaObstacleArea";
+    }
+    if (dynamic_cast<const board::ComponentObstacleArea*>(p_item) != nullptr)
+    {
+        return "ComponentObstacleArea";
+    }
+    if (dynamic_cast<const board::ObstacleArea*>(p_item) != nullptr)
+    {
+        return "ObstacleArea";
+    }
+    return "Item";
+}
+
+std::string describe_items(const board::RoutingBoard& p_board)
+{
+    std::ostringstream out;
+    for (const board::Item* item : p_board.get_items())
+    {
+        out << item->get_id() << ':' << item_type(item) << ':' << item->first_layer() << '-' << item->last_layer()
+            << ":[";
+        for (int i = 0; i < item->net_count(); ++i)
+        {
+            out << (i > 0 ? "," : "") << item->get_net_no(i);
+        }
+        out << "] ";
+    }
+    return out.str();
+}
+
+constexpr const char* kStructureS1 =
+    "(resolution um 10)"
+    "(structure"
+    "  (layer F.Cu (type signal))"
+    "  (layer GND (type power) (use_net GND))"
+    "  (layer B.Cu (type signal))"
+    "  (boundary (path pcb 0 0 0 100000 0 100000 80000 0 80000 0 0))"
+    "  (boundary (path pcb 0 40000 20000 60000 20000 60000 40000 40000 40000 40000 20000))"
+    "  (keepout k1 (rect F.Cu 10000 10000 20000 20000))"
+    "  (via_keepout (rect signal 30000 30000 35000 35000))"
+    "  (place_keepout (rect B.Cu 50000 50000 60000 60000))"
+    "  (keepout kd (rect F.Cu 5000 5000 5000 5000))"
+    "  (plane VCC (rect B.Cu 70000 0 100000 30000))"
+    "  (rule (width 250) (clearance 200))"
+    "))";
+
+TEST(StructureCreateBoardTest, CreatesTheBoardLikeJava)
+{
+    SpecctraDsnStreamReader scanner(kStructureS1, true);
+    ReadScopeParameter par(scanner);
+    ASSERT_TRUE(Keyword::PCB_SCOPE->read_scope(par));
+    board::RoutingBoard* board = par.get_board();
+    ASSERT_NE(nullptr, board);
+    EXPECT_EQ(3, board->get_layer_count());
+    // Java: outline, the outline hole as obstacle on each layer, keepout, via keepout on both signal
+    // layers, place keepout, (degenerate keepout skipped), plane VCC, missing power plane GND.
+    EXPECT_EQ("10:ConductionArea:1-1:[2] 9:ConductionArea:2-2:[1] 8:ComponentObstacleArea:2-2:[] "
+              "7:ViaObstacleArea:2-2:[] 6:ViaObstacleArea:0-0:[] 5:ObstacleArea:0-0:[] 4:ObstacleArea:2-2:[] "
+              "3:ObstacleArea:1-1:[] 2:ObstacleArea:0-0:[] 1:BoardOutline:0-2:[] ",
+        describe_items(*board));
+    EXPECT_EQ(2, board->get_rules().get_nets().max_net_no());
+    EXPECT_EQ("VCC", board->get_rules().get_nets().get(1)->get_name());
+    EXPECT_EQ("GND", board->get_rules().get_nets().get(2)->get_name());
+    EXPECT_TRUE(par.netlist.contains({"VCC", 1}));
+    EXPECT_TRUE(par.netlist.contains({"GND", 1}));
+    ASSERT_TRUE(par.coordinate_transform.has_value());
+    EXPECT_DOUBLE_EQ(10.0, par.coordinate_transform->dsn_to_board(1.0)); // scale = resolution 10
+    ASSERT_NE(nullptr, board->communication());
+    EXPECT_EQ(10, board->communication()->get_resolution());
+}
+
+TEST(StructureCreateBoardTest, MissingOutlineFailsAndClearsBoardOutlineOk)
+{
+    SpecctraDsnStreamReader scanner("(layer F.Cu (type signal)))", true);
+    ReadScopeParameter par(scanner);
+    EXPECT_FALSE(Keyword::STRUCTURE_SCOPE->read_scope(par));
+    EXPECT_FALSE(par.board_outline_ok);
+    EXPECT_EQ(nullptr, par.get_board());
+}
+
+TEST(StructureCreateBoardTest, KeepoutOnPcbLayerFailsTheReadLikeJava)
+{
+    SpecctraDsnStreamReader scanner(
+        "(layer F.Cu (type signal))(boundary (rect pcb 0 0 100 100))(keepout (rect pcb 10 10 20 20)))", true);
+    ReadScopeParameter par(scanner);
+    EXPECT_FALSE(Keyword::STRUCTURE_SCOPE->read_scope(par));
+}
+
+TEST(StructureCreateBoardTest, SeparateHolesFindsTheInnerShape)
+{
+    std::vector<std::shared_ptr<geometry::planar::PolylineShape>> shapes = {
+        std::make_shared<geometry::planar::PolygonShape>(std::vector<geometry::planar::IntPoint>{
+            {0, 0}, {100, 0}, {100, 100}, {0, 100}}),
+        std::make_shared<geometry::planar::PolygonShape>(std::vector<geometry::planar::IntPoint>{
+            {40, 40}, {60, 40}, {60, 60}, {40, 60}}),
+    };
+    auto inner = shapes[1];
+    const auto holes = Structure::separate_holes(shapes);
+    ASSERT_EQ(1u, holes.size());
+    EXPECT_EQ(inner, holes[0]);
+    ASSERT_EQ(1u, shapes.size());
+}
+
+TEST(StructureCreateBoardTest, AdjustPlaneAutorouteSettingsMarksLargePourNets)
+{
+    // Java DsnFile.adjustPlaneAutorouteSettings: only boards whose layers are all signal layers,
+    // conduction areas covering >= 30 % of the board area.
+    SpecctraDsnStreamReader scanner("(layer F.Cu (type signal))(layer B.Cu (type signal))"
+                                    "(boundary (rect pcb 0 0 1000 1000))"
+                                    "(plane GND (rect B.Cu 0 0 1000 500))"
+                                    "(plane VCC (rect F.Cu 0 0 100 100)))",
+        true);
+    ReadScopeParameter par(scanner);
+    ASSERT_TRUE(Keyword::STRUCTURE_SCOPE->read_scope(par));
+    EXPECT_TRUE(DsnFile::adjust_plane_autoroute_settings(par.get_board()));
+
+    SpecctraDsnStreamReader power_scanner("(layer F.Cu (type signal))(layer P (type power) (use_net GND))"
+                                          "(boundary (rect pcb 0 0 1000 1000)))",
+        true);
+    ReadScopeParameter power_par(power_scanner);
+    ASSERT_TRUE(Keyword::STRUCTURE_SCOPE->read_scope(power_par));
+    EXPECT_FALSE(DsnFile::adjust_plane_autoroute_settings(power_par.get_board())); // a power layer exists
+    EXPECT_FALSE(DsnFile::adjust_plane_autoroute_settings(nullptr));
 }
 
 } // namespace

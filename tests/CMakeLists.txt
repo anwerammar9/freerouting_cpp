@@ -254,7 +254,7 @@ if(BUILD_TESTS)
             ${CMAKE_SOURCE_DIR}/src
         )
         target_link_libraries(${test_name} PRIVATE
-            $<LINK_GROUP:RESCAN,freerouting_designforms,freerouting_settings,freerouting_board,freerouting_geometry,freerouting_logger,freerouting_constants>
+            $<LINK_GROUP:RESCAN,freerouting_designforms,freerouting_settings,freerouting_board,freerouting_autoroute,freerouting_core,freerouting_datastructures,freerouting_geometry,freerouting_rules,freerouting_logger,freerouting_constants>
             GTest::gtest_main
         )
         gtest_discover_tests(${test_name})

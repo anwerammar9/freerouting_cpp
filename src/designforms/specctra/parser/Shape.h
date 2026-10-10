@@ -7,6 +7,7 @@
 
 #include "designforms/specctra/parser/IJFlexScanner.h"
 #include "designforms/specctra/parser/Layer.h"
+#include "geometry/planar/PolylineShape.h"
 #include "geometry/planar/Shape.h"
 
 namespace freerouting::designforms::specctra::parser {
@@ -82,5 +83,18 @@ public:
 
 /** Java (IntBox) wrapped as a board Shape. */
 std::unique_ptr<geometry::planar::Shape> as_board_shape(std::unique_ptr<geometry::planar::TileShape> p_tile);
+
+/**
+ * A transformed board shape as PolylineShape (Java casts transformToBoard results to PolylineShape):
+ * PolylineShapes are returned as they are, convex tiles become a PolygonShape with the same corners.
+ * nullptr for other shapes.
+ */
+std::shared_ptr<geometry::planar::PolylineShape> to_polyline_shape(std::unique_ptr<geometry::planar::Shape> p_shape);
+
+/**
+ * A transformed board shape as Area (Java Shape extends Area; in C++ Area derives from Shape):
+ * Areas are returned as they are, other shapes are wrapped as a hole-free PolylineArea.
+ */
+std::shared_ptr<geometry::planar::Area> to_board_area(std::unique_ptr<geometry::planar::Shape> p_shape);
 
 } // namespace freerouting::designforms::specctra::parser

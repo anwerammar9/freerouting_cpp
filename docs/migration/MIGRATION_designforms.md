@@ -171,3 +171,8 @@
   (creates via/smd/pin/area classes and their default item clearance classes), `smd_to_turn_gap`, quoted names and the
   2-element pair form. Note Java's comment "pairs with more than 1 underline are not implemented" is wrong: the code
   splits at the first `_`, so `smd_via_same_net` creates classes `smd` and `via_same_net` — reproduced.
+- **2026-10-10 (T109c)**: the structure scope now creates the board (`Structure::create_board` via
+  `MinimalBoardManager`), inserts outline holes, keepouts, planes and missing power planes. For a test DSN with all of
+  these, the C++ item list (ids, types, layers, nets) equals the Java reference harness output. Layering choices: the
+  board-side `Communication` stores the coordinate transform as numbers; parsed shapes become board areas through
+  `to_board_area` (C++ `Area` derives from `Shape`, the inverse of Java).

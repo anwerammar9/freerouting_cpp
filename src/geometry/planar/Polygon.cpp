@@ -48,31 +48,16 @@ Polygon::Polygon(const std::vector<IntPoint>& p_point_arr)
             corner_removed = true;
         }
 
-        // remove points which are collinear with the previous and next point
-        size_t corner_count = corners_.size();
-        if (corner_count >= 3)
+        // remove points which are collinear with the previous and next point.
+        // Java parity: only interior points are checked (no wrap-around at the ends) and only one
+        // point is removed per pass before the loop starts over.
+        for (size_t k = 1; k + 1 < corners_.size(); ++k)
         {
-            std::vector<IntPoint> reduced_corners;
-            reduced_corners.reserve(corner_count);
-            bool collinear_point_removed = false;
-            for (size_t i = 0; i < corner_count; ++i)
+            if (corners_[k].side_of(corners_[k - 1], corners_[k + 1]) == Side::COLLINEAR)
             {
-                const IntPoint& prev = corners_[(i == 0) ? corner_count - 1 : i - 1];
-                const IntPoint& curr = corners_[i];
-                const IntPoint& next = corners_[(i + 1) % corner_count];
-                if (curr.side_of(prev, next) == Side::COLLINEAR)
-                {
-                    collinear_point_removed = true;
-                }
-                else
-                {
-                    reduced_corners.emplace_back(curr.x, curr.y);
-                }
-            }
-            if (collinear_point_removed)
-            {
-                corners_ = std::move(reduced_corners);
+                corners_.erase(corners_.begin() + static_cast<std::ptrdiff_t>(k));
                 corner_removed = true;
+                break;
             }
         }
     }

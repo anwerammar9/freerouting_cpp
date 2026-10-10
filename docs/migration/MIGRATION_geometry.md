@@ -79,3 +79,6 @@
   multiplied by `0x5DEECE66` instead of `0x5DEECE66D`, so concave shapes were split differently from Java (golden tests
   from the jar in `PolygonShape_test.cpp`, suite `PolygonShapeSplitTest`). Deliberate deviation: the generator is
   `thread_local` (Java shares one static instance between threads).
+- **2026-10-10 (T109c)**: `Polygon(std::vector<IntPoint>)` collinear removal fixed to Java semantics (interior points only,
+  one per pass). The old cyclic removal turned closed corner lists (last == first) into triangles. Golden tests in
+  `PolygonShape_test.cpp` (`PolygonJavaParityTest`).

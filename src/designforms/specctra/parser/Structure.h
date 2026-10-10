@@ -6,12 +6,19 @@
 #include <vector>
 
 #include "board/AngleRestriction.h"
+#include "board/FixedState.h"
+#include "designforms/specctra/parser/NetList.h"
+#include "geometry/planar/PolylineShape.h"
 #include "designforms/specctra/parser/CoordinateTransform.h"
 #include "designforms/specctra/parser/Rule.h"
 #include "rules/BoardRules.h"
 #include "rules/ClearanceMatrix.h"
 #include "designforms/specctra/parser/ScopeKeyword.h"
 #include "designforms/specctra/parser/Shape.h"
+
+namespace freerouting::board {
+class RoutingBoard;
+} // namespace freerouting::board
 
 namespace freerouting::designforms::specctra::parser {
 
@@ -87,6 +94,35 @@ public:
     static int append_clearance_class(rules::BoardRules& p_board_rules, const std::string& p_name);
     /** True, if all clearance values on both layers are equal. Java Structure.clearanceEquals. */
     static bool clearance_equals(const rules::ClearanceMatrix& p_matrix, int p_layer_1, int p_layer_2);
+
+    /** Java Structure.KeepoutType. */
+    enum class KeepoutType
+    {
+        keepout,
+        via_keepout,
+        place_keepout
+    };
+
+    /**
+     * Creates the board from the structure data through p_par.board_handling: layers, coordinate
+     * transform, outline (holes become obstacles), rules and communication. Java Structure.createBoard.
+     */
+    static bool create_board(ReadScopeParameter& p_par, BoardConstructionInfo& p_info);
+    /**
+     * Removes the outline shapes that are holes of another outline shape and returns them.
+     * Java Structure.separateHoles.
+     */
+    static std::vector<std::shared_ptr<geometry::planar::PolylineShape>> separate_holes(
+        std::vector<std::shared_ptr<geometry::planar::PolylineShape>>& p_outline_shapes);
+    /** Inserts a keepout area of the structure scope. Java Structure.insertKeepout (area overload). */
+    static bool insert_keepout(const Shape::ReadAreaScopeResult& p_area, ReadScopeParameter& p_par,
+        KeepoutType p_keepout_type, board::FixedState p_fixed_state);
+    /**
+     * Inserts a conduction area over the board for every power layer with a net but without a
+     * conduction area. Java Structure.insertMissingPowerPlanes.
+     */
+    static void insert_missing_power_planes(
+        const std::vector<std::shared_ptr<Layer>>& p_layer_info, NetList& p_netlist, board::RoutingBoard& p_board);
 };
 
 } // namespace freerouting::designforms::specctra::parser

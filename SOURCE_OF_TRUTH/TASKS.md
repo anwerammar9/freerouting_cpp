@@ -285,7 +285,18 @@ net classes, keepouts) equal Java's. T110 adds the count dump used as acceptance
   - spec: SOURCE_OF_TRUTH/plans/M1_dsn_reader.md (section T126)
   - java: parser/NetList.java (56), parser/Net.java (129, read part; write part is T204c)
   - cpp: src/designforms/specctra/parser/{Net,NetList}.{h,cpp,_test.cpp}; `ReadScopeParameter::netlist`
-- [ ] T109c | deps: T109b,T126 | Structure part 3c: create_board (outline, keepouts, planes → board) + BoardParserCallback/MinimalBoardManager + Communication fields
+- [x] T109c | deps: T109b,T126 | Structure part 3c: create_board (outline, keepouts, planes → board) + BoardParserCallback/MinimalBoardManager + Communication fields
+  - result: `parser::BoardParserCallback` + `MinimalBoardManager` (creates the RoutingBoard, adopts the Communication, inserts
+    the outline first like Java's ctor); `Structure::create_board` / `separate_holes` / `insert_keepout` /
+    `insert_missing_power_planes` + read_scope tail (keepout → via_keepout → place_keepout, planes, missing power planes);
+    `DsnFile::adjust_plane_autoroute_settings`; `board::Communication` extended (parser info incl. constants and
+    write resolution, transform as scale/base numbers, Java hostIsOldKicad/hostCadIsFusion); parser helpers
+    `to_polyline_shape` / `to_board_area`. Found and fixed a geometry bug on the way: C++ `Polygon` removed collinear
+    corners cyclically and all at once, Java removes interior ones only, one per pass (a closed outline path came out
+    as a triangle); golden tests from the jar. Structure board test reproduces the Java harness item list exactly
+    (ids 1-10). Structure tests that read boundary-less snippets now include a boundary (Java fails without one).
+    flip_style stays default until T112; DSN autoroute settings → routing job waits for T124a (no job in Minimal).
+    Structure_test 37, ctest 928/928.
   - spec: SOURCE_OF_TRUTH/plans/M1_dsn_reader.md (section T109c)
   - java: parser/Structure.java createBoard (1139-1307), readScope tail (1100-1138), insertKeepout (857-935),
     separateHoles (577-610), insertMissingPowerPlanes (526-576); parser/DsnFile.adjustPlaneAutorouteSettings

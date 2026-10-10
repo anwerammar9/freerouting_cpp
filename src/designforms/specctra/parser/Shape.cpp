@@ -54,7 +54,7 @@ std::shared_ptr<Layer> get_layer(const LayerStructure* p_layer_structure, const 
  * IntBox/IntOctagon/Simplex are PolylineShapes, the C++ tile shapes are
  * converted to a PolygonShape with the same corners.
  */
-std::shared_ptr<fp::PolylineShape> to_polyline_shape(std::unique_ptr<fp::Shape> p_shape)
+std::shared_ptr<fp::PolylineShape> to_polyline_shape_impl(std::unique_ptr<fp::Shape> p_shape)
 {
     if (p_shape == nullptr)
     {
@@ -104,7 +104,7 @@ std::unique_ptr<fp::Shape> transform_area(const std::vector<std::unique_ptr<Shap
         return boundary_shape;
     }
     // Area with holes
-    std::shared_ptr<fp::PolylineShape> border = to_polyline_shape(std::move(boundary_shape));
+    std::shared_ptr<fp::PolylineShape> border = to_polyline_shape_impl(std::move(boundary_shape));
     if (border == nullptr)
     {
         warn("Shape.transform_area_to_board: PolylineShape expected");
@@ -113,7 +113,7 @@ std::unique_ptr<fp::Shape> transform_area(const std::vector<std::unique_ptr<Shap
     std::vector<std::shared_ptr<fp::PolylineShape>> holes;
     for (int i = 1; i <= hole_count; ++i)
     {
-        std::shared_ptr<fp::PolylineShape> hole = to_polyline_shape(transform(*p_area[i]));
+        std::shared_ptr<fp::PolylineShape> hole = to_polyline_shape_impl(transform(*p_area[i]));
         if (hole == nullptr)
         {
             warn("Shape.transform_area_to_board: PolylineShape expected");
@@ -496,6 +496,30 @@ std::unique_ptr<fp::Shape> Shape::transform_area_to_board_rel(
     const std::vector<std::unique_ptr<Shape>>& p_area, const CoordinateTransform& p_transform)
 {
     return transform_area(p_area, p_transform, true);
+}
+
+std::shared_ptr<fp::PolylineShape> to_polyline_shape(std::unique_ptr<fp::Shape> p_shape)
+{
+    return to_polyline_shape_impl(std::move(p_shape));
+}
+
+std::shared_ptr<fp::Area> to_board_area(std::unique_ptr<fp::Shape> p_shape)
+{
+    if (p_shape == nullptr)
+    {
+        return nullptr;
+    }
+    if (auto* area = dynamic_cast<fp::Area*>(p_shape.get()))
+    {
+        p_shape.release();
+        return std::shared_ptr<fp::Area>(area);
+    }
+    std::shared_ptr<fp::PolylineShape> border = to_polyline_shape_impl(std::move(p_shape));
+    if (border == nullptr)
+    {
+        return nullptr;
+    }
+    return std::make_shared<fp::PolylineArea>(std::move(border));
 }
 
 } // namespace freerouting::designforms::specctra::parser

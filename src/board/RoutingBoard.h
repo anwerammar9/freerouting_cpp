@@ -156,6 +156,12 @@ public:
     /** Returns the board communication information. */
     Communication* communication() const { return board_communication_; }
     void set_communication(Communication* p_communication) { board_communication_ = p_communication; }
+    /** Takes ownership of the communication object (the DSN reader creates it with the board). */
+    void adopt_communication(std::unique_ptr<Communication> p_communication)
+    {
+        owned_communication_ = std::move(p_communication);
+        board_communication_ = owned_communication_.get();
+    }
 
     /** Returns the components placed on the board. Mirrors Java BasicBoard.components. */
     Components* components() { return components_.get(); }
@@ -409,6 +415,7 @@ private:
 
     geometry::planar::IntBox bounding_box_;
     Communication* board_communication_ = nullptr;
+    std::unique_ptr<Communication> owned_communication_;
     /** Kept sorted by ascending item id; iterate it in reverse for Java's (descending id) order. */
     std::vector<Item*> items_;
     void add_to_item_list(Item* p_item);

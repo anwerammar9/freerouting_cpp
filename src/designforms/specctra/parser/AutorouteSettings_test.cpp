@@ -208,7 +208,7 @@ TEST(AutorouteSettingsTest, WrittenScopeReadsBackToTheSameSettings)
 TEST(AutorouteSettingsTest, StructureScopeStoresTheAutorouteSettings)
 {
     SpecctraDsnStreamReader scanner(
-        "(layer F.Cu (type signal))(layer B.Cu (type signal))"
+        "(layer F.Cu (type signal))(layer B.Cu (type signal))(boundary (rect pcb 0 0 100 100))"
         "(autoroute_settings (autoroute off)(via_costs 33)))",
         true);
     ReadScopeParameter par(scanner);
@@ -220,7 +220,7 @@ TEST(AutorouteSettingsTest, StructureScopeStoresTheAutorouteSettings)
 
 TEST(AutorouteSettingsTest, StructureWithoutAutorouteSettingsKeepsThemNull)
 {
-    SpecctraDsnStreamReader scanner("(layer F.Cu (type signal)))", true);
+    SpecctraDsnStreamReader scanner("(layer F.Cu (type signal))(boundary (rect pcb 0 0 100 100)))", true);
     ReadScopeParameter par(scanner);
     ASSERT_TRUE(Keyword::STRUCTURE_SCOPE->read_scope(par));
     EXPECT_EQ(nullptr, par.autoroute_settings);

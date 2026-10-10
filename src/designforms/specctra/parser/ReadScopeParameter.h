@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <memory>
 #include <string>
 #include <vector>
@@ -11,6 +12,7 @@
 #include "designforms/specctra/parser/CoordinateTransform.h"
 #include "designforms/specctra/parser/IJFlexScanner.h"
 #include "designforms/specctra/parser/Layer.h"
+#include "designforms/specctra/parser/MinimalBoardManager.h"
 #include "designforms/specctra/parser/NetList.h"
 #include "designforms/specctra/parser/Shape.h"
 
@@ -35,9 +37,18 @@ public:
         std::string net_name;
     };
 
-    explicit ReadScopeParameter(IJFlexScanner& p_scanner) : scanner(p_scanner) {}
+    explicit ReadScopeParameter(IJFlexScanner& p_scanner)
+        : scanner(p_scanner), board_handling(std::make_unique<MinimalBoardManager>())
+    {
+    }
 
     IJFlexScanner& scanner;
+
+    /** Creates and holds the board. Java boardHandling (a MinimalBoardManager by default). */
+    std::unique_ptr<BoardParserCallback> board_handling;
+
+    /** The board created by the structure scope, or nullptr. Java getBoard. */
+    board::RoutingBoard* get_board() const { return board_handling->get_routing_board(); }
 
     /** The nets of the network scope; always present (Java initialises it). Java netlist. */
     NetList netlist;
@@ -49,6 +60,10 @@ public:
     std::string string_quote = "\"";
     std::string host_cad;
     std::string host_version;
+    /** (constant name value) entries of the parser scope. Java constants. */
+    std::vector<std::array<std::string, 2>> constants;
+    /** Java writeResolution (parser scope), absent = Java null. */
+    std::optional<board::Communication::WriteResolution> write_resolution;
     bool dsn_file_generated_by_host = true;
     /** Set to false by the structure reader when the board outline is absent. */
     bool board_outline_ok = true;
