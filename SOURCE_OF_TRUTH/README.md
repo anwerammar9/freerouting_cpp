@@ -42,7 +42,7 @@ touch STOP                           # stop gracefully after the current task
 |--------|-------|
 | Build | green (conan + cmake Release) |
 | Tests | ctest **887/887** (incl. `AllTests` = `build/tests/data/run_tests`) |
-| Class Map | 229/353 mapped (124 out of scope) |
+| Class Map | 375 rows: **ported 203, header_only 32, partial 2, pending 90, out_of_scope 48** (goal `pending = 0`) |
 | Done | geometry, rules, datastructures, logger, board model, expansion rooms, maze search, connection locator/inserter, trace shove, fanout, `RoutingBoard::autoroute` (WP-1 … WP-10 Inc V) |
 | Critical path | DSN → Route → SES |
 

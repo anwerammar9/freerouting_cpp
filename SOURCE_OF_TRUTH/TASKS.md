@@ -80,7 +80,7 @@ The script picks the **first `[ ]`/`[~]` task whose deps are all `[x]`**.
     unused `add_component` helper marked `[[maybe_unused]]`. No behaviour change. ctest 851/851,
     run_tests PASSED.
 
-- [ ] T006 | deps: - | Class map: `pending` status + real out-of-scope list
+- [x] T006 | deps: - | Class map: `pending` status + real out-of-scope list
   - spec: SOURCE_OF_TRUTH/plans/M0_oracles.md (section T006)
   - cpp: tools/class_map_check.py, JavaToCppClassMap.csv, SOURCE_OF_TRUTH/README.md
   - what: today's 124 `out_of_scope` rows mix truly non-headless classes (gui, api, api.mcp, analytics, io.kicad,
@@ -91,6 +91,16 @@ The script picks the **first `[ ]`/`[~]` task whose deps are all `[x]`**.
     Add status `pending` for the latter; keep `out_of_scope` only for the former, each with a one-word reason column.
   - done when: `class_map_check.py` prints counts per status and the pending list; README Quick Status shows
     "ported / header_only / partial / pending / out_of_scope"; goal for the whole migration is `pending = 0`.
+  - result: CSV rebuilt (375 rows, new `reason` column) with the heuristic `is_out_of_scope()` dropped for an explicit
+    OUT_OF_SCOPE table (dir rules gui/api/mcp/analytics/io.kicad/util.gson + exact files SessionToFusion, io.KiCadNetClassNames,
+    util.VersionChecker, util.SafeObjectInputStream, 11 settings classes). Counts: ported 203, header_only 32, partial 2,
+    pending 90, out_of_scope 48. Real mappings fixed along the way: deprecated legacy specctra/Library|Network|Wiring|Placement
+    rows (were wrongly `ported`) now `pending`; parser classes re-pointed to live `src/designforms/specctra/parser/*.h`;
+    io/parser/{Library,Network,Wiring,Placement} pending; geometry ShapeEntrySide->CalcFromSide, ShapeAndEntrySide->
+    CalcShapeAndFromSide, LayerStructure->board/Layer.h, Side->enum class in Point.h, MazeExpansionEngine->MazeExpansionEngine.h
+    (was pointing at a forward decl), Constants and FreeSpaceExpansionRoom -> partial, MultiOutputGenerator -> pending
+    (dispatches to the real SesWriter, per plan conditional). Added tools/test_class_map_check.py (stdlib unittest, not ctest).
+    `python3 tools/class_map_check.py` prints counts + pending grouped by package, exits 0 (errors only on structural issues).
 - [ ] T007 | deps: - | Java reference harness (oracle for T110-T118 and T611)
   - spec: SOURCE_OF_TRUTH/plans/M0_oracles.md (section T007)
   - cpp: tools/java_ref/{BoardCounts.java,build.sh}, tests/data/expected/*.counts.json
