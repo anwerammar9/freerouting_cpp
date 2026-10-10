@@ -3,6 +3,7 @@
 #include "designforms/specctra/parser/Component.h"
 #include "designforms/specctra/parser/Library.h"
 #include "designforms/specctra/parser/PartLibrary.h"
+#include "designforms/specctra/parser/PlaceControl.h"
 #include "designforms/specctra/parser/Plane.h"
 #include "designforms/specctra/parser/Resolution.h"
 #include "designforms/specctra/parser/ScopeKeyword.h"

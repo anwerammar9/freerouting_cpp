@@ -12,7 +12,7 @@
 namespace freerouting::designforms::specctra::parser {
 namespace {
 
-TEST(ComponentTest, PlacementScopeCollectsComponentLocations)
+TEST(ParserComponentTest, PlacementScopeCollectsComponentLocations)
 {
     SpecctraDsnStreamReader scanner(
         "(component \"R0805\" (place R1 1000 2000 front 90) (place R2 1500.5 2000 back 0 (lock_type position)))"
@@ -50,14 +50,14 @@ TEST(ComponentTest, PlacementScopeCollectsComponentLocations)
     EXPECT_FALSE(u9.coor.has_value()); // Java null: not placed yet
 }
 
-TEST(ComponentTest, ItemClearanceInfoWithoutClassFails)
+TEST(ParserComponentTest, ItemClearanceInfoWithoutClassFails)
 {
     SpecctraDsnStreamReader scanner("(component X (place X1 0 0 front 0 (pin 1 (other 2)))))", true);
     ReadScopeParameter par(scanner);
     EXPECT_FALSE(Keyword::PLACEMENT_SCOPE->read_scope(par));
 }
 
-TEST(ComponentTest, FlipStyleInPlaceControlAndInStructure)
+TEST(ParserComponentTest, FlipStyleInPlaceControlAndInStructure)
 {
     SpecctraDsnStreamReader structure_scanner(
         "(structure (layer F.Cu (type signal)) (boundary (rect pcb 0 0 100 100)) (flip_style rotate_first))"
@@ -66,7 +66,7 @@ TEST(ComponentTest, FlipStyleInPlaceControlAndInStructure)
     ReadScopeParameter par(structure_scanner);
     ASSERT_TRUE(Keyword::PCB_SCOPE->read_scope(par));
     ASSERT_NE(nullptr, par.get_board());
-    EXPECT_TRUE(par.get_board()->is_flip_style_rotate_first()); // mirror_first in place_control does not reset it
+    EXPECT_TRUE(par.get_board()->get_flip_style_rotate_first()); // mirror_first in place_control does not reset it
 
     SpecctraDsnStreamReader control_scanner(
         "(structure (layer F.Cu (type signal)) (boundary (rect pcb 0 0 100 100)))"
@@ -74,7 +74,7 @@ TEST(ComponentTest, FlipStyleInPlaceControlAndInStructure)
         true);
     ReadScopeParameter control_par(control_scanner);
     ASSERT_TRUE(Keyword::PCB_SCOPE->read_scope(control_par));
-    EXPECT_TRUE(control_par.get_board()->is_flip_style_rotate_first());
+    EXPECT_TRUE(control_par.get_board()->get_flip_style_rotate_first());
 }
 
 } // namespace

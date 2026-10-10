@@ -24,6 +24,7 @@ add_library(freerouting_designforms STATIC
     specctra/parser/Package.cpp
     specctra/parser/PartLibrary.cpp
     specctra/parser/Path.cpp
+    specctra/parser/PlaceControl.cpp
     specctra/parser/Plane.cpp
     specctra/parser/Polygon.cpp
     specctra/parser/Rectangle.cpp

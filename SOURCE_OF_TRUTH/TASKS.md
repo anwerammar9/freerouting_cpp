@@ -325,9 +325,19 @@ net classes, keepouts) equal Java's. T110 adds the count dump used as acceptance
     keepouts/planes. Golden package dump from the jar matches. Library_test 4, CircleArea_test 3. ctest 935/935.
   - spec: SOURCE_OF_TRUTH/plans/M1_dsn_reader.md (section T111)
   - java: parser/Package.java (425), PartLibrary.java (351), core/library/{Packages,LogicalParts,BoardLibrary}.java
-- [ ] T112 | deps: T111 | Placement: Component, ComponentPlacement, PlaceControl
+- [x] T112 | deps: T111 | Placement: Component, ComponentPlacement, PlaceControl
   - spec: SOURCE_OF_TRUTH/plans/M1_dsn_reader.md (section T112)
   - java: parser/Component.java (381), ComponentPlacement.java (92), PlaceControl.java (73), Placement.java (29)
+  - result: T111 had already over-delivered the placement readers but left HEAD broken: the parser
+    `Component_test` collided with the board `Component_test` target (cmake configure failed) and the test
+    called a non-existent `is_flip_style_rotate_first()`. Fixed both (test renamed `ParserComponent_test.cpp`,
+    suite `ParserComponentTest`, getter corrected) and split `PlaceControl` out of `Component.{h,cpp}` into
+    its own `PlaceControl.{h,cpp}` per the spec/conventions (Keyword.cpp + Structure.cpp now include it).
+    Verified faithful: `Component::read_component_scope`/`read_place_scope`/`read_item_clearance_info`/
+    `read_lock_type`, `ComponentPlacement` (TreeMap-order maps, null coor = unplaced) and
+    `PlaceControl::read_scope`/`read_flip_style_rotate_first`; `PLACEMENT_SCOPE` stays a plain ScopeKeyword
+    (Java `Placement` has no readScope; writeScope is T204b). ParserComponent_test 3. ctest 938/938,
+    run_tests PASSED.
 - [ ] T125 | deps: T106 | Circuit + Parser (moved out of T117: needed by NetClass.read and the Plane reader)
   - spec: SOURCE_OF_TRUTH/plans/M1_dsn_reader.md (section T125)
   - java: parser/Circuit.java (143), parser/Parser.java (228)

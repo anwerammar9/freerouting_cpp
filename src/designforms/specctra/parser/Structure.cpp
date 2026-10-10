@@ -7,10 +7,10 @@
 #include <algorithm>
 
 #include "designforms/specctra/parser/AutorouteSettings.h"
-#include "designforms/specctra/parser/Component.h"
 #include "designforms/specctra/parser/DsnFile.h"
 #include "designforms/specctra/parser/Keyword.h"
 #include "designforms/specctra/parser/Path.h"
+#include "designforms/specctra/parser/PlaceControl.h"
 #include "designforms/specctra/parser/ReadScopeParameter.h"
 #include "designforms/specctra/parser/SpecctraDsnStreamReader.h"
 #include "logger/FRLogger.h"

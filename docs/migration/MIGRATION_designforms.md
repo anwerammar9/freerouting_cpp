@@ -184,3 +184,12 @@
 - **2026-10-10 (T111)**: images → board packages (`Library::create_board_packages`) and the part library reader.
   Package dump equals the Java reader for a DSN with duplicate/variant image names, back-side images, pin rotations,
   outline paths and keepouts. Circular areas use the new `geometry::planar::CircleArea` adapter.
+- **2026-10-10 (T112)**: placement readers `parser::Component` (+ `ComponentPlacement`, header-only) and
+  `parser::PlaceControl` (own `.h`/`.cpp`). `Component::read_component_scope` collects `(place …)` locations into
+  `ReadScopeParameter::placement_list` (inserted later by `Network::insert_components`, T115); a place with no
+  coordinates yields `coor == nullopt` (Java `coor == null` = unplaced). Item clearance info maps are keyed in
+  `std::map` (Java `TreeMap`), last duplicate wins. `PLACEMENT_SCOPE` stays a plain `ScopeKeyword` because Java
+  `Placement` only has `writeScope` (T204b); the `(place_control …)` scope is now a real `PlaceControl` keyword
+  (flip_style). The parser component test is `ParserComponent_test.cpp` (suite `ParserComponentTest`) to avoid the
+  target-name clash with the board `Component_test` — same convention as `ParserShape_test.cpp` (the earlier
+  `Component_test.cpp` name made cmake fail to configure).
