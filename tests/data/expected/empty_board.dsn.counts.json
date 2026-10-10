@@ -1,0 +1,11 @@
+{
+  "file": "tests/data/empty_board.dsn",
+  "result": "success",
+  "error": null,
+  "layers": [{"name": "F.Cu", "signal": true}, {"name": "B.Cu", "signal": true}],
+  "counts": {"nets": 0, "net_classes": 1, "via_infos": 0, "via_rules": 0, "padstacks": 0, "packages": 0, "components": 0, "pins": 0, "vias": 0, "traces": 0, "conduction_areas": 0, "obstacle_areas": 0, "via_obstacle_areas": 0, "component_obstacle_areas": 0, "component_outlines": 0, "board_outline": 1},
+  "clearance_classes": ["null", "default"],
+  "clearance_matrix": [[[0, 0], [0, 0]], [[0, 0], [0, 0]]],
+  "items_omitted": false,
+  "items": [{"id": 1, "type": "BoardOutline", "layers": [0, 1], "nets": [], "fixed": "SYSTEM_FIXED", "corners": 0}],
+  "warnings": 0}

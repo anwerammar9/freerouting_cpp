@@ -139,3 +139,26 @@
   (settings sources, board-specific optimisations), T420-T423 (board deep copy + hash, router/optimizer scores,
   finish_autoroute, optimizer thread pool), T611 (core shakedown on real boards), T610, T706 and Phase 8
   (benchmark). T416 closed as dead code; BoardComparator (T405/T406) moved to Phase 7.
+- **2026-10-10 (T007)**: Java reference harness (the G2 oracle, also items-order oracle for T011/T611).
+  `tools/java_ref/BoardCounts.java` calls `DsnReader.readBoard(new FileInputStream(dsn), null, null,
+  fileName)` — exactly the CLI path (Freerouting.java:1016) — and renders hand-written JSON (no lib):
+  `file`, `result` (`success|outline_missing|parse_error|io_error`), `error`, `layers,[{name,signal}]`,
+  `counts` (nets=maxNetNumber, net_classes, via_infos, via_rules, padstacks, packages, components, pins,
+  vias, traces, conduction_areas, obstacle_areas(exact `ObstacleArea` class), via_obstacle_areas,
+  component_obstacle_areas, component_outlines, board_outline), `clearance_classes`, `clearance_matrix`
+  `[class][class][layer]` via `getValue(i,j,l,false)` (no safety margin), `items_omitted`, `items`
+  (in `getItems()` descending-id order; id/type(`getSimpleName`)/layers/fixed(`getFixedState().name()`),
+  Pin adds component+pin, PolylineTrace adds corners), `warnings`. `build.sh` compiles against the
+  executable jar — jar is Java-25 classfiles (major 69), so if env `JAVA_HOME` is an older JDK (this box:
+  21) it must be overridden via `JAVA25_HOME` (default `/home/anwer/.local/jdk-25.0.4.1+1`).
+  `run_all.sh` loops `find tests/data -name '*.dsn'` (117) with `timeout 120` each, writes
+  `tests/data/expected/<rel>.counts.json`; re-runs with `--omit-items` when a file exceeds 2 MB
+  (triggered once: Issue289 FHT-VGA). Output goes to a file argument so stdout log noise cannot corrupt
+  it (fallback: `===JSON===` marker). Load result facts to keep T117 honest: Issue006-LPC18XX is a binary
+  OLE file → `parse_error` at the `(pcb` header (Java has no baseline either); empty_board → 1
+  BoardOutline + 0 pins; nets count is `rules.nets.maxNetNumber()` (== registered net vector size), so
+  boards whose nets are sparse still get the vector length, matching T011 expectations. Verified
+  deterministic (bit-identical re-run) and descending-id item order. Run: `tools/java_ref/run_all.sh`
+  (JAVA25_HOME/FREEROUTING_JAR optional). ctest 887/887. This sets the exact JSON contract for
+  `freerouting --dump-board-counts` (T117); the C++ reader must emit the same schema and per-type counts
+  (`obstacle_areas` counts only the plain `ObstacleArea` concrete class).

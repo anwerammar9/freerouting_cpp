@@ -1,0 +1,11 @@
+{
+  "file": "tests/data/Issue006-LPC18XX_43XX_SCH.dsn",
+  "result": "parse_error",
+  "error": "(pcb: Not a Specctra DSN file: expected '(pcb <name>' header",
+  "layers": [],
+  "counts": {"nets": 0, "net_classes": 0, "via_infos": 0, "via_rules": 0, "padstacks": 0, "packages": 0, "components": 0, "pins": 0, "vias": 0, "traces": 0, "conduction_areas": 0, "obstacle_areas": 0, "via_obstacle_areas": 0, "component_obstacle_areas": 0, "component_outlines": 0, "board_outline": 0},
+  "clearance_classes": [],
+  "clearance_matrix": [],
+  "items_omitted": false,
+  "items": [],
+  "warnings": 0}

@@ -101,7 +101,7 @@ The script picks the **first `[ ]`/`[~]` task whose deps are all `[x]`**.
     (was pointing at a forward decl), Constants and FreeSpaceExpansionRoom -> partial, MultiOutputGenerator -> pending
     (dispatches to the real SesWriter, per plan conditional). Added tools/test_class_map_check.py (stdlib unittest, not ctest).
     `python3 tools/class_map_check.py` prints counts + pending grouped by package, exits 0 (errors only on structural issues).
-- [ ] T007 | deps: - | Java reference harness (oracle for T110-T118 and T611)
+- [x] T007 | deps: - | Java reference harness (oracle for T110-T118 and T611)
   - spec: SOURCE_OF_TRUTH/plans/M0_oracles.md (section T007)
   - cpp: tools/java_ref/{BoardCounts.java,build.sh}, tests/data/expected/*.counts.json
   - what: compile a small Java class with `javac` against the executable jar (see 01_MEMORY.md gotcha 29) that
@@ -109,6 +109,12 @@ The script picks the **first `[ ]`/`[~]` task whose deps are all `[x]`**.
     conduction-area counts, the item-id sequence of `board.get_items()`, and the clearance matrix. Same schema as
     `freerouting --dump-board-counts` (T117). Run it over all `tests/data/**/*.dsn` once and store the JSON.
   - done when: harness runs on the 8 E2E boards + a hand-picked set; JSON committed; Issue006 reports the load error.
+  - result: tools/java_ref/BoardCounts.java (loads via DsnReader.readBoard exactly like Freerouting.java:1016; prints
+    schema layers/counts/clearance_classes/clearance_matrix/items/warnings to a file arg or after a ===JSON=== marker),
+    build.sh + run_all.sh; ran over all 117 tests/data/**/*.dsn -> tests/data/expected/<rel>.counts.json, 117/117 written,
+    0 failures; 116 success + Issue006 parse_error (binary OLE, "(pcb" header check as expected). Oracle set confirmed
+    deterministic (bit-identical re-run), item-id descending order OK. 1 file (Issue289 FHT-VGA) > 2 MB -> items_omitted.
+    Gotcha: the jar is Java-25 classfiles but env JAVA_HOME=JDK21, so build.sh/prefer JAVA25_HOME (JDK 25 javac). ctest 887/887, jar run_all green.
 - [ ] T008 | deps: - | Java baseline runner (replaces test_java_boards.sh)
   - spec: SOURCE_OF_TRUTH/plans/M0_oracles.md (section T008)
   - cpp: tools/java_baseline.sh (+ docs in docs/migration/E2E_STATUS.md)
