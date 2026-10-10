@@ -241,6 +241,7 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/SpecctraDsnStreamReader_test.cpp
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/ParserShape_test.cpp
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/Structure_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/AutorouteSettings_test.cpp
     )
 
     foreach(test_src IN LISTS DESIGNFORMS_TEST_SOURCES)
@@ -251,7 +252,7 @@ if(BUILD_TESTS)
             ${CMAKE_SOURCE_DIR}/src
         )
         target_link_libraries(${test_name} PRIVATE
-            $<LINK_GROUP:RESCAN,freerouting_designforms,freerouting_board,freerouting_geometry,freerouting_logger,freerouting_constants>
+            $<LINK_GROUP:RESCAN,freerouting_designforms,freerouting_settings,freerouting_board,freerouting_geometry,freerouting_logger,freerouting_constants>
             GTest::gtest_main
         )
         gtest_discover_tests(${test_name})
@@ -270,7 +271,7 @@ if(BUILD_TESTS)
             ${CMAKE_SOURCE_DIR}/src
         )
         target_link_libraries(${test_name} PRIVATE
-            $<LINK_GROUP:RESCAN,freerouting_board,freerouting_autoroute,freerouting_designforms,freerouting_core,freerouting_datastructures,freerouting_geometry,freerouting_rules,freerouting_logger,freerouting_constants>
+            $<LINK_GROUP:RESCAN,freerouting_board,freerouting_autoroute,freerouting_designforms,freerouting_settings,freerouting_core,freerouting_datastructures,freerouting_geometry,freerouting_rules,freerouting_logger,freerouting_constants>
             GTest::gtest_main
         )
         gtest_discover_tests(${test_name})

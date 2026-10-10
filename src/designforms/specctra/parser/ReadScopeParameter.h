@@ -13,6 +13,10 @@
 #include "designforms/specctra/parser/Layer.h"
 #include "designforms/specctra/parser/Shape.h"
 
+namespace freerouting::settings {
+class RouterSettings;
+} // namespace freerouting::settings
+
 namespace freerouting::designforms::specctra::parser {
 
 /**
@@ -70,6 +74,11 @@ public:
     bool via_at_smd_allowed = false;
     /** The snap angle of the structure scope. Java snapAngle, defaults to FORTYFIVE_DEGREE. */
     board::AngleRestriction snap_angle = board::AngleRestriction::FORTYFIVE_DEGREE;
+    /**
+     * The autoroute settings read from an (autoroute_settings ...) scope.
+     * Java autorouteSettings; nullptr (null) when the scope is not present.
+     */
+    std::shared_ptr<settings::RouterSettings> autoroute_settings;
 };
 
 } // namespace freerouting::designforms::specctra::parser

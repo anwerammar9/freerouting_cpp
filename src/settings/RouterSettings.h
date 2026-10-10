@@ -51,18 +51,60 @@ public:
     void set_max_threads(int p_value) { max_threads_ = p_value; }
 
     /**
+     * Returns whether the autorouter should run. Port of Java
+     * RouterSettings.getRunRouter(): Java dereferences the nullable
+     * AutorouterSettings.enabled and defaults to true.
+     */
+    bool get_run_router() const { return run_router_; }
+    /** Sets whether the autorouter should run. Java RouterSettings.setRunRouter. */
+    void set_run_router(bool p_value) { run_router_ = p_value; }
+
+    /**
+     * Returns whether the post-routing optimizer should run. Port of Java
+     * RouterSettings.getRunOptimizer(): Java dereferences the nullable
+     * OptimizerSettings.enabled and defaults to false.
+     */
+    bool get_run_optimizer() const { return run_optimizer_; }
+    /** Sets whether the post-routing optimizer should run. Java RouterSettings.setRunOptimizer. */
+    void set_run_optimizer(bool p_value) { run_optimizer_ = p_value; }
+
+    /**
      * Returns the cost assigned to regular vias. Port of Java
      * RouterSettings.getViaCosts(). Java returns 1 when the scoring settings
      * do not carry a via cost; the C++ RouterScoringSettings stores a plain
      * int (default 50), which is returned as the null stand-in.
      */
     int get_via_costs() const { return scoring_ ? scoring_->via_costs : 1; }
+    /** Sets the cost assigned to regular vias; the value is at least 1. Java setViaCosts. */
+    void set_via_costs(int p_value);
+
+    /**
+     * Returns the cost assigned to vias connecting to a plane. Port of Java
+     * RouterSettings.getPlaneViaCosts().
+     */
+    int get_plane_via_costs() const { return scoring_ ? scoring_->plane_via_costs : 1; }
+    /** Sets the cost assigned to vias connecting to a plane; the value is at least 1. Java setPlaneViaCosts. */
+    void set_plane_via_costs(int p_value);
+
+    /**
+     * Returns the starting cost of a ripup operation. Port of Java
+     * RouterSettings.getStartRipupCosts(). Java dereferences the nullable
+     * Integer startRipupCosts of the scoring settings, so an unset value
+     * evaluates to 1; the C++ settings carry a plain int, which defaults to
+     * 100.
+     */
+    int get_start_ripup_costs() const { return scoring_ ? scoring_->start_ripup_costs : 1; }
+    /** Sets the starting cost of a ripup operation; the value is at least 1. Java setStartRipupCosts. */
+    void set_start_ripup_costs(int p_value);
 
     /**
      * Returns true, if the preferred routing direction of p_layer is
-     * horizontal. Port of Java RouterSettings.getPreferredDirectionIsHorizontal().
+     * horizontal. Port of Java RouterSettings.getPreferredDirectionIsHorizontal():
+     * out-of-range layers yield false and an unset layer defaults to layer % 2 == 1.
      */
     bool get_preferred_direction_is_horizontal(int p_layer) const;
+    /** Sets the preferred routing direction of one layer. Java setPreferredDirectionIsHorizontal. */
+    void set_preferred_direction_is_horizontal(int p_layer, bool p_value);
 
     /**
      * Returns the preferred-direction trace cost for one layer. Port of Java
@@ -70,12 +112,16 @@ public:
      * yield 0, a missing scoring array yields 1.0.
      */
     double get_preferred_direction_trace_costs(int p_layer) const;
+    /** Sets the preferred-direction trace cost of one layer; the value is at least 0.1. Java setPreferredDirectionTraceCosts. */
+    void set_preferred_direction_trace_costs(int p_layer, double p_value);
 
     /**
      * Returns the against-preferred-direction trace cost for one layer. Port
      * of Java RouterSettings.getAgainstPreferredDirectionTraceCosts().
      */
     double get_against_preferred_direction_trace_costs(int p_layer) const;
+    /** Sets the against-preferred-direction trace cost of one layer; the value is at least 0.1. Java setAgainstPreferredDirectionTraceCosts. */
+    void set_against_preferred_direction_trace_costs(int p_layer, double p_value);
 
     /**
      * Returns the trace cost for horizontal movement on one layer. Port of
@@ -105,15 +151,6 @@ public:
     double get_bend_cost(int /*p_layer*/) const { return 0.0; } // Stub
 
     /**
-     * Returns the starting cost of a ripup operation. Port of Java
-     * RouterSettings.getStartRipupCosts(). Java dereferences the nullable
-     * Integer startRipupCosts of the scoring settings, so an unset value
-     * evaluates to 1; the C++ settings carry a plain int, which defaults to
-     * 100.
-     */
-    int get_start_ripup_costs() const { return scoring_ ? scoring_->start_ripup_costs : 1; }
-
-    /**
      * Returns the accuracy of the pull tight algorithm. Port of Java
      * RouterSettings.tracePullTightAccuracy, which is a nullable Integer with
      * no default value; the C++ settings do not carry it yet, so the value
@@ -131,6 +168,8 @@ private:
     int max_passes_ = 9999;
     std::vector<bool> layer_active_;
     std::vector<bool> preferred_direction_horizontal_;
+    bool run_router_ = true;
+    bool run_optimizer_ = false;
     bool vias_allowed_ = true;
     bool automatic_neckdown_ = true;
     int max_threads_ = 1;

@@ -12,6 +12,7 @@ add_library(freerouting_designforms STATIC
     specctra/SessionWriter.cpp
     specctra/Structure.cpp
     specctra/Wiring.cpp
+    specctra/parser/AutorouteSettings.cpp
     specctra/parser/Circle.cpp
     specctra/parser/DsnFile.cpp
     specctra/parser/Keyword.cpp
@@ -32,4 +33,5 @@ target_link_libraries(freerouting_designforms PUBLIC
     freerouting_logger
     freerouting_board
     freerouting_geometry
+    freerouting_settings
 )

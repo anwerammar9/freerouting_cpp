@@ -1,5 +1,6 @@
 #include "designforms/specctra/parser/Structure.h"
 
+#include "designforms/specctra/parser/AutorouteSettings.h"
 #include "designforms/specctra/parser/DsnFile.h"
 #include "designforms/specctra/parser/Keyword.h"
 #include "designforms/specctra/parser/Path.h"
@@ -125,9 +126,20 @@ bool Structure::read_scope(ReadScopeParameter& p_par) const
                     p_par.snap_angle = *snap_angle;
                 }
             }
+            else if (next_token.is(Keyword::AUTOROUTE_SETTINGS))
+            {
+                // Java parity: the scope is only read while no layer structure exists yet
+                // (i.e. before the first keepout/plane scope); afterwards it is not consumed here.
+                if (p_par.layer_structure == nullptr)
+                {
+                    p_par.layer_structure = std::make_shared<LayerStructure>(info.layer_info);
+                    p_par.autoroute_settings =
+                        AutorouteSettings::read_scope(p_par.scanner, *p_par.layer_structure);
+                }
+            }
             else
             {
-                // autoroute_settings and flip_style: T109/T112; Java skips unknown scopes.
+                // flip_style: T112; Java skips unknown scopes.
                 ScopeKeyword::skip_scope(p_par.scanner);
             }
         }
