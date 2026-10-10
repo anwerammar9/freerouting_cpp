@@ -2,6 +2,7 @@
 
 #include "designforms/specctra/parser/Component.h"
 #include "designforms/specctra/parser/Library.h"
+#include "designforms/specctra/parser/Network.h"
 #include "designforms/specctra/parser/PartLibrary.h"
 #include "designforms/specctra/parser/Parser.h"
 #include "designforms/specctra/parser/PlaceControl.h"
@@ -61,7 +62,7 @@ const KeywordInstance k_LOGICAL_PART("logical_part");
 const KeywordInstance k_LOGICAL_PART_MAPPING("logical_part_mapping");
 const KeywordInstance k_NET("net");
 const KeywordInstance k_NETWORK_OUT("network_out");
-const ScopeKeyword k_NETWORK_SCOPE("network"); // Java: new Network()
+const Network k_NETWORK_SCOPE; // Java: new Network()
 const KeywordInstance k_NINETY_DEGREE("ninety_degree");
 const KeywordInstance k_NONE("none");
 const KeywordInstance k_NORMAL("normal");

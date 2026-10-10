@@ -22,6 +22,7 @@ add_library(freerouting_designforms STATIC
     specctra/parser/Library.cpp
     specctra/parser/MinimalBoardManager.cpp
     specctra/parser/NetList.cpp
+    specctra/parser/Network.cpp
     specctra/parser/Package.cpp
     specctra/parser/Parser.cpp
     specctra/parser/PartLibrary.cpp
