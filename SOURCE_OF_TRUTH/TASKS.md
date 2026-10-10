@@ -338,7 +338,7 @@ net classes, keepouts) equal Java's. T110 adds the count dump used as acceptance
     `PlaceControl::read_scope`/`read_flip_style_rotate_first`; `PLACEMENT_SCOPE` stays a plain ScopeKeyword
     (Java `Placement` has no readScope; writeScope is T204b). ParserComponent_test 3. ctest 938/938,
     run_tests PASSED.
-- [ ] T125 | deps: T106 | Circuit + Parser (moved out of T117: needed by NetClass.read and the Plane reader)
+- [x] T125 | deps: T106 | Circuit + Parser (moved out of T117: needed by NetClass.read and the Plane reader)
   - spec: SOURCE_OF_TRUTH/plans/M1_dsn_reader.md (section T125)
   - java: parser/Circuit.java (143), parser/Parser.java (228)
   - cpp: src/designforms/specctra/parser/{Circuit,Parser}.{h,cpp,_test.cpp}
@@ -347,6 +347,17 @@ net classes, keepouts) equal Java's. T110 adds the count dump used as acceptance
     filled before `Plane` reads its Allegro windows. Circuit holds the rule/length/use-via data NetClass uses.
   - done when: gtests on `(parser ...)` snippets (string_quote switch, host_cad/host_version) and Circuit
     read; `Plane` Allegro window handling covered by a host_cad=Allegro snippet.
+  - result: Parser.{h,cpp} (read_scope, read_write_solution, read_constant, write_scope, read_quote_char)
+    and Circuit.{h,cpp} (read_scope, read_length_scope) ported with Java parity (host_cad/host_version
+    fall back to "" on missing scope since C++ read_string_scope returns nullopt vs Java null;
+    unused read_ok kept; lengthArr[0]=max, lengthArr[1]=min; failed read_length_scope keeps zeros).
+    Parser.cpp sets string_quote; Plane.java-style Allegro window skip handled via existing
+    equals_ignore_case(host_cad, "allegro") — verified by gtests (incl. non-Allegro keeps windows).
+    write_scope golden strings captured from the Java executable jar via throwaway harness
+    (/tmp/opencode/ParserGolden.java, reservedChars {(), ;-_}), non-ASCII quote escape preserved.
+    Implemented read-only (no public mutators); net class sees Circuit data via ReadScopeParameter.plane_list.
+    Keyword.cpp: k_PARSER_SCOPE is now the real Parser instance. Registered in
+    src/designforms/CMakeLists.txt + tests/CMakeLists.txt; 15 new gtests; ctest 953/953 green.
 - [ ] T113 | deps: T112 | Network part 1: net scopes (readNetScope, readNetPins, ordered subnets) + Network::read_scope skeleton
   - spec: SOURCE_OF_TRUTH/plans/M1_dsn_reader.md (section T113)
   - java: parser/Net.java (129), NetList.java (56), Network.java (net read part)

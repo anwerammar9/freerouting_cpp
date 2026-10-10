@@ -3,6 +3,7 @@
 #include "designforms/specctra/parser/Component.h"
 #include "designforms/specctra/parser/Library.h"
 #include "designforms/specctra/parser/PartLibrary.h"
+#include "designforms/specctra/parser/Parser.h"
 #include "designforms/specctra/parser/PlaceControl.h"
 #include "designforms/specctra/parser/Plane.h"
 #include "designforms/specctra/parser/Resolution.h"
@@ -71,7 +72,7 @@ const KeywordInstance k_ORDER("order");
 const KeywordInstance k_OUTLINE("outline");
 const KeywordInstance k_PADSTACK("padstack");
 const PartLibrary k_PART_LIBRARY_SCOPE; // Java: new PartLibrary()
-const ScopeKeyword k_PARSER_SCOPE("parser"); // Java: new Parser()
+const Parser k_PARSER_SCOPE; // Java: new Parser()
 const ScopeKeyword k_PCB_SCOPE("pcb"); // Java: new ScopeKeyword
 const KeywordInstance k_PIN("pin");
 const KeywordInstance k_PINS("pins");

@@ -14,6 +14,7 @@ add_library(freerouting_designforms STATIC
     specctra/Wiring.cpp
     specctra/parser/AutorouteSettings.cpp
     specctra/parser/Circle.cpp
+    specctra/parser/Circuit.cpp
     specctra/parser/Component.cpp
     specctra/parser/DsnFile.cpp
     specctra/parser/Keyword.cpp
@@ -22,6 +23,7 @@ add_library(freerouting_designforms STATIC
     specctra/parser/MinimalBoardManager.cpp
     specctra/parser/NetList.cpp
     specctra/parser/Package.cpp
+    specctra/parser/Parser.cpp
     specctra/parser/PartLibrary.cpp
     specctra/parser/Path.cpp
     specctra/parser/PlaceControl.cpp

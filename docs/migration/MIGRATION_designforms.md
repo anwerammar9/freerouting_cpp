@@ -193,3 +193,35 @@
   (flip_style). The parser component test is `ParserComponent_test.cpp` (suite `ParserComponentTest`) to avoid the
   target-name clash with the board `Component_test` — same convention as `ParserShape_test.cpp` (the earlier
   `Component_test.cpp` name made cmake fail to configure).
+
+## T125 Parser + Circuit (2026-10-10)
+
+- `Circuit.{h,cpp}` port `parser/Circuit.java`: `read_scope` reads `(length …)` (lengthArr[0]=max,
+  lengthArr[1]=min — a failing `read_length_scope` keeps zeros and does NOT abort the scope, Java parity),
+  `(use_via …)`/`(use_layer …)` via `DsnFile::read_via_padstacks`/`read_string_list_scope`. `ReadScopeResult`
+  aggregates max/min length, use_via, use_layer. Both read_scope callsites here (net class read) return before
+  the closing `)` in Java — the C++ reader does NOT consume the scope's closing bracket, so it must be invoked
+  AFTER the `circuit` keyword token is consumed (test snippets start at the scope content).
+- `Parser.{h,cpp}` port `parser/Parser.java`: `read_scope` (string_quote, space_in_quoted_tokens,
+  host_cad/host_version, constant, write_resolution), `read_write_solution`, `read_constant`, `write_scope`,
+  `read_quote_char`. `Keyword::PARSER_SCOPE` is now a real `Parser` instance in Keyword.cpp. `Parser::read_scope`
+  is dispatched the same way — tests pass content-only snippets. `read_quote_char` needs a full (or >0-length)
+  buffer because next_string() returns the empty string when the scanner is exhausted; `string_quote` switch
+  (`par.string_quote = ...narrowed`) matches Java's `String.substring(0,1)`.
+- `DsnFile::read_string_scope`/`read_quote_char` return `std::optional`; a missing `(host_cad)`/`(host_version)`
+  scope yields `""` instead of Java `null` (callers guard with `value_or("")`). C++ `read_constant` reads both values as tokens (the java `NumberFormat.getIntegerInstance()
+  .parse` overflow handling was dropped); const values come back as STRING tokens (test asserts value `"1"`).
+- `Parser::write_scope` output (`string_quote`, `host_cad`/`host_version` (quoted when containing reserved
+  chars), `constant` (number values quoted because strings starting with a digit get quoted — Java parity),
+  `write_resolution`, `generated_by_freeroute`) was captured from the Java executable jar via a throwaway harness
+  (`/tmp/opencode/ParserGolden.java`, reservedChars `{(,) ;-_}`) and embedded verbatim in `Parser_test.cpp`
+  (full/minimal/reduced variants; note the full variant's `host_version "(5.1.5)"` — parentheses and the space
+  are reserved chars — and the non-ASCII quote escape `\342\200\230` = `'`).
+- Note: `Parser::read_scope` keeps an always-true `read_ok` bool for Java parity; `Circuit::read_scope`
+  guards `nullopt` from `Structure::read_via_padstacks`/`read_string_list_scope` in place of Java's NPE.
+- Registered `specctra/parser/{Circuit,Parser}.cpp` in `src/designforms/CMakeLists.txt` and
+  `{Circuit,Parser}_test.cpp` in `tests/CMakeLists.txt`. The `Plane` reader already consumes `host_cad`
+  with `equals_ignore_case(p_par.host_cad, "allegro")`; original T125 spec ("Plane must read the entire
+  structure scope when host_cad==allegro") is the existing Plane.cpp behavior, verified end-to-end by
+  `ParserTest.HostCadAllegroSkipsPlaneWindows` / `NonAllegroHostCadReadsPlaneWindows` (plane rects must be on a
+  real DSN layer like F.Cu — the special `signal` layer has `no<0` and Java rejects it too).

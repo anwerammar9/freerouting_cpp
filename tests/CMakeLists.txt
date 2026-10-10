@@ -241,6 +241,8 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/Wiring_test.cpp
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/SpecctraDsnStreamReader_test.cpp
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/ParserShape_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/Parser_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/Circuit_test.cpp
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/Structure_test.cpp
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/AutorouteSettings_test.cpp
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/NetList_test.cpp
