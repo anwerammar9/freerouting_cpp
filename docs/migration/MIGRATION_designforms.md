@@ -115,3 +115,27 @@
   null-vs-empty distinction (read by `Network` later). Java's `createBoard` + keepout/plane insertion +
   `autoroute_settings` + `flip_style` remain deferred to T109/T112. Structure_test 23 tests
   (+10). ctest 874/874, run_tests PASSED.
+- **2026-10-10 (T109a)**: `parser/AutorouteSettings` ported (`read_scope`, `read_layer_rule`, `write_scope`;
+  floats are written like Java `Float.toString`, i.e. always with a fraction part) and hooked into
+  `Structure::read_scope` → `ReadScopeParameter::autoroute_settings` (`std::shared_ptr<freerouting::settings::RouterSettings>`,
+  nullptr = Java null). Java parity kept: the scope is only consumed while `layer_structure` is still null
+  (before the first keepout/plane scope); afterwards its tokens are not consumed by that branch. `RouterSettings`
+  gained `run_router` / `run_optimizer` (Java defaults true/false in the class, but the reader sets both from the
+  `autoroute`/`postroute` scopes, default on), `plane_via_costs`, and the per-layer/cost setters with Java clamps
+  (via/plane-via/ripup costs >= 1, trace costs >= 0.1; `set_layer_count` resets layer state and the preferred
+  direction defaults to `layer % 2 == 1`). **Build-graph change:** `freerouting_settings` no longer links
+  `freerouting_autoroute` (it only uses the header-only `ExpansionCostFactor.h`; the link edge made
+  designforms → settings → autoroute → {designforms,…} a cycle in the RESCAN link groups) and
+  `freerouting_settings` is listed in every RESCAN group that contains `freerouting_designforms`
+  (top-level `dsn_token_dump`, tests `DESIGNFORMS_TEST_SOURCES`, the board-loader test group). Rule of thumb for
+  the next parser tasks: a new library that designforms depends on must be added to those groups, not only to
+  `target_link_libraries`. T109 was split: T109b (rules from the structure) and T109c (`createBoard`, keepout/
+  plane insertion, `adjustPlaneAutorouteSettings`) remain. AutorouteSettings_test 13 tests. ctest 887/887
+  (incl. AllTests/`run_tests`, which lives at `build/tests/data/run_tests`).
+- **2026-10-10 (queue review)**: gap analysis against the whole headless path added tasks T006-T010 (class-map
+  `pending` status, Java reference harness, Java baseline runner, LCG/normalize and Delaunay determinism fixes),
+  T125 (Circuit + Parser moved out of T117; NetClass.read and Plane need them), T122 (WriteScopeParameter and the
+  shape write halves — T106 was ticked without them), T124 (delete the legacy reader), T204a/b, T306/T307
+  (settings sources, board-specific optimisations), T420-T423 (board deep copy + hash, router/optimizer scores,
+  finish_autoroute, optimizer thread pool), T611 (core shakedown on real boards), T610, T706 and Phase 8
+  (benchmark). T416 closed as dead code; BoardComparator (T405/T406) moved to Phase 7.

@@ -3,7 +3,7 @@
 **Project:** Freerouting Java → C++20 Migration
 **Goal:** Headless routing parity (load DSN → route → write SES)
 **Java source of truth:** `java/app/freerouting/**/*.java` (Freerouting 2.1.0, pruned to a headless-only subset — GUI, API, analytics and KiCad I/O removed and stubbed; still builds and routes DSN→SES)
-**Last updated:** 2026-10-08
+**Last updated:** 2026-10-10
 
 ---
 
@@ -25,6 +25,7 @@ touch STOP                           # stop gracefully after the current task
 | File | Contents |
 |------|----------|
 | `TASKS.md` | **The task queue — what to do next** |
+| `ROADMAP.md` | Gates for "100 % headless", milestones M0–M8, benchmark design (Java vs C++) |
 | `01_MEMORY.md` | Architecture, conventions, patterns, dependency graph, gotchas |
 | `CONVENTIONS.md` | C++20 patterns, naming, testing |
 | `02_PROGRESS.md` | Historical, module-by-module status with per-increment logs (large) |
@@ -34,12 +35,12 @@ touch STOP                           # stop gracefully after the current task
 | `06_FILE_INDEX.md` | Listing of Java and C++ files |
 | `SESSION_TEMPLATE.md` | Template for recording session progress |
 
-## Quick Status (2026-10-08)
+## Quick Status (2026-10-10)
 
 | Metric | Value |
 |--------|-------|
 | Build | green (conan + cmake Release) |
-| Tests | ctest **851/851** (incl. `AllTests`), assert suite: run_tests (all passed) |
+| Tests | ctest **887/887** (incl. `AllTests` = `build/tests/data/run_tests`) |
 | Class Map | 229/353 mapped (124 out of scope) |
 | Done | geometry, rules, datastructures, logger, board model, expansion rooms, maze search, connection locator/inserter, trace shove, fanout, `RoutingBoard::autoroute` (WP-1 … WP-10 Inc V) |
 | Critical path | DSN → Route → SES |
