@@ -53,9 +53,9 @@ bool ItemSelectionFilter::is_selected(SelectableChoices p_choice) const
     return values_[to_index(p_choice)];
 }
 
-std::set<Item*> ItemSelectionFilter::filter(const std::set<Item*>& p_items) const
+ItemSet ItemSelectionFilter::filter(const ItemSet& p_items) const
 {
-    std::set<Item*> result;
+    ItemSet result;
     for (Item* curr_item : p_items)
     {
         if (curr_item != nullptr && curr_item->is_selected_by_filter(*this))

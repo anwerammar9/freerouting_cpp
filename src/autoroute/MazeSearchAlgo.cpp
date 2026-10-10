@@ -125,7 +125,7 @@ namespace {
  * MazeSearchEngine.reduceTraceShapesAtTiePins(Collection<Item>, int,
  * ShapeSearchTree).
  */
-void reduce_trace_shapes_at_tie_pins(const std::set<board::Item*>& p_item_list, int p_own_net_no,
+void reduce_trace_shapes_at_tie_pins(const board::ItemSet& p_item_list, int p_own_net_no,
     board::ShapeSearchTree* p_search_tree)
 {
     if (p_search_tree == nullptr)
@@ -164,8 +164,8 @@ std::unique_ptr<MazeSearchAlgo> MazeSearchAlgo::get_instance(board::RoutingBoard
 }
 
 std::unique_ptr<MazeSearchAlgo> MazeSearchAlgo::get_instance(
-    const std::set<board::Item*>& p_start_items,
-    const std::set<board::Item*>& p_dest_items,
+    const board::ItemSet& p_start_items,
+    const board::ItemSet& p_dest_items,
     AutorouteEngine* p_autoroute_engine,
     const AutorouteControl& p_ctrl,
     datastructures::Stoppable* p_stoppable)
@@ -189,8 +189,8 @@ std::unique_ptr<MazeSearchAlgo> MazeSearchAlgo::get_instance(
     return result;
 }
 
-bool MazeSearchAlgo::init(const std::set<board::Item*>& p_start_items,
-    const std::set<board::Item*>& p_dest_items)
+bool MazeSearchAlgo::init(const board::ItemSet& p_start_items,
+    const board::ItemSet& p_dest_items)
 {
     if (autoroute_engine_ == nullptr || search_tree_ == nullptr || destination_distance_ == nullptr)
     {
@@ -658,7 +658,7 @@ bool MazeSearchAlgo::expand_to_room_doors(const MazeListElement& p_list_element)
             if (board_ != nullptr)
             {
                 board::ItemSelectionFilter filter(board::ItemSelectionFilter::SelectableChoices::CONDUCTION);
-                std::set<board::Item*> picked_items =
+                board::ItemSet picked_items =
                     board_->pick_items(drill->location, layer_index, &filter);
                 for (board::Item* current_item : picked_items)
                 {

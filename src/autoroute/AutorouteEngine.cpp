@@ -179,10 +179,10 @@ bool AutorouteEngine::route_all(int p_iteration_limit, datastructures::Stoppable
 // Port of Java AutorouteEngine.autorouteConnection(). The earlier C++ version
 // fell back to a self-invented grid A* router after a failed maze search; Java
 // has no such fallback, a failed maze search simply fails the connection.
-AutorouteAttemptResult AutorouteEngine::autoroute_connection(const std::set<board::Item*>& p_start_set,
-                                           const std::set<board::Item*>& p_dest_set,
+AutorouteAttemptResult AutorouteEngine::autoroute_connection(const board::ItemSet& p_start_set,
+                                           const board::ItemSet& p_dest_set,
                                            const AutorouteControl& p_ctrl,
-                                           std::set<board::Item*>* p_ripped_item_list,
+                                           board::ItemSet* p_ripped_item_list,
                                            std::map<board::Item*, int>* p_ripup_costs)
 {
     if (board_ == nullptr)
@@ -190,8 +190,8 @@ AutorouteAttemptResult AutorouteEngine::autoroute_connection(const std::set<boar
         return AutorouteAttemptResult(AutorouteAttemptState::FAILED, "No board set");
     }
     // Java callers always pass a ripped item list; use a local one otherwise.
-    std::set<board::Item*> local_ripped_items;
-    std::set<board::Item*>& ripped_item_list = p_ripped_item_list != nullptr ? *p_ripped_item_list
+    board::ItemSet local_ripped_items;
+    board::ItemSet& ripped_item_list = p_ripped_item_list != nullptr ? *p_ripped_item_list
                                                                               : local_ripped_items;
 
     ensure_search_tree_initialized();
@@ -250,7 +250,7 @@ AutorouteAttemptResult AutorouteEngine::autoroute_connection(const std::set<boar
     const board::Item::StopConnectionOption stop_connection_option = p_ctrl.remove_unconnected_vias
         ? board::Item::StopConnectionOption::NONE
         : board::Item::StopConnectionOption::FANOUT_VIA;
-    std::set<board::Item*> ripped_connections;
+    board::ItemSet ripped_connections;
     std::set<int> changed_nets;
     for (board::Item* curr_ripped_item : ripped_item_list)
     {
@@ -504,7 +504,7 @@ void AutorouteEngine::complete_neighbour_rooms(CompleteExpansionRoom* p_room)
 }
 
 std::vector<CompleteFreeSpaceExpansionRoom*> AutorouteEngine::get_rooms_with_target_items(
-    const std::set<board::Item*>& p_items) const
+    const board::ItemSet& p_items) const
 {
     // Port of Java AutorouteEngine.getRoomsWithTargetItems(Set<Item>): every
     // complete room with a target door to one of the given items is returned.

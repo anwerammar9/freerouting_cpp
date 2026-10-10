@@ -1,5 +1,6 @@
 #pragma once
 
+#include "board/ItemSet.h"
 #include <memory>
 #include <set>
 #include <string>
@@ -105,7 +106,7 @@ public:
      * only items of types selected by the filter are picked.
      * Mirrors Java BasicBoard.pick_items().
      */
-    std::set<Item*> pick_items(const geometry::planar::Point& p_location, int p_layer,
+    ItemSet pick_items(const geometry::planar::Point& p_location, int p_layer,
                                const ItemSelectionFilter* p_filter) const;
 
     /**

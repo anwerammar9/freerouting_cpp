@@ -60,7 +60,7 @@ std::set<Item*, TreeStorableLess> BasicBoard::overlapping_items_with_clearance(
         p_shape, p_layer, p_ignore_net_nos, p_clearance_class);
 }
 
-std::set<Item*> BasicBoard::pick_items(const geometry::planar::Point& p_location, int p_layer,
+ItemSet BasicBoard::pick_items(const geometry::planar::Point& p_location, int p_layer,
                                        const ItemSelectionFilter* p_filter) const
 {
     using namespace geometry::planar;
@@ -76,7 +76,7 @@ std::set<Item*> BasicBoard::pick_items(const geometry::planar::Point& p_location
     geometry::planar::IntBox point_shape =
         geometry::planar::TileShape::get_instance(location);
     std::set<SearchTreeObject*, TreeStorableLess> overlaps = overlapping_objects(point_shape, p_layer);
-    std::set<Item*> result;
+    ItemSet result;
     for (SearchTreeObject* curr : overlaps)
     {
         if (auto* item = dynamic_cast<Item*>(curr))
@@ -248,7 +248,7 @@ bool BasicBoard::check_polyline_trace(const geometry::planar::Polyline& p_polyli
 bool BasicBoard::split_traces(const geometry::planar::Point& p_location, int p_layer, int p_net_no)
 {
     ItemSelectionFilter filter(ItemSelectionFilter::SelectableChoices::TRACES);
-    std::set<Item*> picked_items = pick_items(p_location, p_layer, &filter);
+    ItemSet picked_items = pick_items(p_location, p_layer, &filter);
     geometry::planar::IntBox location_box =
         geometry::planar::TileShape::get_instance(to_int_point(p_location));
     geometry::planar::IntOctagon location_shape = location_box.bounding_octagon();

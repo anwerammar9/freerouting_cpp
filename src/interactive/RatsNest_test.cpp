@@ -224,7 +224,7 @@ TEST(RatsNestTest, AirLineItemInfo)
     auto airlines = ratsnest.get_airlines();
     ASSERT_EQ(airlines.size(), 1u);
     const auto& airline = airlines.front();
-    std::set<board::Item*> airline_items = {airline->from_item, airline->to_item};
+    board::ItemSet airline_items = {airline->from_item, airline->to_item};
     EXPECT_EQ(airline_items.size(), 2u);
     EXPECT_EQ(airline_items.count(pin1), 1u);
     EXPECT_EQ(airline_items.count(pin2), 1u);

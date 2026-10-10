@@ -78,10 +78,10 @@ bool is_connectable(const Item* p_item)
 
 } // namespace
 
-std::set<Item*> Item::get_all_contacts() const
+ItemSet Item::get_all_contacts() const
 {
     // Port of Java Item.getAllContacts().
-    std::set<Item*> result;
+    ItemSet result;
     if (board_ == nullptr || !is_connectable(this))
     {
         return result;
@@ -106,10 +106,10 @@ std::set<Item*> Item::get_all_contacts() const
     return result;
 }
 
-std::set<Item*> Item::get_all_contacts(int p_layer) const
+ItemSet Item::get_all_contacts(int p_layer) const
 {
     // Port of Java Item.getAllContacts(int).
-    std::set<Item*> result;
+    ItemSet result;
     if (board_ == nullptr || !is_connectable(this))
     {
         return result;
@@ -138,9 +138,9 @@ std::set<Item*> Item::get_all_contacts(int p_layer) const
     return result;
 }
 
-std::set<Item*> Item::get_connected_set(int p_net_no, bool p_stop_at_plane) const
+ItemSet Item::get_connected_set(int p_net_no, bool p_stop_at_plane) const
 {
-    std::set<Item*> result;
+    ItemSet result;
     if (p_net_no > 0 && !contains_net(p_net_no))
     {
         return result;
@@ -150,12 +150,11 @@ std::set<Item*> Item::get_connected_set(int p_net_no, bool p_stop_at_plane) cons
     return result;
 }
 
-std::set<Item*> Item::get_unconnected_set(int p_net_no) const
+ItemSet Item::get_unconnected_set(int p_net_no) const
 {
-    // Port of Java Item.get_unconnected_set(int). Divergence: Java returns a
-    // TreeSet ordered by Item.compare_to (descending item id), while the C++
-    // get_connected_set() results are ordered by item pointer.
-    std::set<Item*> result;
+    // Port of Java Item.get_unconnected_set(int): an ItemSet, ordered like Java's
+    // TreeSet<Item> (descending item id).
+    ItemSet result;
     if (p_net_no > 0 && !contains_net(p_net_no))
     {
         return result;
@@ -179,7 +178,7 @@ std::set<Item*> Item::get_unconnected_set(int p_net_no) const
             result.insert(connectable_items.begin(), connectable_items.end());
         }
     }
-    const std::set<Item*> connected_items = get_connected_set(p_net_no);
+    const ItemSet connected_items = get_connected_set(p_net_no);
     for (Item* curr_item : connected_items)
     {
         result.erase(curr_item);
@@ -187,7 +186,7 @@ std::set<Item*> Item::get_unconnected_set(int p_net_no) const
     return result;
 }
 
-void Item::get_connected_set_recu(std::set<Item*>& p_result, int p_net_no, bool p_stop_at_plane) const
+void Item::get_connected_set_recu(ItemSet& p_result, int p_net_no, bool p_stop_at_plane) const
 {
     const std::vector<Item*> contact_list = get_normal_contacts();
     for (Item* curr_contact : contact_list)
@@ -392,7 +391,7 @@ bool Item::validate()
     return result;
 }
 
-bool Item::is_cycle_recu(std::set<Item*>& p_visited_items,
+bool Item::is_cycle_recu(ItemSet& p_visited_items,
                          const Item* p_search_item,
                          const Item* p_come_from_item,
                          bool p_ignore_areas) const
@@ -527,7 +526,7 @@ const std::vector<std::shared_ptr<geometry::planar::TileShape>>& Item::ensure_tr
 std::vector<Item*> Item::get_connection_items(StopConnectionOption p_stop_option) const
 {
     const std::vector<Item*> contacts = get_normal_contacts();
-    std::set<Item*> result;
+    ItemSet result;
     if (is_routable())
     {
         result.insert(const_cast<Item*>(this));
@@ -546,7 +545,7 @@ std::vector<Item*> Item::get_connection_items(StopConnectionOption p_stop_option
             // Check, that there is only 1 contact at this location.
             // Only for pins and vias items of more than 1 connection
             // are collected.
-            const std::set<Item*> check_contacts = start_trace->get_normal_contacts(*prev_contact_point, false);
+            const ItemSet check_contacts = start_trace->get_normal_contacts(*prev_contact_point, false);
             if (check_contacts.size() != 1)
             {
                 continue;
@@ -621,7 +620,7 @@ std::vector<Item*> Item::get_connection_items(StopConnectionOption p_stop_option
     return std::vector<Item*>(result.begin(), result.end());
 }
 
-bool Item::is_fanout_via(const std::set<Item*>* p_ignore_items) const
+bool Item::is_fanout_via(const ItemSet* p_ignore_items) const
 {
     const std::vector<Item*> contact_list = get_normal_contacts();
     for (Item* current_contact : contact_list)

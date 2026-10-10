@@ -175,7 +175,11 @@ public:
     const designforms::specctra::PinDef* get_pin(int p_index) const;
 
     int get_item_count() const { return static_cast<int>(items_.size()); }
-    std::vector<Item*> get_items() const override { return items_; }
+    /**
+     * The board items in Java item-list order: descending item id (newest first). Java
+     * Item.compareTo returns other.id - this.id and the item list is a ConcurrentSkipListMap.
+     */
+    std::vector<Item*> get_items() const override { return std::vector<Item*>(items_.rbegin(), items_.rend()); }
     Item* get_item(int p_index) const;
 
     // Search tree manager access
@@ -405,7 +409,10 @@ private:
 
     geometry::planar::IntBox bounding_box_;
     Communication* board_communication_ = nullptr;
+    /** Kept sorted by ascending item id; iterate it in reverse for Java's (descending id) order. */
     std::vector<Item*> items_;
+    void add_to_item_list(Item* p_item);
+    void remove_from_item_list(Item* p_item);
     std::unique_ptr<Components> components_;
     std::unique_ptr<BoardLibrary> library_;
     designforms::specctra::Result parsed_result_;

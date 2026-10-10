@@ -57,7 +57,7 @@ double MazeRipupResolver::calc_fanout_via_ripup_cost_factor(const board::Trace* 
 
     for (int i = 0; i < 2; i++)
     {
-        std::set<board::Item*> current_end_contacts;
+        board::ItemSet current_end_contacts;
         if (i == 0)
         {
             current_end_contacts = p_trace->get_start_contacts();

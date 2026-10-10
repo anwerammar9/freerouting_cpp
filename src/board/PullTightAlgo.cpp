@@ -583,7 +583,7 @@ bool PullTightAlgo::split_traces_at_keep_point()
         return false;
     }
     ItemSelectionFilter filter(ItemSelectionFilter::SelectableChoices::TRACES);
-    std::set<Item*> picked_items =
+    ItemSet picked_items =
         board_->pick_items(*keep_point_, keep_point_layer_, &filter);
     for (Item* curr_item : picked_items)
     {

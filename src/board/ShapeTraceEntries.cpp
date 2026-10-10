@@ -265,7 +265,7 @@ bool ShapeTraceEntries::store_trace(PolylineTrace* p_trace)
         {
             if (offset_shape->contains(end_corner))
             {
-                std::set<Item*> contact_list = (i == 0) ? p_trace->get_start_contacts()
+                ItemSet contact_list = (i == 0) ? p_trace->get_start_contacts()
                                                         : p_trace->get_end_contacts();
                 int contact_count = 0;
                 bool store_end_corner = true;

@@ -6,6 +6,7 @@
 #include <string>
 
 #include "board/FixedState.h"
+#include "board/ItemSet.h"
 #include "board/Layer.h"
 #include "board/BasicBoard.h"
 #include "board/SearchTreeObject.h"
@@ -82,14 +83,14 @@ public:
      * result is empty if this item is not connectable. Mirrors Java
      * Item.getAllContacts().
      */
-    std::set<Item*> get_all_contacts() const;
+    ItemSet get_all_contacts() const;
 
     /**
      * Returns all connectable items with a direct contact to this item on
      * p_layer. The result is empty if this item is not connectable. Mirrors
      * Java Item.getAllContacts(int).
      */
-    std::set<Item*> get_all_contacts(int p_layer) const;
+    ItemSet get_all_contacts(int p_layer) const;
 
     virtual int first_common_layer(const Item* p_other) const;
     virtual bool shares_net(const Item* p_other) const;
@@ -122,20 +123,20 @@ public:
      * not belong to a component.
      * Mirrors Java Item.get_connected_set(int, boolean).
      */
-    std::set<Item*> get_connected_set(int p_net_no, bool p_stop_at_plane) const;
+    ItemSet get_connected_set(int p_net_no, bool p_stop_at_plane) const;
 
     /**
      * Returns the connected set without stopping at planes. Mirrors Java
      * Item.get_connected_set(int).
      */
-    std::set<Item*> get_connected_set(int p_net_no) const { return get_connected_set(p_net_no, false); }
+    ItemSet get_connected_set(int p_net_no) const { return get_connected_set(p_net_no, false); }
 
     /**
      * Returns all connectable items of the net with number p_net_no, which are
      * not electrically connected to this item. Mirrors Java
      * Item.get_unconnected_set(int).
      */
-    std::set<Item*> get_unconnected_set(int p_net_no) const;
+    ItemSet get_unconnected_set(int p_net_no) const;
 
     /** Returns the count of nets this item belongs to. Mirrors Java Item.net_count(). */
     int net_count() const { return static_cast<int>(net_nos_.size()); }
@@ -147,7 +148,7 @@ public:
     int get_net_no(int p_no) const { return net_nos_[p_no]; }
 
     /** Recursive part of get_connected_set. */
-    void get_connected_set_recu(std::set<Item*>& p_result, int p_net_no, bool p_stop_at_plane) const;
+    void get_connected_set_recu(ItemSet& p_result, int p_net_no, bool p_stop_at_plane) const;
 
     /** Returns true if this item has overlapping contacts at the same endpoint. */
     virtual bool is_overlap() const { return false; }
@@ -205,13 +206,13 @@ public:
      * nearby SMD-pin. If p_ignore_items is not nullptr, contact traces in it
      * are ignored. Mirrors Java Item.is_fanout_via().
      */
-    bool is_fanout_via(const std::set<Item*>* p_ignore_items) const;
+    bool is_fanout_via(const ItemSet* p_ignore_items) const;
 
     /** Test function checking the item for inconsistencies. */
     virtual bool validate();
 
     /** Recursive part of Trace.is_cycle. Returns true if p_search_item is reachable. */
-    bool is_cycle_recu(std::set<Item*>& p_visited_items,
+    bool is_cycle_recu(ItemSet& p_visited_items,
                        const Item* p_search_item,
                        const Item* p_come_from_item,
                        bool p_ignore_areas) const;
@@ -284,5 +285,15 @@ private:
 
     mutable std::unique_ptr<ItemSearchTreesInfo> search_trees_info_;
 };
+
+inline bool ItemIdDescending::operator()(const Item* p_a, const Item* p_b) const
+{
+    // Null-safe like TreeStorableLess (Java sets never hold null; C++ callers sometimes do).
+    if (p_a == nullptr || p_b == nullptr)
+    {
+        return p_a == nullptr && p_b != nullptr;
+    }
+    return p_a->get_id() > p_b->get_id();
+}
 
 } // namespace freerouting::board

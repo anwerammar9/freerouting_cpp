@@ -187,7 +187,7 @@ std::vector<Item*> DrillItem::get_normal_contacts() const
     // the layer constraint is checked below via shares_layer.
     const std::set<SearchTreeObject*, TreeStorableLess> overlaps =
         board_->overlapping_objects(search_shape, -1);
-    std::set<Item*> result_set;
+    ItemSet result_set;
     for (SearchTreeObject* curr_ob : overlaps)
     {
         Item* curr_item = dynamic_cast<Item*>(curr_ob);

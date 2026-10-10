@@ -177,7 +177,7 @@ TEST(NetIncompletesTest, TwoIsolatedPinsProduceOneAirLine)
     const auto& airline = ni.incompletes().front();
     EXPECT_EQ(airline->net, board->get_rules().get_nets().get(1));
     // The airline should connect the two distinct items (order may vary).
-    std::set<board::Item*> airline_items = {airline->from_item, airline->to_item};
+    board::ItemSet airline_items = {airline->from_item, airline->to_item};
     EXPECT_EQ(airline_items.size(), 2u);
     EXPECT_TRUE(airline_items.count(pin1) > 0);
     EXPECT_TRUE(airline_items.count(pin2) > 0);

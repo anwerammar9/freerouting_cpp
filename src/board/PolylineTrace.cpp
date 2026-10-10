@@ -541,8 +541,8 @@ std::vector<PolylineTrace*> PolylineTrace::split(
                                                ->is_ignore_cycles_with_areas();
                         }
                     }
-                    std::set<Item*> start_contacts = get_start_contacts();
-                    std::set<Item*> end_contacts = get_end_contacts();
+                    ItemSet start_contacts = get_start_contacts();
+                    ItemSet end_contacts = get_end_contacts();
                     if (!ignore_areas && start_contacts.count(found_item) > 0
                         && end_contacts.count(found_item) > 0)
                     {
@@ -601,7 +601,7 @@ bool PolylineTrace::combine_at_start(bool p_ignore_areas)
     // returns a reference into corner_points_, which clear_derived_data() below
     // empties, so keep the corner alive with a copy of the cache entry.
     const geometry::planar::IntPoint start_corner = own_corner(0);
-    std::set<Item*> contacts = get_normal_contacts(start_corner, false);
+    ItemSet contacts = get_normal_contacts(start_corner, false);
     if (p_ignore_areas)
     {
         for (auto it = contacts.begin(); it != contacts.end();)
@@ -745,7 +745,7 @@ bool PolylineTrace::combine_at_end(bool p_ignore_areas)
     }
     // Java copies the corner (Point endCorner = lastCorner()), see combine_at_start().
     const geometry::planar::IntPoint end_corner = own_corner(-1);
-    std::set<Item*> contacts = get_normal_contacts(end_corner, false);
+    ItemSet contacts = get_normal_contacts(end_corner, false);
     if (p_ignore_areas)
     {
         for (auto it = contacts.begin(); it != contacts.end();)
@@ -945,7 +945,7 @@ bool PolylineTrace::split_inside_drill_pad_prohibited(
     {
         return false;
     }
-    std::set<Item*> overlap_items = board_->pick_items(*intersection, get_layer(), nullptr);
+    ItemSet overlap_items = board_->pick_items(*intersection, get_layer(), nullptr);
     bool pad_found = false;
     for (Item* curr_item : overlap_items)
     {

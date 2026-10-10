@@ -125,7 +125,7 @@ std::unique_ptr<FoundConnectionLocator> FoundConnectionLocator::get_instance(
     const AutorouteControl& p_ctrl,
     board::ShapeSearchTree* p_search_tree,
     board::AngleRestriction p_angle_restriction,
-    std::set<board::Item*>* p_ripped_item_list,
+    board::ItemSet* p_ripped_item_list,
     std::map<board::Item*, int>* p_ripup_costs)
 {
     if (p_maze_result == nullptr)
@@ -172,7 +172,7 @@ bool FoundConnectionLocator::initialize(const MazeSearchAlgo::Result& p_maze_res
                                         const AutorouteControl& p_ctrl,
                                         board::ShapeSearchTree* p_search_tree,
                                         board::AngleRestriction p_angle_restriction,
-                                        std::set<board::Item*>* p_ripped_item_list,
+                                        board::ItemSet* p_ripped_item_list,
                                         std::map<board::Item*, int>* p_ripup_costs)
 {
     ctrl_ = &p_ctrl;
@@ -339,7 +339,7 @@ bool FoundConnectionLocator::initialize(const MazeSearchAlgo::Result& p_maze_res
 std::vector<FoundConnectionLocator::BacktrackElement> FoundConnectionLocator::backtrack(
     const MazeSearchAlgo::Result& p_maze_result,
     int p_net_no,
-    std::set<board::Item*>* p_ripped_item_list,
+    board::ItemSet* p_ripped_item_list,
     std::map<board::Item*, int>* p_ripup_costs)
 {
     std::vector<BacktrackElement> result;

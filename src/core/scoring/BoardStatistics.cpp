@@ -65,12 +65,12 @@ bool pin_is_fully_connected(board::Pin* p_pin, board::RoutingBoard* p_board)
     {
         return false;
     }
-    std::set<board::Item*> unconnected;
+    board::ItemSet unconnected;
     for (board::Item* curr_item : p_board->get_connectable_items(net_no))
     {
         unconnected.insert(curr_item);
     }
-    const std::set<board::Item*> connected = p_pin->get_connected_set(net_no, false);
+    const board::ItemSet connected = p_pin->get_connected_set(net_no, false);
     for (board::Item* curr_item : connected)
     {
         unconnected.erase(curr_item);

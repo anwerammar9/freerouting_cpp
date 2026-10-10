@@ -10,7 +10,7 @@ namespace freerouting::autoroute {
 
 Connection::Connection(std::shared_ptr<geometry::planar::Point> p_start_point, int p_start_layer,
                        std::shared_ptr<geometry::planar::Point> p_end_point, int p_end_layer,
-                       const std::set<board::Item*>& p_item_list)
+                       const board::ItemSet& p_item_list)
     : start_point(p_start_point), start_layer(p_start_layer),
       end_point(p_end_point), end_layer(p_end_layer),
       item_list(p_item_list) {
@@ -29,7 +29,7 @@ Connection* Connection::get(board::Item* p_item) {
 
     // This is a simplified version of the Java logic to avoid infinite recursion
     // and handle the stubbed contact methods.
-    std::set<board::Item*> connection_items;
+    board::ItemSet connection_items;
     connection_items.insert(p_item);
 
     // In a real implementation, we would crawl the contacts here.

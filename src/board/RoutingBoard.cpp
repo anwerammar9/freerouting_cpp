@@ -128,7 +128,7 @@ void RoutingBoard::combine_traces(int p_net_no)
     {
         something_changed = false;
         // Snapshot: traces may be removed while iterating.
-        std::vector<Item*> snapshot(items_.begin(), items_.end());
+        std::vector<Item*> snapshot = get_items(); // Java item-list order
         for (Item* curr_item : snapshot)
         {
             if (curr_item == nullptr)
@@ -157,7 +157,41 @@ void RoutingBoard::add_item(Item* p_item)
 {
     if (p_item)
     {
+        add_to_item_list(p_item);
+    }
+}
+
+void RoutingBoard::add_to_item_list(Item* p_item)
+{
+    // Ids are generated in increasing order, so appending is the normal case; an item created
+    // earlier but inserted later goes to its id position (Java's item list is sorted by id).
+    if (items_.empty() || items_.back()->get_id() < p_item->get_id())
+    {
         items_.push_back(p_item);
+        return;
+    }
+    auto pos = std::lower_bound(items_.begin(), items_.end(), p_item->get_id(),
+        [](const Item* p_entry, int p_id) { return p_entry->get_id() < p_id; });
+    items_.insert(pos, p_item);
+}
+
+void RoutingBoard::remove_from_item_list(Item* p_item)
+{
+    auto pos = std::lower_bound(items_.begin(), items_.end(), p_item->get_id(),
+        [](const Item* p_entry, int p_id) { return p_entry->get_id() < p_id; });
+    for (; pos != items_.end() && (*pos)->get_id() == p_item->get_id(); ++pos)
+    {
+        if (*pos == p_item)
+        {
+            items_.erase(pos);
+            return;
+        }
+    }
+    // Fallback for items whose id changed after insertion.
+    auto it = std::find(items_.begin(), items_.end(), p_item);
+    if (it != items_.end())
+    {
+        items_.erase(it);
     }
 }
 
@@ -173,22 +207,18 @@ void RoutingBoard::remove_item(Item* p_item)
     }
     additional_update_after_change(p_item);
     search_tree_manager().remove(p_item);
-    auto it = std::find(items_.begin(), items_.end(), p_item);
-    if (it != items_.end())
-    {
-        items_.erase(it);
-    }
+    remove_from_item_list(p_item);
 }
 
 std::vector<Item*> RoutingBoard::get_autoroute_items() const
 {
-    return items_;
+    return get_items();
 }
 
 std::vector<Item*> RoutingBoard::get_connectable_items() const
 {
     std::vector<Item*> connectable;
-    for (auto* item : items_)
+    for (auto* item : get_items())
     {
         if (item && (item->is_pin() || item->is_via() || item->is_trace()))
         {
@@ -201,7 +231,7 @@ std::vector<Item*> RoutingBoard::get_connectable_items() const
 std::vector<Item*> RoutingBoard::get_connectable_items(int p_net_no) const
 {
     std::vector<Item*> connectable;
-    for (auto* item : items_)
+    for (auto* item : get_items())
     {
         if (item == nullptr || !item->contains_net(p_net_no))
         {
@@ -218,7 +248,7 @@ std::vector<Item*> RoutingBoard::get_connectable_items(int p_net_no) const
 std::vector<Pin*> RoutingBoard::get_pins() const
 {
     std::vector<Pin*> result;
-    for (auto* item : items_)
+    for (auto* item : get_items())
     {
         if (auto* pin = dynamic_cast<Pin*>(item))
         {
@@ -231,7 +261,7 @@ std::vector<Pin*> RoutingBoard::get_pins() const
 std::vector<Trace*> RoutingBoard::get_traces() const
 {
     std::vector<Trace*> result;
-    for (auto* item : items_)
+    for (auto* item : get_items())
     {
         if (auto* trace = dynamic_cast<Trace*>(item))
         {
@@ -244,7 +274,7 @@ std::vector<Trace*> RoutingBoard::get_traces() const
 std::vector<Via*> RoutingBoard::get_vias() const
 {
     std::vector<Via*> result;
-    for (auto* item : items_)
+    for (auto* item : get_items())
     {
         if (auto* via = dynamic_cast<Via*>(item))
         {
@@ -256,9 +286,10 @@ std::vector<Via*> RoutingBoard::get_vias() const
 
 Item* RoutingBoard::get_item(int p_index) const
 {
+    // Index 0 is the newest item: index loops over the board follow Java's item-list order.
     if (p_index >= 0 && p_index < static_cast<int>(items_.size()))
     {
-        return items_[p_index];
+        return items_[items_.size() - 1 - static_cast<size_t>(p_index)];
     }
     return nullptr;
 }
@@ -440,7 +471,7 @@ void RoutingBoard::create_pins_from_parsed()
                 center_x + half_width, center_y + half_height));
 
             ++id_no;
-            items_.push_back(pin.get());
+            add_to_item_list(pin.get());
             pin.release();
         }
 
@@ -503,7 +534,7 @@ PolylineTrace* RoutingBoard::add_polyline_trace(const std::vector<geometry::plan
         FixedState::FROM_DESIGN);
 
     PolylineTrace* result = trace.get();
-    items_.push_back(result);
+    add_to_item_list(result);
     trace.release();
     return result;
 }
@@ -550,7 +581,7 @@ const BoardOutline* RoutingBoard::get_outline() const
 {
     // Mirrors Java BoardItemRepository.getOutline(): returns the first
     // BoardOutline item on the board, or nullptr if none is present.
-    for (const Item* curr_item : items_)
+    for (const Item* curr_item : get_items())
     {
         if (dynamic_cast<const BoardOutline*>(curr_item) != nullptr)
         {
@@ -657,7 +688,7 @@ bool RoutingBoard::remove_items(const std::vector<Item*>& p_items)
 
 void RoutingBoard::clear_all_item_temporary_autoroute_data()
 {
-    for (Item* item : items_)
+    for (Item* item : get_items())
     {
         if (item != nullptr)
         {
@@ -669,11 +700,9 @@ void RoutingBoard::clear_all_item_temporary_autoroute_data()
 bool RoutingBoard::remove_trace_tails(int p_net_no, Item::StopConnectionOption p_stop_option)
 {
     // Port of Java RoutingBoard.removeTraceTails(int, Item.StopConnectionOption).
-    // Divergence: Java collects the stubs and their connections in TreeSets
-    // ordered by Item.compare_to (descending item id), while the C++ port uses
-    // pointer ordered sets - the same divergence as in
-    // Item::get_unconnected_set().
-    std::set<Item*> stub_set;
+    // The stubs and their connections are collected in ItemSets (descending item id,
+    // like Java's TreeSet<Item>).
+    ItemSet stub_set;
     for (Item* current_item : get_autoroute_items())
     {
         if (current_item == nullptr || !current_item->is_routable())
@@ -707,7 +736,7 @@ bool RoutingBoard::remove_trace_tails(int p_net_no, Item::StopConnectionOption p
         stub_set.insert(current_item);
     }
 
-    std::set<Item*> stub_connections;
+    ItemSet stub_connections;
     for (Item* current_item : stub_set)
     {
         if (current_item->get_normal_contacts().size() == 1)
@@ -930,7 +959,7 @@ bool RoutingBoard::normalize_traces(int p_net_no)
     {
         something_changed = false;
         // Snapshot: traces may be removed while iterating.
-        std::vector<Item*> snapshot(items_.begin(), items_.end());
+        std::vector<Item*> snapshot = get_items(); // Java item-list order
         for (Item* curr_item : snapshot)
         {
             if (curr_item == nullptr || !curr_item->contains_net(p_net_no))
@@ -977,7 +1006,7 @@ void RoutingBoard::insert_item(Item* p_item)
         p_item->set_clearance_class(0);
     }
     p_item->set_board(this);
-    items_.push_back(p_item);
+    add_to_item_list(p_item);
     get_search_tree_manager()->insert(p_item);
     additional_update_after_change(p_item);
 }
@@ -1263,7 +1292,7 @@ std::optional<geometry::planar::IntPoint> RoutingBoard::insert_forced_trace_poly
     // geometry will be used to cut off dog ears of the check shape.
     Trace* picked_trace = nullptr;
     ItemSelectionFilter trace_filter(ItemSelectionFilter::SelectableChoices::TRACES);
-    std::set<Item*> picked_items = pick_items(from_corner, p_layer, &trace_filter);
+    ItemSet picked_items = pick_items(from_corner, p_layer, &trace_filter);
     if (picked_items.size() == 1)
     {
         auto* current_picked_trace = dynamic_cast<Trace*>(*picked_items.begin());
@@ -1485,7 +1514,7 @@ std::optional<geometry::planar::IntPoint> RoutingBoard::insert_forced_trace_poly
     {
         pull_tight_algo->split_traces_at_keep_point();
         // otherwise the new corner may no more be contained in the new trace after optimizing
-        std::set<Item*> current_picked_items = pick_items(new_corner, p_layer, &trace_filter);
+        ItemSet current_picked_items = pick_items(new_corner, p_layer, &trace_filter);
         new_trace = nullptr;
         if (!current_picked_items.empty())
         {

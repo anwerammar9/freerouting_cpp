@@ -117,7 +117,7 @@ Pin* insert_smd_pin(RoutingBoard* p_board, const geometry::planar::IntPoint& p_c
     return pin;
 }
 
-bool set_contains(std::set<Item*> p_set, const Item* p_item)
+bool set_contains(ItemSet p_set, const Item* p_item)
 {
     return p_set.find(const_cast<Item*>(p_item)) != p_set.end();
 }
@@ -131,7 +131,7 @@ TEST(ItemContactGraphTest, ConnectedSetOfDisconnectedTraceContainsItselfOnly)
                                         {1});
     ASSERT_NE(trace, nullptr);
 
-    std::set<Item*> connected = trace->get_connected_set(1, false);
+    ItemSet connected = trace->get_connected_set(1, false);
     ASSERT_EQ(connected.size(), 1u);
     EXPECT_TRUE(set_contains(connected, trace));
 
@@ -152,7 +152,7 @@ TEST(ItemContactGraphTest, TraceContactsViaAtSharedEndpoint)
 
     // The trace's endpoint contacts the via center.
     std::vector<Item*> trace_contacts = trace->get_normal_contacts();
-    EXPECT_TRUE(set_contains(std::set<Item*>(trace_contacts.begin(), trace_contacts.end()), via));
+    EXPECT_TRUE(set_contains(ItemSet(trace_contacts.begin(), trace_contacts.end()), via));
 
     // The via contacts the trace.
     std::vector<Item*> via_contacts = via->get_normal_contacts();
@@ -160,7 +160,7 @@ TEST(ItemContactGraphTest, TraceContactsViaAtSharedEndpoint)
     EXPECT_EQ(via_contacts[0], trace);
 
     // The connected set spans trace and via.
-    std::set<Item*> connected = trace->get_connected_set(1, false);
+    ItemSet connected = trace->get_connected_set(1, false);
     EXPECT_EQ(connected.size(), 2u);
     EXPECT_TRUE(set_contains(connected, trace));
     EXPECT_TRUE(set_contains(connected, via));
@@ -178,14 +178,14 @@ TEST(ItemContactGraphTest, GetAllContactsOfATraceContainsTheContactingVia)
     Via* via = insert_via(board.get(), geometry::planar::IntPoint(100, 100), {1}, 50);
     ASSERT_NE(via, nullptr);
 
-    const std::set<Item*> contacts = trace->get_all_contacts();
+    const ItemSet contacts = trace->get_all_contacts();
 
     ASSERT_EQ(contacts.size(), 1u);
     EXPECT_TRUE(set_contains(contacts, via));
     EXPECT_FALSE(set_contains(contacts, trace));
 
     // The via sees the trace as its contact.
-    const std::set<Item*> via_contacts = via->get_all_contacts();
+    const ItemSet via_contacts = via->get_all_contacts();
     ASSERT_EQ(via_contacts.size(), 1u);
     EXPECT_TRUE(set_contains(via_contacts, trace));
 }
@@ -228,7 +228,7 @@ TEST(ItemContactGraphTest, GetAllContactsOnLayerFiltersByTheLayerOfTheShape)
     Via* via = insert_via(board.get(), geometry::planar::IntPoint(100, 100), {1}, 50);
     ASSERT_NE(via, nullptr);
 
-    const std::set<Item*> layer_0_contacts = trace->get_all_contacts(0);
+    const ItemSet layer_0_contacts = trace->get_all_contacts(0);
     EXPECT_EQ(layer_0_contacts.size(), 1u);
     EXPECT_TRUE(set_contains(layer_0_contacts, via));
 
@@ -264,7 +264,7 @@ TEST(ItemContactGraphTest, ConnectedSetDoesNotCrossToDifferentNet)
     ASSERT_NE(net1_trace, nullptr);
     ASSERT_NE(net2_trace, nullptr);
 
-    std::set<Item*> connected = net1_trace->get_connected_set(1, false);
+    ItemSet connected = net1_trace->get_connected_set(1, false);
     EXPECT_EQ(connected.size(), 1u);
     EXPECT_TRUE(set_contains(connected, net1_trace));
     EXPECT_FALSE(set_contains(connected, net2_trace));
@@ -282,12 +282,12 @@ TEST(ItemContactGraphTest, ConnectedSetIncludesSameNetConductionArea)
     ASSERT_NE(area, nullptr);
 
     // Without p_stop_at_plane the conduction area belongs to the set.
-    std::set<Item*> connected = trace->get_connected_set(1, false);
+    ItemSet connected = trace->get_connected_set(1, false);
     EXPECT_TRUE(set_contains(connected, trace));
     EXPECT_TRUE(set_contains(connected, area));
 
     // With p_stop_at_plane a conduction area without a component is skipped.
-    std::set<Item*> stopped = trace->get_connected_set(1, true);
+    ItemSet stopped = trace->get_connected_set(1, true);
     EXPECT_EQ(stopped.size(), 1u);
     EXPECT_TRUE(set_contains(stopped, trace));
 }
@@ -304,7 +304,7 @@ TEST(ItemContactGraphTest, StopAtPlaneKeepsAreasWithComponent)
     ASSERT_NE(area, nullptr);
 
     // An area belonging to a component (component_no > 0) is not skipped.
-    std::set<Item*> stopped = trace->get_connected_set(1, true);
+    ItemSet stopped = trace->get_connected_set(1, true);
     EXPECT_EQ(stopped.size(), 2u);
     EXPECT_TRUE(set_contains(stopped, trace));
     EXPECT_TRUE(set_contains(stopped, area));
@@ -397,7 +397,7 @@ TEST(ItemContactGraphTest, ConnectedSetRecursesThroughVia)
     ASSERT_NE(via, nullptr);
     ASSERT_NE(trace2, nullptr);
 
-    std::set<Item*> connected = trace1->get_connected_set(1, false);
+    ItemSet connected = trace1->get_connected_set(1, false);
     EXPECT_EQ(connected.size(), 3u);
     EXPECT_TRUE(set_contains(connected, trace1));
     EXPECT_TRUE(set_contains(connected, via));
@@ -416,7 +416,7 @@ TEST(ItemContactGraphTest, ConnectionItemsSpanTraceAndVia)
     ASSERT_NE(via, nullptr);
 
     std::vector<Item*> connection_items = trace->get_connection_items(Item::StopConnectionOption::NONE);
-    std::set<Item*> connection_set(connection_items.begin(), connection_items.end());
+    ItemSet connection_set(connection_items.begin(), connection_items.end());
     EXPECT_TRUE(set_contains(connection_set, trace));
     EXPECT_TRUE(set_contains(connection_set, via));
 }
@@ -434,7 +434,7 @@ Via* via = insert_via(board.get(), geometry::planar::IntPoint(100, 100), {1}, 50
 
     std::vector<Item*> connection_items =
         trace->get_connection_items(Item::StopConnectionOption::VIA);
-    std::set<Item*> connection_set(connection_items.begin(), connection_items.end());
+    ItemSet connection_set(connection_items.begin(), connection_items.end());
     EXPECT_TRUE(set_contains(connection_set, trace));
     EXPECT_FALSE(set_contains(connection_set, via));
 }
@@ -454,12 +454,12 @@ TEST(ItemContactGraphTest, TraceContactsIgnoreNetFlag)
     ASSERT_NE(net2_trace, nullptr);
 
     // With ignore_net == false only same-net contacts are returned.
-    const std::set<Item*> same_net = net1_trace->get_normal_contacts(
+    const ItemSet same_net = net1_trace->get_normal_contacts(
         geometry::planar::IntPoint(0, 0), false);
     EXPECT_EQ(same_net.size(), 0u);
 
     // With ignore_net == true the other-net trace at the same endpoint is found.
-    const std::set<Item*> all_nets = net1_trace->get_normal_contacts(
+    const ItemSet all_nets = net1_trace->get_normal_contacts(
         geometry::planar::IntPoint(0, 0), true);
     EXPECT_EQ(all_nets.size(), 1u);
     EXPECT_TRUE(set_contains(all_nets, net2_trace));
@@ -479,7 +479,7 @@ TEST(ItemContactGraphTest, ViaIsFanoutViaForSmdPinExit)
     ASSERT_NE(via, nullptr);
 
     // The trace shall be seen as the SMD-pin exit trace.
-    std::set<Item*> ignore;
+    ItemSet ignore;
     EXPECT_TRUE(via->is_fanout_via(nullptr));
 
     // A lone via without a pin connection is not a fanout via.

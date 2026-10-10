@@ -81,7 +81,7 @@ TEST(RoutingBoardTest, CheckTraceSegmentDegenerateReturnsZero)
 TEST(BasicBoardTest, PickItemsEmptyOnEmptyBoard)
 {
     auto board = make_routing_board();
-    std::set<Item*> picked = board->pick_items(geometry::planar::IntPoint(500, 500), 0, nullptr);
+    ItemSet picked = board->pick_items(geometry::planar::IntPoint(500, 500), 0, nullptr);
     EXPECT_TRUE(picked.empty());
 }
 

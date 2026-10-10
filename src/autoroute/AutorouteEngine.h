@@ -59,10 +59,10 @@ public:
      * before the new connection is inserted. Port of Java
      * AutorouteEngine.autorouteConnection().
      */
-    AutorouteAttemptResult autoroute_connection(const std::set<board::Item*>& p_start_set,
-                                                const std::set<board::Item*>& p_dest_set,
+    AutorouteAttemptResult autoroute_connection(const board::ItemSet& p_start_set,
+                                                const board::ItemSet& p_dest_set,
                                                 const AutorouteControl& p_ctrl,
-                                                std::set<board::Item*>* p_ripped_item_list = nullptr,
+                                                board::ItemSet* p_ripped_item_list = nullptr,
                                                 std::map<board::Item*, int>* p_ripup_costs = nullptr);
 
     board::ShapeSearchTree* get_autoroute_search_tree()
@@ -159,7 +159,7 @@ public:
      * by the room id, mirroring the Java TreeSet.
      */
     std::vector<CompleteFreeSpaceExpansionRoom*> get_rooms_with_target_items(
-        const std::set<board::Item*>& p_items) const;
+        const board::ItemSet& p_items) const;
 
     /**
      * Completes the shape of p_room and returns the resulting complete free

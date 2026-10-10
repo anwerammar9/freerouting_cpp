@@ -230,7 +230,7 @@ bool FoundConnectionInserter::insert_trace(const FoundConnectionLocator::ResultI
         geometry::planar::IntPoint current_end_corner = corners.front();
         for (int i = 0; i < 2; ++i)
         {
-            std::set<board::Item*> picked_items =
+            board::ItemSet picked_items =
                 board_->pick_items(current_end_corner, p_trace.layer, &pin_filter);
             for (board::Item* current_item : picked_items)
             {

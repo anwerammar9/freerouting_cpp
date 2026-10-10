@@ -281,3 +281,7 @@ tree consistent incl. the out-of-range guard, first-corner reduction, last-corne
   `items_` oldest-first and uses 118 pointer-ordered `std::set<Item*>` (not reproducible between runs) → T011a/b;
   (2) **search tree variants** — Java's autoroute tree is `ShapeSearchTree45Degree` / `ShapeSearchTree90Degree` for 45° /
   90° boards (`SearchTreeManager.getAutorouteTree`); the C++ subclasses are empty and never instantiated → T506a/b.
+- **2026-10-10 (T011a/b)**: item ordering now matches Java. `board/ItemSet.h` (`ItemSet` = `std::set<Item*,
+  ItemIdDescending>`) replaces every pointer-ordered item set; `RoutingBoard` keeps `items_` sorted by ascending id and
+  exposes it newest-first (`get_items()`, `get_item(0)` = newest), like Java's item list. Equal ids collapse in an
+  `ItemSet` exactly as in a Java `TreeSet<Item>` — test fixtures must give items distinct ids.

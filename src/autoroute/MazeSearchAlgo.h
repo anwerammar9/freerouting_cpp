@@ -1,6 +1,7 @@
 #ifndef AUTOROUTE_MAZE_SEARCH_ALGO_H
 #define AUTOROUTE_MAZE_SEARCH_ALGO_H
 
+#include "board/ItemSet.h"
 #include "autoroute/AutorouteControl.h"
 #include "autoroute/DestinationDistance.h"
 #include "autoroute/ExpandableObject.h"
@@ -67,8 +68,8 @@ public:
      * initialisation failed. Port of Java MazeSearchEngine.getInstance().
      */
     static std::unique_ptr<MazeSearchAlgo> get_instance(
-        const std::set<board::Item*>& p_start_items,
-        const std::set<board::Item*>& p_dest_items,
+        const board::ItemSet& p_start_items,
+        const board::ItemSet& p_dest_items,
         AutorouteEngine* p_autoroute_engine,
         const AutorouteControl& p_ctrl,
         datastructures::Stoppable* p_stoppable = nullptr);
@@ -78,8 +79,8 @@ public:
      * p_dest_items. Returns false if the initialisation failed. Port of Java
      * MazeSearchEngine.init().
      */
-    bool init(const std::set<board::Item*>& p_start_items,
-              const std::set<board::Item*>& p_dest_items);
+    bool init(const board::ItemSet& p_start_items,
+              const board::ItemSet& p_dest_items);
 
     /**
      * Does a maze search to find a connection route between the start and the
@@ -251,8 +252,8 @@ private:
         maze_expansion_list_.insert(p_element);
     }
 
-    std::set<board::Item*> start_items_;
-    std::set<board::Item*> dest_items_;
+    board::ItemSet start_items_;
+    board::ItemSet dest_items_;
 
     /** The destination door found by the expanding algorithm. */
     ExpandableObject* destination_door_ = nullptr;

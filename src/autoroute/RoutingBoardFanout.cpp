@@ -58,7 +58,7 @@ autoroute::AutorouteAttemptResult RoutingBoard::fanout(Pin* p_pin,
     }
     const int pin_net_no = p_pin->get_net_no(0);
     const int pin_layer = p_pin->first_layer();
-    const std::set<Item*> pin_connected_set = p_pin->get_connected_set(pin_net_no);
+    const ItemSet pin_connected_set = p_pin->get_connected_set(pin_net_no);
     for (const Item* current_item : pin_connected_set)
     {
         if (current_item->first_layer() != pin_layer || current_item->last_layer() != pin_layer)
@@ -68,7 +68,7 @@ autoroute::AutorouteAttemptResult RoutingBoard::fanout(Pin* p_pin,
                 "The pin '" + p_pin->to_string() + "' is already connected.");
         }
     }
-    const std::set<Item*> unconnected_set = p_pin->get_unconnected_set(pin_net_no);
+    const ItemSet unconnected_set = p_pin->get_unconnected_set(pin_net_no);
     if (unconnected_set.empty())
     {
         return autoroute::AutorouteAttemptResult(autoroute::AutorouteAttemptState::NO_UNCONNECTED_NETS,
@@ -126,7 +126,7 @@ autoroute::AutorouteAttemptResult RoutingBoard::fanout(Pin* p_pin,
         if (!sorted_unconnected_list.empty())
         {
             // 1. Try to route to the closest target first
-            const std::set<Item*> closest_target_set = { sorted_unconnected_list.front() };
+            const ItemSet closest_target_set = { sorted_unconnected_list.front() };
             result = autoroute_engine.autoroute_connection(pin_connected_set, closest_target_set,
                 ctrl_settings);
             has_result = true;

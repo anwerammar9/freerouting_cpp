@@ -155,13 +155,22 @@ The script picks the **first `[ ]`/`[~]` task whose deps are all `[x]`**.
   - spec: SOURCE_OF_TRUTH/plans/M0_oracles.md (section T010b)
   - java: datastructures/PlanarDelaunayTriangulation.java (≈ lines 500-978)
   - done when: golden edge sets from Java (co-circular, collinear, duplicate points) match; NetIncompletes tests green.
-- [ ] T011a | deps: - | Item ordering parity part 1: ItemSet (descending id), RoutingBoard::get_items() order, src/board/ sets
+- [x] T011a | deps: - | Item ordering parity part 1: ItemSet (descending id), RoutingBoard::get_items() order, src/board/ sets
   - spec: SOURCE_OF_TRUTH/plans/M0_oracles.md (section T011a)
   - what: Java `Item.compareTo` sorts by descending id and the board item list (ConcurrentSkipListMap) iterates newest
     first; Java uses `TreeSet<Item>` in ~45 places. C++ uses pointer-ordered `std::set<Item*>` (118 occurrences — not
     even reproducible between C++ runs) and an insertion-ordered `items_` vector.
   - done when: Item_order_test green; all sets in src/board/ converted or documented; ctest green.
-- [ ] T011b | deps: T011a | Item ordering parity part 2: autoroute/, interactive/NetIncompletes, drc/, core/scoring sets
+- [x] T011b | deps: T011a | Item ordering parity part 2: autoroute/, interactive/NetIncompletes, drc/, core/scoring sets
+  - result: T011a+T011b done together (the set type appears in signatures shared by board/, autoroute/, interactive/,
+    drc/, scoring/, so a partial change does not compile). `board/ItemSet.h`: `ItemIdDescending` (null-safe) +
+    `ItemSet`/`ConstItemSet`; all 149 `std::set<Item*>` / `std::set<board::Item*>` uses in src/ and tests/ converted
+    (the 13 `TreeStorableLess` sets already used Item::compare_to = Java order). `RoutingBoard::items_` is kept sorted by
+    ascending id (append for new items, binary insert/remove otherwise); `get_items()`, `get_autoroute_items()`, the
+    trace/pin/via getters, the combine/normalize snapshots and `get_item(i)` (index 0 = newest) follow Java's
+    newest-first order. Only exception: `DesignRulesChecker.cpp` `unordered_set processed_items` (membership only).
+    Test updates: ItemSelectionFilter fixture items get distinct ids (equal ids collapse, as in a Java TreeSet); two
+    DRC tests now expect Java's newest-first item order. New Item_order_test (4). ctest 906/906.
   - spec: SOURCE_OF_TRUTH/plans/M0_oracles.md (section T011b)
   - done when: grep for pointer-ordered item sets in src/ finds only documented exceptions; ctest green.
 

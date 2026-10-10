@@ -586,7 +586,7 @@ std::unique_ptr<gp::Polyline> PullTightAlgo45::smoothen_start_corner_at_trace(
     std::optional<gp::Line> other_trace_line;
     std::optional<gp::Line> other_prev_trace_line;
 
-    std::set<Item*> contact_list = p_trace->get_start_contacts();
+    ItemSet contact_list = p_trace->get_start_contacts();
     for (Item* curr_contact : contact_list)
     {
         auto* trace = dynamic_cast<PolylineTrace*>(curr_contact);
@@ -746,7 +746,7 @@ std::unique_ptr<gp::Polyline> PullTightAlgo45::smoothen_end_corner_at_trace(
     std::optional<gp::Line> other_trace_line;
     std::optional<gp::Line> other_prev_trace_line;
 
-    std::set<Item*> contact_list = p_trace->get_end_contacts();
+    ItemSet contact_list = p_trace->get_end_contacts();
     for (Item* curr_contact : contact_list)
     {
         auto* trace = dynamic_cast<PolylineTrace*>(curr_contact);

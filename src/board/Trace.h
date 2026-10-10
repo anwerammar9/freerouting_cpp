@@ -62,10 +62,10 @@ public:
      * this trace. If p_ignore_net is false, only contacts to items sharing a
      * net with this trace are calculated. This is the normal case.
      */
-    std::set<Item*> get_normal_contacts(const geometry::planar::Point& p_point, bool p_ignore_net) const;
+    ItemSet get_normal_contacts(const geometry::planar::Point& p_point, bool p_ignore_net) const;
 
-    std::set<Item*> get_start_contacts() const;
-    std::set<Item*> get_end_contacts() const;
+    ItemSet get_start_contacts() const;
+    ItemSet get_end_contacts() const;
     std::vector<Item*> get_normal_contacts() const override;
 
     // ---- Trace-specific overrides of Item virtuals ----

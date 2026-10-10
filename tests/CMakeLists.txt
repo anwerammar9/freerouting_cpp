@@ -178,6 +178,7 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/src/board/ItemContacts_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/ShoveTraceAlgo_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/RoutingBoardForcedTrace_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/board/Item_order_test.cpp
         ${CMAKE_SOURCE_DIR}/src/core/scoring/BoardStatistics_test.cpp
         ${CMAKE_SOURCE_DIR}/src/core/BoardFileDetails_test.cpp
     )

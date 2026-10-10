@@ -148,7 +148,7 @@ TEST(MazeSearchAlgoTest, ControlIsConfigurable) {
 
 TEST(MazeSearchAlgoTest, GetInstanceRejectsMissingEngine) {
     AutorouteControl control = make_control();
-    std::set<board::Item*> items;
+    board::ItemSet items;
 
     EXPECT_EQ(MazeSearchAlgo::get_instance(items, items, nullptr, control), nullptr);
 }
@@ -160,7 +160,7 @@ TEST(MazeSearchAlgoTest, GetInstanceFailsWithoutStartDoors) {
     auto board = make_routing_board();
     AutorouteEngine engine(board.get(), 1, true);
     AutorouteControl control = make_control();
-    std::set<board::Item*> items;
+    board::ItemSet items;
 
     std::unique_ptr<MazeSearchAlgo> algo =
         MazeSearchAlgo::get_instance(items, items, &engine, control, nullptr);
@@ -171,7 +171,7 @@ TEST(MazeSearchAlgoTest, GetInstanceFailsWithoutStartDoors) {
 TEST(MazeSearchAlgoTest, InitFailsWithoutEngine) {
     auto board = make_routing_board();
     MazeSearchAlgo algo(board.get(), nullptr);
-    std::set<board::Item*> items;
+    board::ItemSet items;
 
     EXPECT_FALSE(algo.init(items, items));
     EXPECT_FALSE(algo.is_initialized());
@@ -203,8 +203,8 @@ TEST(MazeSearchAlgoTest, InitReducesForeignTraceShapesAtTiePins) {
     ASSERT_TRUE(foreign_before->contains(fp::IntPoint(2000, 2000)));
 
     AutorouteControl control = make_control();
-    std::set<board::Item*> start_items{ pin };
-    std::set<board::Item*> dest_items{ foreign_trace };
+    board::ItemSet start_items{ pin };
+    board::ItemSet dest_items{ foreign_trace };
 
     // The door calculation is not ported yet, so the instance creation may
     // fail; the tie-pin reduction runs at the start of init regardless.

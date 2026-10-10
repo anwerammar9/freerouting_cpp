@@ -122,8 +122,10 @@ TEST(DesignRulesCheckerTest, DetectsClearanceViolationBetweenDifferentNets)
     EXPECT_NEAR(v->get_expected_clearance(), 1000.0, 1e-6);
     EXPECT_LT(v->get_actual_clearance(), v->get_expected_clearance());
     EXPECT_NE(v->get_shape(), nullptr);
-    EXPECT_EQ(v->get_first_item()->get_net_nos()[0], 1);
-    EXPECT_EQ(v->get_second_item()->get_net_nos()[0], 2);
+    // Java parity: the DRC walks the item list newest first (descending item id), so the
+    // later inserted trace (net 2) is the first item of the violation.
+    EXPECT_EQ(v->get_first_item()->get_net_nos()[0], 2);
+    EXPECT_EQ(v->get_second_item()->get_net_nos()[0], 1);
 }
 
 TEST(DesignRulesCheckerTest, NoClearanceViolationForFarApartTraces)
@@ -157,7 +159,8 @@ TEST(DesignRulesCheckerTest, ReportJsonMatchesKiCadSchemaShape)
     EXPECT_NE(json.find("\"unconnectedItems\":["), std::string::npos);
     EXPECT_NE(json.find("\"type\":\"clearance\""), std::string::npos);
     EXPECT_NE(json.find("\"severity\":\"error\""), std::string::npos);
-    EXPECT_NE(json.find("Clearance violation between Trace [net1] and Trace [net2]"),
+    // Newest item first (Java item-list order), see DetectsClearanceViolationBetweenDifferentNets.
+    EXPECT_NE(json.find("Clearance violation between Trace [net2] and Trace [net1]"),
               std::string::npos);
 }
 
@@ -178,7 +181,7 @@ TEST(DesignRulesCheckerTest, DetectsIsolatedItemsOnSameNet)
         if (u.get_type() == "unconnectedItems")
         {
             found_group = true;
-            std::set<board::Item*> items(u.get_all_items().begin(), u.get_all_items().end());
+            board::ItemSet items(u.get_all_items().begin(), u.get_all_items().end());
             EXPECT_TRUE(items.count(via1) > 0);
             EXPECT_TRUE(items.count(via2) > 0);
         }

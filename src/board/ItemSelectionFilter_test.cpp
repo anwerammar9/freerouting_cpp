@@ -18,9 +18,13 @@ protected:
     // Minimal concrete Item to exercise filter() without a full board.
     class TestItem : public Item
     {
+        static inline int s_next_id = 0;
+
     public:
+        // Each fixture item gets its own id: ItemSet orders by id (Java TreeSet<Item>), so
+        // equal ids would collapse into one entry.
         TestItem(bool p_user_fixed, bool p_select_result)
-            : Item({}, 0, 0, 0,
+            : Item({}, 0, ++s_next_id, 0,
                    p_user_fixed ? FixedState::USER_FIXED : FixedState::NOT_FIXED,
                    nullptr),
               select_result_(p_select_result)
@@ -126,8 +130,8 @@ TEST_F(ItemSelectionFilterTest, FilterKeepsOnlySelectedItems)
     TestItem rejected(false, false);
 
     ItemSelectionFilter filter;
-    std::set<Item*> items{&selected, &rejected};
-    std::set<Item*> result = filter.filter(items);
+    ItemSet items{&selected, &rejected};
+    ItemSet result = filter.filter(items);
 
     EXPECT_EQ(result.size(), 1);
     EXPECT_NE(result.find(&selected), result.end());
@@ -138,8 +142,8 @@ TEST_F(ItemSelectionFilterTest, FilterSkipsNullItems)
 {
     TestItem selected(false, true);
     ItemSelectionFilter filter;
-    std::set<Item*> items{&selected, nullptr};
-    std::set<Item*> result = filter.filter(items);
+    ItemSet items{&selected, nullptr};
+    ItemSet result = filter.filter(items);
 
     EXPECT_EQ(result.size(), 1);
 }

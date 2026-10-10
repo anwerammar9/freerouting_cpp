@@ -484,7 +484,7 @@ TEST(FoundConnectionLocatorTest, BacktrackCollectsRippedObstacleRooms)
     result.destination_door = &dest_door;
     result.section_no_of_door = 0;
 
-    std::set<fr::board::Item*> ripped_items;
+    fr::board::ItemSet ripped_items;
     std::map<fr::board::Item*, int> ripup_costs;
     std::unique_ptr<fr::autoroute::FoundConnectionLocator> locator =
         fr::autoroute::FoundConnectionLocator::get_instance(&result, control, &tree,

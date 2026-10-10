@@ -83,9 +83,9 @@ bool Trace::is_within_tolerance(const geometry::planar::Point& p_point,
     return (dx + dy) <= static_cast<double>(p_tolerance);
 }
 
-std::set<Item*> Trace::get_normal_contacts(const geometry::planar::Point& p_point, bool p_ignore_net) const
+ItemSet Trace::get_normal_contacts(const geometry::planar::Point& p_point, bool p_ignore_net) const
 {
-    std::set<Item*> result;
+    ItemSet result;
     const geometry::planar::Point& first = first_corner();
     const geometry::planar::Point& last = last_corner();
     if (!(p_point.equals(&first) || p_point.equals(&last)))
@@ -152,20 +152,20 @@ std::set<Item*> Trace::get_normal_contacts(const geometry::planar::Point& p_poin
     return result;
 }
 
-std::set<Item*> Trace::get_start_contacts() const
+ItemSet Trace::get_start_contacts() const
 {
     return get_normal_contacts(first_corner(), false);
 }
 
-std::set<Item*> Trace::get_end_contacts() const
+ItemSet Trace::get_end_contacts() const
 {
     return get_normal_contacts(last_corner(), false);
 }
 
 std::vector<Item*> Trace::get_normal_contacts() const
 {
-    std::set<Item*> contacts = get_normal_contacts(first_corner(), false);
-    const std::set<Item*> end_contacts = get_normal_contacts(last_corner(), false);
+    ItemSet contacts = get_normal_contacts(first_corner(), false);
+    const ItemSet end_contacts = get_normal_contacts(last_corner(), false);
     contacts.insert(end_contacts.begin(), end_contacts.end());
     return std::vector<Item*>(contacts.begin(), contacts.end());
 }
@@ -249,8 +249,8 @@ bool Trace::is_tail() const
 
 bool Trace::is_overlap() const
 {
-    const std::set<Item*> start_contacts = get_start_contacts();
-    const std::set<Item*> end_contacts = get_end_contacts();
+    const ItemSet start_contacts = get_start_contacts();
+    const ItemSet end_contacts = get_end_contacts();
     for (const Item* curr_start : start_contacts)
     {
         if (end_contacts.find(const_cast<Item*>(curr_start)) != end_contacts.end())
@@ -338,8 +338,8 @@ bool Trace::is_cycle() const
     {
         return true;
     }
-    std::set<Item*> start_contacts = get_start_contacts();
-    std::set<Item*> visited_items = start_contacts;
+    ItemSet start_contacts = get_start_contacts();
+    ItemSet visited_items = start_contacts;
     bool ignore_areas = false;
     if (!net_nos_.empty() && board_ != nullptr)
     {

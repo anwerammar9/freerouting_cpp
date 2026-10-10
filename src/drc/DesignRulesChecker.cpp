@@ -181,7 +181,7 @@ std::vector<std::shared_ptr<ClearanceViolation>>
             {
                 board::Trace* this_trace = static_cast<board::Trace*>(p_item);
                 const planar::Point& contact_point = this_trace->first_corner();
-                std::set<board::Item*> current_contacts =
+                board::ItemSet current_contacts =
                     this_trace->get_normal_contacts(contact_point, true);
                 bool contact_found = current_contacts.find(current_item) != current_contacts.end();
                 if (!contact_found)
@@ -325,7 +325,7 @@ std::vector<UnconnectedItems> DesignRulesChecker::get_all_unconnected_items()
             {
                 continue;
             }
-            std::set<board::Item*> connected_set = item->get_connected_set(net_no, false);
+            board::ItemSet connected_set = item->get_connected_set(net_no, false);
             std::vector<board::Item*> set_items;
             for (board::Item* connected_item : connected_set)
             {
@@ -374,8 +374,8 @@ std::vector<UnconnectedItems> DesignRulesChecker::get_all_unconnected_items()
         {
             continue;
         }
-        std::set<board::Item*> start_contacts = trace->get_start_contacts();
-        std::set<board::Item*> end_contacts = trace->get_end_contacts();
+        board::ItemSet start_contacts = trace->get_start_contacts();
+        board::ItemSet end_contacts = trace->get_end_contacts();
         if (start_contacts.empty() || end_contacts.empty())
         {
             bool already_added = false;

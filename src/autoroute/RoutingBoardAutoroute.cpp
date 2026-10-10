@@ -61,7 +61,7 @@ autoroute::AutorouteAttemptResult RoutingBoard::autoroute(board::Item* p_item,
         p_router_settings != nullptr ? p_router_settings->get_trace_costs()
                                      : std::vector<autoroute::ExpansionCostFactor>());
     ctrl_settings.remove_unconnected_vias = false;
-    const std::set<Item*> route_start_set = p_item->get_connected_set(route_net_no);
+    const ItemSet route_start_set = p_item->get_connected_set(route_net_no);
     rules::Net* route_net = get_rules().get_nets().get(route_net_no);
     if (route_net != nullptr && route_net->contains_plane())
     {
@@ -75,7 +75,7 @@ autoroute::AutorouteAttemptResult RoutingBoard::autoroute(board::Item* p_item,
             }
         }
     }
-    const std::set<Item*> route_dest_set = p_item->get_unconnected_set(route_net_no);
+    const ItemSet route_dest_set = p_item->get_unconnected_set(route_net_no);
     if (route_dest_set.empty())
     {
         return autoroute::AutorouteAttemptResult(

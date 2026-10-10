@@ -1,5 +1,6 @@
 #pragma once
 
+#include "board/ItemSet.h"
 #include "autoroute/AutorouteControl.h"
 #include "autoroute/ExpandableObject.h"
 #include "autoroute/MazeSearchAlgo.h"
@@ -96,7 +97,7 @@ public:
         const AutorouteControl& p_ctrl,
         board::ShapeSearchTree* p_search_tree,
         board::AngleRestriction p_angle_restriction,
-        std::set<board::Item*>* p_ripped_item_list = nullptr,
+        board::ItemSet* p_ripped_item_list = nullptr,
         std::map<board::Item*, int>* p_ripup_costs = nullptr);
 
     /**
@@ -132,7 +133,7 @@ protected:
                     const AutorouteControl& p_ctrl,
                     board::ShapeSearchTree* p_search_tree,
                     board::AngleRestriction p_angle_restriction,
-                    std::set<board::Item*>* p_ripped_item_list,
+                    board::ItemSet* p_ripped_item_list,
                     std::map<board::Item*, int>* p_ripup_costs);
 
     /**
@@ -162,7 +163,7 @@ protected:
      */
     static std::vector<BacktrackElement> backtrack(const MazeSearchAlgo::Result& p_maze_result,
                                                     int p_net_no,
-                                                    std::set<board::Item*>* p_ripped_item_list,
+                                                    board::ItemSet* p_ripped_item_list,
                                                     std::map<board::Item*, int>* p_ripup_costs);
 
     /**

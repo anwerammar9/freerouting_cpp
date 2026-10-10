@@ -104,7 +104,7 @@ int BatchAutorouter::count_incomplete_connections() const
     int incomplete = 0;
     auto items = board_->get_autoroute_items();
 
-    std::map<int, std::set<board::Item*>> net_connections;
+    std::map<int, board::ItemSet> net_connections;
 
     for (auto* item : items)
     {
