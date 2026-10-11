@@ -183,7 +183,7 @@ RouteResult BatchAutorouter::route_all(int p_max_passes, datastructures::Stoppab
     logger.info("  Max passes: " + std::to_string(p_max_passes));
     logger.info("  Layer count: " + std::to_string(board_->get_layer_count()));
 
-    int pin_count = board_->get_pin_count();
+    const int pin_count = static_cast<int>(board_->get_pins().size());
     logger.info("  Pins: " + std::to_string(pin_count));
 
     int item_count = board_->get_item_count();

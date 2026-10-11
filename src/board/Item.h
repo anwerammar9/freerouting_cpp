@@ -147,6 +147,12 @@ public:
      */
     int get_net_no(int p_no) const { return net_nos_[p_no]; }
 
+    /**
+     * Makes p_net_no the (first) net of this item; ignored for net numbers that are not normal or
+     * exceed the board's nets. Mirrors Java Item.assignNetNo (the undo snapshot is not ported).
+     */
+    void assign_net_no(int p_net_no);
+
     /** Recursive part of get_connected_set. */
     void get_connected_set_recu(ItemSet& p_result, int p_net_no, bool p_stop_at_plane) const;
 

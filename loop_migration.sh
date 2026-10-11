@@ -36,12 +36,15 @@ MAX_PROVIDER_RETRIES=20   # rate-limit / provider-error retries per attempt
 MAX_CONSECUTIVE_BLOCKED=3
 TIMEOUT_MIN=90
 FORCED_TASK=""
-MODEL=""
-FALLBACK_MODEL=""
+# Strongest model available in this opencode install (see `opencode models`); override with --model.
+MODEL="${LOOP_MODEL:-cheaperinference/glm-5.2}"
+FALLBACK_MODEL="${LOOP_FALLBACK_MODEL:-freellmapi/auto:smart}"
 FALLBACK_AFTER=3          # provider errors on the primary model before switching to the fallback
 FREELLMAPI_URL="${FREELLMAPI_URL:-http://127.0.0.1:3001}"
 DRY_RUN=0
 ALLOW_DIRTY=0
+# Maximum reasoning effort unless the caller chose a variant.
+[[ "${OPENCODE_EXTRA_ARGS:-}" == *--variant* ]] || OPENCODE_EXTRA_ARGS="${OPENCODE_EXTRA_ARGS:-} --variant high"
 
 COMMIT_PATHS=(src tests tools docs SOURCE_OF_TRUTH CMakeLists.txt JavaToCppClassMap.csv AGENTS.md CLAUDE.md)
 PROVIDER_ERROR_RE='Error from provider|Rate limit exceeded|rate_limit_error|overloaded_error|Too Many Requests|insufficient_quota|all_providers_exhausted|No available model|no_available_models|Service Unavailable'

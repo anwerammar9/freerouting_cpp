@@ -419,6 +419,12 @@ std::optional<geometry::planar::FloatPoint> Pin::nearest_trace_exit_corner(
     return nearest_exit_corner;
 }
 
+bool Pin::is_placed_on_front() const
+{
+    const Component* component = get_component();
+    return component == nullptr || component->is_placed_on_front();
+}
+
 int Pin::get_padstack_layer(int p_index) const
 {
     // Port of Java Pin.getPadstackLayer.

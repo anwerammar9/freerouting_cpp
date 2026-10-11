@@ -569,17 +569,21 @@ std::vector<std::unique_ptr<Polyline>> Polyline::split(int p_line_no, const Line
     std::vector<std::unique_ptr<Polyline>> result;
     if (p_line_no < 1 || p_line_no > static_cast<int>(arr.size()) - 2) return result;
     if (arr[p_line_no].is_parallel(p_end_line)) return result;
-    std::unique_ptr<Point> new_end_corner_ptr = arr[p_line_no].intersection(p_end_line);
-    if (!new_end_corner_ptr) return result;
-    const IntPoint new_end_corner = static_cast<const IntPoint&>(*new_end_corner_ptr);
-    if ((p_line_no == 1 && new_end_corner == first_corner())
-        || (p_line_no >= static_cast<int>(arr.size()) - 2 && new_end_corner == last_corner()))
+    // Java compares exact corners (IntPoint or RationalPoint), not the rounded corner(i).
+    const std::unique_ptr<Point> new_end_corner = arr[p_line_no].intersection(p_end_line);
+    if (!new_end_corner) return result;
+    auto exact_corner = [this](int p_no) { return arr[p_no].intersection(arr[p_no + 1]); };
+    const int arr_size = static_cast<int>(arr.size());
+    if ((p_line_no == 1 && new_end_corner->equals(exact_corner(0).get()))
+        || (p_line_no >= arr_size - 2 && new_end_corner->equals(exact_corner(arr_size - 2).get())))
     {
+        // No split, if p_end_line does not intersect, but touches this polyline only at an end point.
         return result;
     }
 
     std::vector<Line> first_piece;
-    if (corner(p_line_no - 1) == new_end_corner) {
+    if (new_end_corner->equals(exact_corner(p_line_no - 1).get())) {
+        // skip line segment of length 0 at the end of the first piece
         first_piece.reserve(p_line_no + 1);
         for (int i = 0; i < p_line_no + 1; ++i) {
             first_piece.push_back(arr[i]);
@@ -593,8 +597,8 @@ std::vector<std::unique_ptr<Polyline>> Polyline::split(int p_line_no, const Line
     }
 
     std::vector<Line> second_piece;
-    const int arr_size = static_cast<int>(arr.size());
-    if (corner(p_line_no) == new_end_corner) {
+    if (new_end_corner->equals(exact_corner(p_line_no).get())) {
+        // skip line segment of length 0 at the beginning of the second piece
         second_piece.reserve(arr_size - p_line_no);
         for (int i = p_line_no; i < arr_size; ++i) {
             second_piece.push_back(arr[i]);

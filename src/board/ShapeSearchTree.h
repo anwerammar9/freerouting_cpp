@@ -109,7 +109,7 @@ public:
      * clearance compensation and the drill hole clearance delta. Port of Java
      * ShapeSearchTree.calculateTreeShapes(DrillItem).
      */
-    std::vector<std::shared_ptr<::freerouting::geometry::planar::TileShape>> calculate_tree_shapes(
+    virtual std::vector<std::shared_ptr<::freerouting::geometry::planar::TileShape>> calculate_tree_shapes(
         const DrillItem& p_drill_item) const;
 
     /**
@@ -117,7 +117,7 @@ public:
      * outside the outline, or thin shapes along every outline line, on every
      * layer. Port of Java ShapeSearchTree.calculateTreeShapes(BoardOutline).
      */
-    std::vector<std::shared_ptr<::freerouting::geometry::planar::TileShape>> calculate_tree_shapes(
+    virtual std::vector<std::shared_ptr<::freerouting::geometry::planar::TileShape>> calculate_tree_shapes(
         const BoardOutline& p_board_outline) const;
 
     /**
@@ -126,7 +126,7 @@ public:
      * of at most 50000 (or 500 mil with a host CAD). Port of Java
      * ShapeSearchTree.calculateTreeShapes(ObstacleArea).
      */
-    std::vector<std::shared_ptr<::freerouting::geometry::planar::TileShape>> calculate_tree_shapes(
+    virtual std::vector<std::shared_ptr<::freerouting::geometry::planar::TileShape>> calculate_tree_shapes(
         const ObstacleArea& p_obstacle_area) const;
 
     int get_compensated_clearance_class_no() const { return compensated_clearance_class_no_; }
@@ -229,7 +229,7 @@ public:
      * is contained in p_input.ignore_shape are ignored. Port of Java
      * ShapeSearchTree.completeShape.
      */
-    std::vector<CompleteShapePiece> complete_shape(const CompleteShapeInput& p_input);
+    virtual std::vector<CompleteShapePiece> complete_shape(const CompleteShapeInput& p_input);
 
     /**
      * Changes the shape with index p_shape_index of p_item to p_new_shape and
@@ -305,8 +305,12 @@ private:
      * if there are no objects on the layer. Port of Java
      * ShapeSearchTree.divideLargeRoom(...).
      */
+protected:
     static void divide_large_room(const ::freerouting::geometry::planar::IntBox& p_board_box,
         std::vector<CompleteShapePiece>& p_rooms);
+    BasicBoard* get_board() const { return board_; }
+
+private:
 
     /**
      * Conservatively checks whether p_outer contains p_inner. Exact for regular
@@ -328,11 +332,48 @@ public:
     ~ShapeSearchTree90Degree() override = default;
 };
 
+/**
+ * A ShapeSearchTree whose shapes are IntOctagons, used by the 45-degree autorouter algorithm.
+ * Port of Java board.searchtree.ShapeSearchTree45Degree; SearchTreeManager creates it as the
+ * autoroute tree on boards with FORTYFIVE_DEGREE trace angle restriction.
+ */
 class ShapeSearchTree45Degree : public ShapeSearchTree
 {
 public:
     explicit ShapeSearchTree45Degree(BasicBoard* p_board, int p_compensated_clearance_class_no);
     ~ShapeSearchTree45Degree() override = default;
+
+    /**
+     * Java completeShape: free space rooms (IntOctagons) inside the room shape, which may overlap
+     * only with items of p_input.net_no on p_input.layer and contain p_input.contained_shape (or,
+     * if that is impossible, several rooms intersecting it).
+     */
+    std::vector<CompleteShapePiece> complete_shape(const CompleteShapeInput& p_input) override;
+
+    std::vector<std::shared_ptr<::freerouting::geometry::planar::TileShape>> calculate_tree_shapes(
+        const DrillItem& p_drill_item) const override;
+    std::vector<std::shared_ptr<::freerouting::geometry::planar::TileShape>> calculate_tree_shapes(
+        const ObstacleArea& p_obstacle_area) const override;
+    std::vector<std::shared_ptr<::freerouting::geometry::planar::TileShape>> calculate_tree_shapes(
+        const BoardOutline& p_board_outline) const override;
+
+    /** Java calcOutsideRestrainedShape: p_room_shape cut by the outside of an obstacle border line. */
+    static ::freerouting::geometry::planar::IntOctagon calc_outside_restrained_shape(
+        const ::freerouting::geometry::planar::IntOctagon& p_obstacle_shape, int p_obstacle_line_no,
+        const ::freerouting::geometry::planar::IntOctagon& p_room_shape);
+    /** Java calcInsideRestrainedShape: p_room_shape cut by the inside of an obstacle border line. */
+    static ::freerouting::geometry::planar::IntOctagon calc_inside_restrained_shape(
+        const ::freerouting::geometry::planar::IntOctagon& p_obstacle_shape, int p_obstacle_line_no,
+        const ::freerouting::geometry::planar::IntOctagon& p_room_shape);
+
+private:
+    /** Java restrainShape(IncompleteFreeSpaceExpansionRoom, IntOctagon). */
+    static void restrain_shape_45(const CompleteShapePiece& p_room,
+        const ::freerouting::geometry::planar::IntOctagon& p_obstacle_shape,
+        std::vector<CompleteShapePiece>& p_result);
+    /** Java divideLargeRoom override: the base division, then bounding octagons. */
+    void divide_large_room_45(const ::freerouting::geometry::planar::IntBox& p_board_box,
+        std::vector<CompleteShapePiece>& p_rooms) const;
 };
 
 } // namespace freerouting::board

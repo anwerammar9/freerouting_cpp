@@ -11,6 +11,8 @@
 #include "autoroute/ItemAutorouteInfo.h"
 #include "board/BasicBoard.h"
 #include "geometry/planar/IntOctagon.h"
+#include "logger/FRLogger.h"
+#include "rules/BoardRules.h"
 #include "rules/Net.h"
 #include <algorithm>
 
@@ -396,9 +398,10 @@ bool Item::is_cycle_recu(ItemSet& p_visited_items,
                          const Item* p_come_from_item,
                          bool p_ignore_areas) const
 {
-    // Java skips conduction areas here when p_ignore_areas is true; the
-    // ConductionArea class is not ported yet.
-    (void)p_ignore_areas;
+    if (p_ignore_areas && dynamic_cast<const ConductionArea*>(this) != nullptr)
+    {
+        return false;
+    }
     const std::vector<Item*> contact_list = get_normal_contacts();
     for (Item* curr_contact : contact_list)
     {
@@ -664,6 +667,29 @@ bool Item::is_fanout_via(const ItemSet* p_ignore_items) const
         }
     }
     return false;
+}
+
+void Item::assign_net_no(int p_net_no)
+{
+    if (!rules::Nets::is_normal_net_no(p_net_no))
+    {
+        return;
+    }
+    if (board_ == nullptr || p_net_no > board_->get_rules().get_nets().max_net_no())
+    {
+        logger::FRLogger::instance().warn("Item.assign_net_no: netNumber to big");
+        return;
+    }
+    // Java: board.itemList.saveForUndo(this) - no undo in the C++ port.
+    if (net_nos_.empty())
+    {
+        net_nos_.resize(1);
+    }
+    else if (net_nos_.size() > 1)
+    {
+        logger::FRLogger::instance().warn("Item.assign_net_no: unexpected netCount > 1");
+    }
+    net_nos_[0] = p_net_no;
 }
 
 } // namespace freerouting::board

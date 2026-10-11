@@ -91,7 +91,8 @@ public:
     settings::RouterSettings router_settings;
     settings::DesignRulesCheckerSettings drc_settings;
     std::string drc_report_file;
-    board::RoutingBoard* board = nullptr;
+    /** The board of this job (Java RoutingJob.board); shared with the HeadlessBoardManager. */
+    std::shared_ptr<board::RoutingBoard> board;
 
 private:
     std::string name_;

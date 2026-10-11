@@ -73,16 +73,10 @@ AutorouteEngine::AutorouteEngine(board::RoutingBoard* p_board, int p_trace_clear
 
 AutorouteEngine::~AutorouteEngine()
 {
-    // The search tree belongs to the board and outlives this engine, so the
-    // complete rooms owned by the engine must leave it (Java relies on GC and
-    // on clear() having been called).
-    if (autoroute_search_tree_ != nullptr)
-    {
-        for (auto& room : complete_expansion_rooms_)
-        {
-            room->remove_from_tree(*autoroute_search_tree_);
-        }
-    }
+    // The search tree and the items belong to the board and outlive this engine: the complete
+    // rooms must leave the tree, and the items' obstacle rooms (which hold doors to this engine's
+    // rooms) must be dropped. Java relies on the garbage collector; clear() does both.
+    clear();
 }
 
 void AutorouteEngine::ensure_search_tree_initialized()
@@ -112,6 +106,8 @@ void AutorouteEngine::reset()
     expansion_room_instance_count_ = 0;
     incomplete_expansion_rooms_.clear();
     complete_expansion_rooms_.clear();
+    retired_incomplete_rooms_.clear();
+    retired_complete_rooms_.clear();
     if (drill_page_array_)
     {
         drill_page_array_->reset();
@@ -337,7 +333,15 @@ void AutorouteEngine::clear()
     }
     incomplete_expansion_rooms_.clear();
     complete_expansion_rooms_.clear();
+    retired_incomplete_rooms_.clear();
+    retired_complete_rooms_.clear();
     expansion_room_instance_count_ = 0;
+    // C++: the cached drills of the drill pages point to the rooms freed above (Java keeps them
+    // alive through the garbage collector), so the pages are recomputed.
+    if (drill_page_array_)
+    {
+        drill_page_array_->reset();
+    }
     if (board_)
     {
         board_->clear_all_item_temporary_autoroute_data();
@@ -443,6 +447,7 @@ void AutorouteEngine::remove_complete_expansion_room(CompleteFreeSpaceExpansionR
     }
     else
     {
+        retired_complete_rooms_.push_back(std::move(*it));
         complete_expansion_rooms_.erase(it);
     }
     invalidate_drill_pages(room_shape_copy);
@@ -633,6 +638,7 @@ void AutorouteEngine::remove_all_doors(ExpansionRoom* p_room)
             [free_room](const std::unique_ptr<IncompleteFreeSpaceExpansionRoom>& ptr) { return ptr.get() == free_room; });
         if (it != incomplete_expansion_rooms_.end())
         {
+            retired_incomplete_rooms_.push_back(std::move(*it));
             incomplete_expansion_rooms_.erase(it);
         }
     }
@@ -648,6 +654,7 @@ void AutorouteEngine::remove_incomplete_expansion_room(IncompleteExpansionRoom* 
         [p_room](const std::unique_ptr<IncompleteFreeSpaceExpansionRoom>& ptr) { return ptr.get() == p_room; });
     if (it != incomplete_expansion_rooms_.end())
     {
+        retired_incomplete_rooms_.push_back(std::move(*it));
         incomplete_expansion_rooms_.erase(it);
     }
 }

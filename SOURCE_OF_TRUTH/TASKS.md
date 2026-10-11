@@ -174,6 +174,176 @@ The script picks the **first `[ ]`/`[~]` task whose deps are all `[x]`**.
   - spec: SOURCE_OF_TRUTH/plans/M0_oracles.md (section T011b)
   - done when: grep for pointer-ordered item sets in src/ finds only documented exceptions; ctest green.
 
+## Priority (2026-10-11): headless router first
+
+The loop picks the first open task with satisfied deps, so the router phases (4 pipeline, 3 settings,
+2b shakedown) are placed before the remaining reader/writer work. Goal: a headless router that routes
+real boards like Java as soon as possible.
+
+## Phase 4 — Autoroute pipeline (Java autoroute/pipeline ≈ 5.4k lines; C++ BatchAutorouter 352)
+
+- [ ] T401 | deps: - | AutorouteAirlineCalculator
+  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T401)
+  - java: autoroute/pipeline/AutorouteAirlineCalculator.java (214)
+- [ ] T402 | deps: T401 | AutorouteConnectionRouter
+  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T402)
+  - java: autoroute/pipeline/AutorouteConnectionRouter.java (270)
+- [ ] T403 | deps: T402 | AutoroutePassRunner part 1 (item ordering, per-item routing loop)
+  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T403)
+  - java: autoroute/pipeline/AutoroutePassRunner.java (535, first half)
+- [ ] T404 | deps: T403 | AutoroutePassRunner part 2 (ripup escalation, pass result) + AutorouteRuntimeMetrics + AutorouteUnroutedReport
+  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T404)
+  - java: AutoroutePassRunner.java second half, AutorouteRuntimeMetrics.java (66), AutorouteUnroutedReport.java (80)
+- [ ] T420 | deps: - | Board deep copy + state hash (history, batch loop and optimizer all need it)
+  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T420)
+  - java: board/facade/RoutingBoardUndoFacade.deepCopy (serialization) + BoardSnapshotManager.getHash (MD5)
+  - cpp: src/board/RoutingBoard.{h,cpp}
+  - what: `RoutingBoard::deep_copy()` returning an independent board (items, nets, rules, library, components, search
+    trees rebuilt) and `state_hash()` — semantic equivalent, a stable hash over the same observable state, not MD5 of
+    Java serialization bytes. Used for BoardHistory dedup and per-thread optimizer boards.
+  - done when: gtests: the copy is independent (mutating one leaves the other), the hash is stable across copies and
+    changes on insert/remove/move.
+- [ ] T421 | deps: T302 | Router and optimizer scores (V2_CONTINUOUS / V2_LOWER_BOUND) + BoardStatisticsBounds/BoundsCalculator
+  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T421)
+  - java: core/scoring/BoardStatistics.getRouterScore/getOptimizerScore (V2_CONTINUOUS, V2_LOWER_BOUND), RouterScoreSettings,
+    OptimizerScoreSettings; DesignRulesChecker.calculateAllIncompletes
+  - cpp: src/core/scoring/BoardStatistics.{h,cpp} (current API is the old calculateScore)
+  - done when: scores for synthetic boards equal Java harness values; BatchLoop (T408) and optimizer acceptance can call them.
+- [ ] T422 | deps: T403 | RoutingBoard::finish_autoroute + clear_transient_autoroute_state
+  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T422)
+  - java: RoutingBoard.finishAutoroute / clearTransientAutorouteState
+- [ ] T407 | deps: T404,T420 | BoardHistory (MAX_HISTORY_SIZE=30; deep-copied boards ranked by router score) + BoardSnapshotManager glue
+  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T407)
+  - java: autoroute/BoardHistory.java (221), board/facade/BoardSnapshotManager.java (101)
+  - note: no longer depends on BoardComparator (T405/T406 moved to Phase 7: only `--compare-boards`/debug use it)
+- [ ] T408a | deps: T404,T407,T421,T422 | AutorouteBatchLoop part 1: setup, SMD fanout pre-pass, pass loop, restore cycle
+  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T408a)
+  - java: autoroute/pipeline/AutorouteBatchLoop.java run() 40-458 + helpers 662-681
+- [ ] T408b | deps: T408a | AutorouteBatchLoop part 2: stagnation detection, fanout recovery, final best-board restore, phase metrics
+  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T408b)
+  - java: AutorouteBatchLoop.java run() 459-661
+- [ ] T409 | deps: T408b | BatchAutorouter rewired onto PassRunner + BatchLoop (replaces the "2 no-progress passes" stop)
+  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T409)
+  - java: autoroute/pipeline/BatchAutorouter.java (603)
+  - cpp: src/autoroute/BatchAutorouter.{h,cpp}
+- [ ] T410 | deps: T409,T305 | BatchFanout part 1
+  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T410)
+  - java: autoroute/pipeline/BatchFanout.java (800, first half)
+- [ ] T411 | deps: T410 | BatchFanout part 2
+  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T411)
+- [ ] T412 | deps: T409 | BatchOptimizer part 1 (item ordering, pass structure)
+  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T412)
+  - java: autoroute/pipeline/BatchOptimizer.java (1250, ~400 lines per part)
+- [ ] T413 | deps: T412 | BatchOptimizer part 2 (per-item optimize: pull tight + via optimize)
+  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T413)
+- [ ] T414 | deps: T413 | BatchOptimizer part 3 (scoring/acceptance, statistics)
+  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T414)
+- [ ] T415 | deps: T409,T411,T414 | RoutingPipeline + NamedAlgorithm + TaskState; wire into the CLI route path
+  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T415)
+  - java: autoroute/pipeline/{RoutingPipeline,NamedAlgorithm,NamedAlgorithmType,TaskState}.java
+  - cpp: also src/Freerouting.cpp (route path)
+- [x] T416 | deps: T415 | BatchAutorouterThread — dropped (dead code in the Java headless path)
+  - result: dropped. Verified 2026-10-10: `BatchAutorouter.autoroutePass` always calls
+    `AutoroutePassRunner.runSingleThread` (called from `AutorouteBatchLoop`); `autoroutePassMultiThread` /
+    `runMultiThread` / `BatchAutorouterThread` have no callers. Nothing to port; the single-thread pass is T403/T404.
+- [ ] T423 | deps: T414,T420 | Optimizer thread pool (`-mt N`)
+  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T423)
+  - java: BatchOptimizer thread pool with per-thread board copies (autoroute/pipeline/BatchOptimizer.java)
+  - what: results are consumed in item order in Java, so the thread count must not change the outcome (apart from
+    wall-clock-limited runs). Required for the multi-thread benchmark mode. `std::thread` pool + T420 board copies.
+  - done when: same SES for `-mt 1` and `-mt 4` on a small board; speed-up measurable.
+
+- [x] T417 | deps: - | AutorouteEngine.autoroute_connection faithful port (found during T001)
+  - java: autoroute/maze/AutorouteEngine.java autorouteConnection / resetAllDoors / clear
+  - result: removed the invented grid-A* fallback (it queried the search tree for up to 3M cells
+    per failed connection — the cause of every E2E timeout). Now Java order: maze search ->
+    locator -> clear()/reset_all_doors() -> layer-active check -> remove ripped connections + trace
+    tails -> FoundConnectionInserter. Added ripped-item/ripup-cost params, `Item::clear_autoroute_info`,
+    `get_autoroute_info_pur`, `RoutingBoard::clear_all_item_temporary_autoroute_data`; `clear()` now
+    clears item autoroute data like Java. Interim: BatchAutorouter's star loop (default, board-less
+    AutorouteControl -> no maze could ever start) replaced by per-item `RoutingBoard::autoroute`
+    calls until T401-T409 land. ctest 788/788.
+
+- [x] T418 | deps: - | Board library model (prerequisite of T110-T115, found during T417)
+  - java: core/library/{Padstack,Padstacks,Package,Packages,BoardLibrary}.java, board/model/structure/{Component,Components}.java
+  - result: geometry ConvexTileShape (TileShape as ConvexShape, the C++ TileShape is not a Shape) +
+    polymorphic TileShape::turn_90_degree/rotate_approx/mirror_vertical/mirror_horizontal/translate_by/enlarge;
+    Padstack gets Java ctor (owned per-layer ConvexShapes, id, attach_allowed, hole_only); new Padstacks,
+    board::Package/Packages (pins with name/padstack id/rotation, keepouts, side), BoardLibrary
+    (RoutingBoard::library()); Component/Components rewritten Java-faithful (1-based ids, owned, front/back
+    package). core::Package and the dead board/Components.{h,cpp} removed. DRC pin names now Java-equal.
+- [x] T419 | deps: T418 | Drill item geometry + SearchTreeManager parity
+  - java: DrillItem.getShape/tileShapeCount/shapeLayer, Pin.getShape/getPadstackLayer, Via.getShape,
+    ShapeSearchTree.calculateTreeShapes(DrillItem)/drillHoleObstacle/drillHoleClearanceDelta, SearchTreeManager
+  - result: pins/vias have per-layer board shapes and Java tree shapes (bounding box/octagon/tile by angle
+    restriction, enlarged by clearance compensation + drill-hole delta) instead of one bounding-box octagon.
+    SearchTreeManager: get_autoroute_tree inserts all board items, clearance hooks, reinsert; trees are
+    emptied before deletion; ShapeSearchTree::remove drops the item's entries. AutorouteEngine uses the
+    board's compensated autoroute tree (was a private uncompensated tree) and removes its rooms on
+    destruction. Pin_shape_test (6). C++-only: a pin without component uses its padstack at the center.
+    ctest 828/828.
+
+## Phase 3 — Settings & CLI needed by routing
+
+  - progress (2026-10-11): crash-free on all E2E boards. Fixed: AutorouteEngine destroyed its rooms while items' obstacle rooms still held doors to them (the destructor now does a full clear(), which drops the item autoroute infos; clear() also resets the drill pages; removed rooms are retired until the next reset instead of freed immediately — Java GC semantics). Interim CLI results (-mp 10): Issue034 92% (145 s), Issue107 70% (40 s), Issue026 50% (5 s), BBD_Mars-64 48% (693 s); Java reaches 100%. The interim BatchAutorouter makes the incomplete count rise across passes (Issue026: 24 -> 46) — porting the Java pass runner / batch loop (T401-T409) is the next lever; the logging + first_divergence.py steps of this task are still open.
+- [x] T301 | deps: - | Settings data model: all settings structs (nullable fields), copy_fields, clone, validate; remove the invented classes in OptimizerSettings.h
+  - spec: SOURCE_OF_TRUTH/plans/TrackB_settings_cli.md (section T301)
+  - java: settings/RouterSettings.java (1042) — C++ src/settings/RouterSettings.cpp is 162 lines
+  - result: Structs AutorouterSettings, FanoutSettings, OptimizerSettings, RoutingCostSettings, RouterScoreSettings, OptimizerScoreSettings, LayerSettings (+ RouterScoringVersion/OptimizerScoringVersion enums) with std::optional fields in Java order and snake_case names; per-struct copy_fields (ReflectionUtil.copyFields incl. transient fields, empty-array and object-array merge rules) and a field table `settings_fields<X>()` (@SerializedName + alternates, transient flag, Java text conversion, getFieldByNameOrSerializedName matching, `set_field_value` path navigation incl. `layers.routable=a,b`) in SettingsFieldTable.h. RouterSettings now holds the Java fields; clone() (drops resultJsonPath like Java), apply_new_values_from, validate, normalize/default max threads, setLayerCount and all per-layer/cost accessors with Java null fallbacks (getBendCost is real now). Ported sources::DefaultSettings (all DEFAULT_* constants + getSettings) early because nullable fields need it; SettingsSource.h keeps only the interface. Invented RouterOptimizerSettings and the C++ RouterScoringSettings defaults are gone (RouterScoringSettings.h is a deprecated alias of RoutingCostSettings; BoardStatistics takes RoutingCostSettings like Java). Interim CLI path merges DefaultSettings <- CLI, validates, sets the layer count after load and maps max_passes 0 to "no limit". 10 new settings test binaries (48 cases); ctest 1045/1045 (incl. AllTests).
+- [ ] T302 | deps: T301 | RouterSettings behaviour: getters/setters with Java null fallbacks, per-layer accessors
+  - spec: SOURCE_OF_TRUTH/plans/TrackB_settings_cli.md (section T302)
+  - java: settings/{FanoutSettings,RoutingCostSettings,LayerSettings,AutorouterSettings,OptimizerScoreSettings,RouterScoreSettings}.java
+- [ ] T303 | deps: T302 | SettingsMerger + GlobalSettings load/save (hand-rolled JSON with the `@SerializedName` names)
+  - spec: SOURCE_OF_TRUTH/plans/TrackB_settings_cli.md (section T303)
+  - java: settings/SettingsMerger.java (199), settings/GlobalSettings.java (996)
+- [ ] T304 | deps: T303 | CLI parity with Freerouting.java argument parsing
+  - spec: SOURCE_OF_TRUTH/plans/TrackB_settings_cli.md (section T304)
+  - known gaps (03_MISSING.md §4): `-dl` sets the wrong field, `set_input()` does not read the file,
+    generic `--property=value`, `session.add_job()` commented out
+  - flag table to reach Java parity (2026-10-10 review): `-de` (dsn/json/ses/rules, `+`-separated lists; `-de`+`-do`
+    forces the router on), `-do` multi-output, `-dr` rules, `-mp` (0..9999, 0 = unlimited; C++ clamps 1..99998, default
+    9999), `-mt` (sets **`optimizer.max_threads` only**, clamped 0..1024 — verified GlobalSettings.java 759-770; C++ stores it but ignores it),
+    `-oit` (values 0..1 are multiplied by 100, default 2.5; C++ divides by 100 and drops it), `-us/-is/-inc`
+    (optimizer strategy, item selection, ignored net classes: TODO no-ops in C++), `-dl` (disables the FILE log only;
+    C++ disables the batch autorouter), `-ll`, `-drc`, `--user_data_path`, generic `--router.*=v` / `--section.prop=v`
+    setters (C++ only logs them). Keys that matter: `router.autorouter.max_passes|max_threads`,
+    `router.optimizer.enabled|max_passes|max_threads|improvement_threshold|timeout`, `router.fanout.enabled`,
+    `router.job_timeout`, `router.scoring.*`, `router.result_json`, `router.strict_drc`. Also fix the C++
+    bug that any argument containing "help" prints the help text.
+  - done when: a table-driven gtest feeds each Java flag spelling to the C++ parser and checks the resulting settings.
+- [ ] T306 | deps: T303 | Settings sources and their priority order
+  - spec: SOURCE_OF_TRUTH/plans/TrackB_settings_cli.md (section T306)
+  - java: settings/sources/{DefaultSettings (237),CliSettings (203),DsnFileSettings (69),RulesFileSettings (109),
+    JsonFileSettings (79),EnvironmentVariablesSource (140)}.java, settings/LegacyRouterSettingsBridge.java (126),
+    util/ReflectionUtil.java (380)
+  - what: priority order as in Java (`freerouting.json` is priority 10); `FREEROUTING__ROUTER__*` /
+    `FREEROUTING__LOGGING__*` env vars; replace Java reflection with an explicit field registry that keeps the
+    `@SerializedName` names. DsnFileSettings needs T117 (`DsnReader.readMetadata`), RulesFileSettings needs T204a.
+  - done when: gtests merge defaults < json < env < dsn < rules < cli and match Java's effective settings.
+- [ ] T307 | deps: T302 | RouterSettings.applyBoardSpecificOptimizations + scoring versions
+  - spec: SOURCE_OF_TRUTH/plans/TrackB_settings_cli.md (section T307)
+  - java: settings/RouterSettings.java (lines ~300-430), RouterScoringVersion.java, OptimizerScoringVersion.java
+  - what: this method changes the effective router settings per board (layer count, net count, ...) and therefore the
+    routing result; port verbatim.
+  - done when: gtests on synthetic boards (2/4/6 layers, few/many nets) equal values taken from the Java harness.
+- [ ] T305 | deps: T302 | `fallbackToBoardVias` fanout via-rule combination (needs FanoutSettings + BoardRules via rules)
+  - spec: SOURCE_OF_TRUTH/plans/TrackB_settings_cli.md (section T305)
+
+## Phase 2b — Core shakedown (first contact of the ported router with real boards; highest-risk step)
+
+All 874+ unit tests use synthetic fixtures; no real board has ever been routed by the C++ core. Do this before
+stacking the rest of the pipeline on top.
+
+- [~] T611 | deps: T117,T202,T009,T010b,T011b,T506a,T008,T007 | Shakedown: route Issue026, Issue107, Issue034 with the interim BatchAutorouter
+  - spec: SOURCE_OF_TRUTH/plans/M3_shakedown.md (section T611)
+  - cpp: tools/first_divergence.py (+ fixes in whatever the diff points at)
+  - what: run Java and C++ with `-mt 1`, same `-mp`, optimizer off (isolate the router); `first_divergence.py` compares
+    the two logs per pass (item order, per-connection result, incomplete count after each pass) and finally the SES.
+    Fix the FIRST divergence, repeat. Expect latent bugs in maze search / locator / shove / inserter that synthetic
+    fixtures never exercised; file a narrower task (T611a, ...) for anything > ~700 lines.
+  - done when: Issue026 routes with #unrouted equal to Java's (stretch: SES token-equal); Issue107 and Issue034
+    route something and the first divergence is documented in docs/migration/E2E_STATUS.md.
+
 ## Phase 1 — DSN reader parity (`io/specctra/parser`, Java ≈ 11.4k lines, C++ ≈ 2.2k)
 
 **THIS IS THE HEADLESS BLOCKER (found 2026-10-08, see T417):** the current loader
@@ -376,13 +546,15 @@ net classes, keepouts) equal Java's. T110 adds the count dump used as acceptance
   - spec: SOURCE_OF_TRUTH/plans/M1_dsn_reader.md (section T114b)
   - java: parser/NetClass.java (197), parser/Network.java insertNetClasses … getClearanceClass (423-831)
   - result: Ported parser.NetClass (readScope, readClassClassScope, ClassClass) as NetClass.{h,cpp}; wired the CLASS/CLASS_CLASS branches in Network::read_scope; ported insertNetClasses/insertNetClass, insertClassPairs/insertClassPairInfo, addMixedClearanceRule, addClearanceRule, createDefaultClearanceClasses, getClearanceClass, createViaRule, createActiveTraceLayers and the use_via → via_padstack_names append (incl. the Java aliasing quirk). KiCad default-name helpers live in Network.cpp. 7 NetClassTest + 6 NetworkTest cases. ctest 979/979, run_tests PASSED.
-- [ ] T115 | deps: T114b | Network part 3: insert components, pins, package keepouts, outlines, logical parts
+- [x] T115 | deps: T114b | Network part 3: insert components, pins, package keepouts, outlines, logical parts
   - spec: SOURCE_OF_TRUTH/plans/M1_dsn_reader.md (section T115)
   - java: parser/Network.java (insert components / pins part)
-- [ ] T116 | deps: T115 | Wiring read: wires, vias, fixed states, polyline paths + BasicBoard.normalizeAllTraces (Java HashMap order)
+  - result: Ported insertComponents/insertComponent (packages, rounded location, unplaced components without pins, pin nets + SMD/PIN/pin_info clearance classes, keepout/via-keepout/place-keepout with back-side layer mirroring and all-signal-layer keepouts, courtyard/fabrication/closed outline detection), insertLogicalParts and searchLibPackage into parser/Network; read_scope now calls them. New board::LogicalPart/LogicalParts (Java core.library, Arrays.sort -> stable_sort) wired into BoardLibrary::logical_parts() and Component::get/set_logical_part. Added a shared-ownership parser::to_board_area overload for package outlines. Found and fixed a pre-existing DrillItem bug: back-side pins kept the padstack's front layer range (Java firstLayer/lastLayer mirror it), so back-side SMD pins had no shape; set_padstack now mirrors via a virtual is_placed_on_front (Pin answers for its component) and clear_derived_data recomputes it; PinShapeTest.BackSide... had encoded the bug and now checks Java's values. Golden data from the Java jar: synthetic 2-component board (front + back/90 deg) pins and keepouts, and all 59 Issue026 pins (tests/data/expected/Issue026-J2_reference.dsn.pins.txt) incl. 17 component outlines / 4 obstacle areas match. 5 new NetworkTest + 2 LogicalPartTest cases; ctest 1052/1052.
+- [x] T116 | deps: T115 | Wiring read: wires, vias, fixed states, polyline paths + BasicBoard.normalizeAllTraces (Java HashMap order)
   - spec: SOURCE_OF_TRUTH/plans/M1_dsn_reader.md (section T116)
   - java: parser/Wiring.java (715, read part)
-- [ ] T117 | deps: T109c,T116,T125 | DsnFile.read orchestration + DsnReader + BoardParserCallback + board-count dump
+  - result: New parser::Wiring (readScope/readWireScope/readViaScope/tryCorrectNet/calcFixed/readNetId/getSubnets/viaExists, incl. the Java via quirk that writes every subnet to index 0) registered as Keyword::WIRING_SCOPE; RoutingBoard::normalize_all_traces with Java HashMap iteration order (new datastructures/JavaHashMapOrder.h, verified against JDK 25 for put and computeIfAbsent - computeIfAbsent PREPENDS within a bucket, so the spec's {1,17,2} example was wrong and is fixed) and MAX_NORMALIZE_ITERATIONS + suppressed-net set in normalize_traces; Item::assign_net_no. Parity bugs found and fixed on the way (pre-existing): Trace::get_normal_contacts and DrillItem::get_normal_contacts used an invented distance tolerance instead of Java's exact corner/center equality (caused ~150 false cycles on Issue103 and remove_if_cycle deleted 400 traces/vias), PolylineTrace::normalize had an invented early exit for <=2-corner traces and lacked the isDeletionForbidden guard, Item::is_cycle_recu ignored ignore_cycles_with_areas. Golden data from the Java jar: synthetic wiring board and all 2326 traces + 443 vias of Issue103-Board-Routed.dsn (tests/data/expected/Issue103-Board-Routed.dsn.wires.txt) match line by line. ParserWiring_test 6 cases, JavaHashMapOrder_test 2; ctest 1060/1060.
+- [x] T117 | deps: T109c,T116,T125 | DsnFile.read orchestration + DsnReader + BoardParserCallback + board-count dump
   - spec: SOURCE_OF_TRUTH/plans/M1_dsn_reader.md (section T117)
   - java: parser/DsnFile.java (220), io/specctra/DsnReader.java (291, incl. readMetadata), parser/BoardParserCallback.java (42),
     io/BoardReadResult.java + io/BoardMetadata.java (return types of DsnReader), the MinimalBoardManager shim
@@ -391,18 +563,21 @@ net classes, keepouts) equal Java's. T110 adds the count dump used as acceptance
     counts and the item-id sequence as JSON (same schema as the Java harness of T007)
   - done when: every `tests/data/*.dsn` loads without error through the CLI path; counts match Java
     for the 8 E2E boards (record them in docs/migration/MIGRATION_designforms.md).
-- [ ] T118 | deps: T117,T007 | DSN reader audit vs Java on all test boards; file a task per mismatch
+  - result: New specctra::DsnReader (read_board: "(pcb <name>" header check, PCB_SCOPE read, adjust_plane_autoroute_settings without autoroute scope, Success/OutlineMissing/ParseError/IoError; read_metadata stopping after the structure scope), BoardReadResult (std::variant) + BoardMetadata, BoardCountsDump (byte-identical to tools/java_ref/BoardCounts.java) and `freerouting --dump-board-counts <dsn> [out.json] [--omit-items]`. tools/dsn_counts_compare.py + ctest DsnReaderJavaOracle: **117/117 tests/data boards identical to the Java oracle** (counts, layers, clearance matrix, full item list in id order; 20 s for all). Getting there required fixing pre-existing parity bugs: PolylineTrace::split_at_line and combine_at_start/end lacked Java's isDeletionForbidden guards (endless normalize loops / duplicated USER_FIXED geometry), LineSegment rounded rational end points (now exact start/end_point_exact, compare via exact compare_x/compare_y; the old code even dereferenced an empty optional for rational points), Polyline::split compared rounded corners, IntPoint::compare_x/y returned 0 for FloatPoints. E2E table in MIGRATION_designforms.md. DsnReader_test 6, LineSegment_test 4; ctest 1071/1071.
+- [x] T118 | deps: T117,T007 | DSN reader audit vs Java on all test boards; file a task per mismatch
   - spec: SOURCE_OF_TRUTH/plans/M1_dsn_reader.md (section T118)
   - what: run C++ `--dump-board-counts` and the Java harness (T007) over all 117 `tests/data/**/*.dsn`;
     compare counts AND item-id order (item ids / item list order drive TreeSet ordering in the router, so
     equal counts are not enough). `Issue006-LPC18XX_43XX_SCH.dsn` is a binary OLE file: an error is correct.
   - done when: zero mismatches or one filed task per mismatch (T118a, ...); results table in MIGRATION_designforms.md.
-- [ ] T124a | deps: T117,T202 | HeadlessBoardManager core + delete the legacy hand-rolled reader, switch the CLI
+  - result: Done together with T117: tools/dsn_counts_compare.py (ctest DsnReaderJavaOracle) compares counts AND the item list (ids, order, types, layers, nets, fixed state, corner counts) for all 117 boards: zero mismatches; Issue006 reports the same parse_error as Java. No follow-up tasks needed.
+- [x] T124a | deps: T117,T202 | HeadlessBoardManager core + delete the legacy hand-rolled reader, switch the CLI
   - spec: SOURCE_OF_TRUTH/plans/M1_dsn_reader.md (section T124a)
   - java: management/HeadlessBoardManager.java ctor/getRoutingBoard/replace/createBoard (no overrides)/loadFromSpecctraDsn/applyParsedBoardResult/saveAsSpecctraSessionSes
   - remove: legacy `specctra/{Scanner,Structure,Library,Network,Placement,Wiring,Keyword,Circle,Polygon}.*`, `Path.h`, `DsnFile.h`,
     `Wiring_test.cpp`, `board/BoardLoader.*`, `board/BoardBuilder.*`, `RoutingBoard::create_pins_from_parsed`, `parsed_result_`
   - done when: grep for the removed names finds nothing; build + ctest green; e2e_all.sh unchanged or better.
+  - result: New management::HeadlessBoardManager (load_from_specctra_dsn via DsnReader, apply_parsed_board_result, save_as_specctra_session_ses via SessionWriter, replace/get board, current job) + HeadlessBoardManager_test (4); RoutingJob::board is a shared_ptr now; the CLI route and DRC paths load through the manager and write the SES with the Java job name (input file stem). Deleted the legacy reader (specctra/{Scanner,Structure,Library,Network,Placement,Wiring,Keyword,Circle,Polygon}.*, Path.h, DsnFile.h, Wiring_test.cpp), board/BoardLoader.* (+test), board/BoardBuilder.*, RoutingBoard parsed_result_/create_pins_from_parsed/get_pin/get_pin_count, the uncompiled interactive/HeadlessBoardManager + BoardManager stubs; AllTests' DSN checks use DsnReader. While routing real boards for the first time: TileShape::is_intersected_interior_by(LineSegment) now uses the exact segment end points (Java). e2e_all.sh (before T506a): empty_board ok, Issue070 writes its 613 wires, BBD_Mars/Issue034/Issue103 time out at 300 s, Issue026/Issue107 crashed in AutorouteEngine::complete_neighbour_rooms; after T506a Issue026 routes to 50% without crashing (T611). grep for the removed names is empty; ctest 1074/1074 at the time.
 - [ ] T124b | deps: T124a,T302,T307 | HeadlessBoardManager settings overrides after load (hole clearance, copper-to-edge, plane nets, plane as obstacle)
   - spec: SOURCE_OF_TRUTH/plans/M1_dsn_reader.md (section T124b)
   - java: HeadlessBoardManager.java applyRouterSettingsForLoadedBoard (784-796), apply*Override (352-614)
@@ -424,15 +599,17 @@ net classes, keepouts) equal Java's. T110 adds the count dump used as acceptance
     datastructures/JavaFormat (Java Double/Float.toString). 28 gtests pass (golden strings
     captured from Java JDK 25 + write->read->equal round-trips); ctest 1005/1005, run_tests green.
     Layer/Rule write parts deferred to T201/T202 (SesWriter/DsnWriter callers).
-- [ ] T201 | deps: T117,T122,T125 | SesWriter part 1: session header, base_design, placement, was_is
+- [x] T201 | deps: T117,T122,T125 | SesWriter part 1: session header, base_design, placement, was_is
   - spec: SOURCE_OF_TRUTH/plans/M2_ses_io.md (section T201)
   - java: io/specctra/SesWriter.java (552, first half)
   - cpp: src/designforms/specctra/SessionWriter.{h,cpp}
-- [ ] T202 | deps: T201 | SesWriter part 2: routes, library_out (via padstacks), network_out (wires, vias, fixed)
+  - result: Done together with T202: SessionWriter rewritten in place as the port of Java SesWriter (static write(board, ostream, design_name) + the old file-based write_session wrapper for the CLI; format_placement_rotation; session/base_design/placement/was_is). See T202.
+- [x] T202 | deps: T201 | SesWriter part 2: routes, library_out (via padstacks), network_out (wires, vias, fixed)
   - spec: SOURCE_OF_TRUTH/plans/M2_ses_io.md (section T202)
   - java: SesWriter.java second half, parser/Wiring.java write part, Shape write part
   - done when: `Issue103-Board-Routed.dsn` loaded and written without routing gives an SES token-equal
     to Java's (generate the Java SES once with the jar, store it in tests/data/expected/).
+  - result: Routes (Resolution + reduced Parser scope), library_out (via padstacks, layer range from non-null shapes, attach off), network_out (per net in net-number order, items in Java item-list order, wires with snapped end points and duplicate-corner removal, vias, signal-layer conduction areas with holes, fixed states). RoutingBoard::get_connectable_items now includes ConductionAreas like Java's Connectable. tools/ses_diff.py (token compare with --eps and the scope path of the first difference) and the dev flag `freerouting --write-ses <dsn> <out.ses>` (load + write, no routing). Golden SES from the Java jar (DsnReader.readBoard + SesWriter.write, no routing) for empty_board, TestSensel, Issue029 and Issue103-Board-Routed: SessionWriter_test (6 cases incl. Issue420's (host_version "")) is byte-identical; a batch over all tests/data boards (Java SesDump vs `--write-ses`) gives byte-identical SES for all 116 boards Java can load (Issue006 is rejected by both). That batch found that SpecctraParserInfo/ReadScopeParameter/BoardMetadata stored Java-null host_cad/host_version as empty strings; they are std::optional now. The finishAutoroute variant of the spec (CLI with router disabled) is left to T422/T601.
 - [ ] T203 | deps: T202 | SesReader (enables round-trip tests, `-de x.dsn x.ses` resume, C++-side DRC on an SES)
   - spec: SOURCE_OF_TRUTH/plans/M2_ses_io.md (section T203)
   - java: io/specctra/SesReader.java (413), SesImportSummary.java (15). Skip `saveSpecctraSessionSesAsFusionScriptScr`
@@ -448,177 +625,15 @@ net classes, keepouts) equal Java's. T110 adds the count dump used as acceptance
   - java: io/specctra/DsnWriter.java (92) and the writeScope methods listed in plans/M2_ses_io.md
   - done when: DSN → board → DSN round-trips token-equal to Java's DsnWriter output on the 8 E2E boards.
 
-## Phase 2b — Core shakedown (first contact of the ported router with real boards; highest-risk step)
-
-All 874+ unit tests use synthetic fixtures; no real board has ever been routed by the C++ core. Do this before
-stacking the rest of the pipeline on top.
-
-- [ ] T611 | deps: T117,T202,T009,T010b,T011b,T506a,T008,T007 | Shakedown: route Issue026, Issue107, Issue034 with the interim BatchAutorouter
-  - spec: SOURCE_OF_TRUTH/plans/M3_shakedown.md (section T611)
-  - cpp: tools/first_divergence.py (+ fixes in whatever the diff points at)
-  - what: run Java and C++ with `-mt 1`, same `-mp`, optimizer off (isolate the router); `first_divergence.py` compares
-    the two logs per pass (item order, per-connection result, incomplete count after each pass) and finally the SES.
-    Fix the FIRST divergence, repeat. Expect latent bugs in maze search / locator / shove / inserter that synthetic
-    fixtures never exercised; file a narrower task (T611a, ...) for anything > ~700 lines.
-  - done when: Issue026 routes with #unrouted equal to Java's (stretch: SES token-equal); Issue107 and Issue034
-    route something and the first divergence is documented in docs/migration/E2E_STATUS.md.
-
-## Phase 3 — Settings & CLI needed by routing
-
-- [ ] T301 | deps: - | Settings data model: all settings structs (nullable fields), copy_fields, clone, validate; remove the invented classes in OptimizerSettings.h
-  - spec: SOURCE_OF_TRUTH/plans/TrackB_settings_cli.md (section T301)
-  - java: settings/RouterSettings.java (1042) — C++ src/settings/RouterSettings.cpp is 162 lines
-  - split if needed (T301a fields/defaults, T301b per-layer/cost accessors)
-- [ ] T302 | deps: T301 | RouterSettings behaviour: getters/setters with Java null fallbacks, per-layer accessors
-  - spec: SOURCE_OF_TRUTH/plans/TrackB_settings_cli.md (section T302)
-  - java: settings/{FanoutSettings,RoutingCostSettings,LayerSettings,AutorouterSettings,OptimizerScoreSettings,RouterScoreSettings}.java
-- [ ] T303 | deps: T302 | SettingsMerger + GlobalSettings load/save (hand-rolled JSON with the `@SerializedName` names)
-  - spec: SOURCE_OF_TRUTH/plans/TrackB_settings_cli.md (section T303)
-  - java: settings/SettingsMerger.java (199), settings/GlobalSettings.java (996)
-- [ ] T304 | deps: T303 | CLI parity with Freerouting.java argument parsing
-  - spec: SOURCE_OF_TRUTH/plans/TrackB_settings_cli.md (section T304)
-  - known gaps (03_MISSING.md §4): `-dl` sets the wrong field, `set_input()` does not read the file,
-    generic `--property=value`, `session.add_job()` commented out
-  - flag table to reach Java parity (2026-10-10 review): `-de` (dsn/json/ses/rules, `+`-separated lists; `-de`+`-do`
-    forces the router on), `-do` multi-output, `-dr` rules, `-mp` (0..9999, 0 = unlimited; C++ clamps 1..99998, default
-    9999), `-mt` (sets **`optimizer.max_threads` only**, clamped 0..1024 — verified GlobalSettings.java 759-770; C++ stores it but ignores it),
-    `-oit` (values 0..1 are multiplied by 100, default 2.5; C++ divides by 100 and drops it), `-us/-is/-inc`
-    (optimizer strategy, item selection, ignored net classes: TODO no-ops in C++), `-dl` (disables the FILE log only;
-    C++ disables the batch autorouter), `-ll`, `-drc`, `--user_data_path`, generic `--router.*=v` / `--section.prop=v`
-    setters (C++ only logs them). Keys that matter: `router.autorouter.max_passes|max_threads`,
-    `router.optimizer.enabled|max_passes|max_threads|improvement_threshold|timeout`, `router.fanout.enabled`,
-    `router.job_timeout`, `router.scoring.*`, `router.result_json`, `router.strict_drc`. Also fix the C++
-    bug that any argument containing "help" prints the help text.
-  - done when: a table-driven gtest feeds each Java flag spelling to the C++ parser and checks the resulting settings.
-- [ ] T306 | deps: T303 | Settings sources and their priority order
-  - spec: SOURCE_OF_TRUTH/plans/TrackB_settings_cli.md (section T306)
-  - java: settings/sources/{DefaultSettings (237),CliSettings (203),DsnFileSettings (69),RulesFileSettings (109),
-    JsonFileSettings (79),EnvironmentVariablesSource (140)}.java, settings/LegacyRouterSettingsBridge.java (126),
-    util/ReflectionUtil.java (380)
-  - what: priority order as in Java (`freerouting.json` is priority 10); `FREEROUTING__ROUTER__*` /
-    `FREEROUTING__LOGGING__*` env vars; replace Java reflection with an explicit field registry that keeps the
-    `@SerializedName` names. DsnFileSettings needs T117 (`DsnReader.readMetadata`), RulesFileSettings needs T204a.
-  - done when: gtests merge defaults < json < env < dsn < rules < cli and match Java's effective settings.
-- [ ] T307 | deps: T302 | RouterSettings.applyBoardSpecificOptimizations + scoring versions
-  - spec: SOURCE_OF_TRUTH/plans/TrackB_settings_cli.md (section T307)
-  - java: settings/RouterSettings.java (lines ~300-430), RouterScoringVersion.java, OptimizerScoringVersion.java
-  - what: this method changes the effective router settings per board (layer count, net count, ...) and therefore the
-    routing result; port verbatim.
-  - done when: gtests on synthetic boards (2/4/6 layers, few/many nets) equal values taken from the Java harness.
-- [ ] T305 | deps: T302 | `fallbackToBoardVias` fanout via-rule combination (needs FanoutSettings + BoardRules via rules)
-  - spec: SOURCE_OF_TRUTH/plans/TrackB_settings_cli.md (section T305)
-
-## Phase 4 — Autoroute pipeline (Java autoroute/pipeline ≈ 5.4k lines; C++ BatchAutorouter 352)
-
-- [ ] T401 | deps: - | AutorouteAirlineCalculator
-  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T401)
-  - java: autoroute/pipeline/AutorouteAirlineCalculator.java (214)
-- [ ] T402 | deps: T401 | AutorouteConnectionRouter
-  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T402)
-  - java: autoroute/pipeline/AutorouteConnectionRouter.java (270)
-- [ ] T403 | deps: T402 | AutoroutePassRunner part 1 (item ordering, per-item routing loop)
-  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T403)
-  - java: autoroute/pipeline/AutoroutePassRunner.java (535, first half)
-- [ ] T404 | deps: T403 | AutoroutePassRunner part 2 (ripup escalation, pass result) + AutorouteRuntimeMetrics + AutorouteUnroutedReport
-  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T404)
-  - java: AutoroutePassRunner.java second half, AutorouteRuntimeMetrics.java (66), AutorouteUnroutedReport.java (80)
-- [ ] T420 | deps: - | Board deep copy + state hash (history, batch loop and optimizer all need it)
-  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T420)
-  - java: board/facade/RoutingBoardUndoFacade.deepCopy (serialization) + BoardSnapshotManager.getHash (MD5)
-  - cpp: src/board/RoutingBoard.{h,cpp}
-  - what: `RoutingBoard::deep_copy()` returning an independent board (items, nets, rules, library, components, search
-    trees rebuilt) and `state_hash()` — semantic equivalent, a stable hash over the same observable state, not MD5 of
-    Java serialization bytes. Used for BoardHistory dedup and per-thread optimizer boards.
-  - done when: gtests: the copy is independent (mutating one leaves the other), the hash is stable across copies and
-    changes on insert/remove/move.
-- [ ] T421 | deps: T302 | Router and optimizer scores (V2_CONTINUOUS / V2_LOWER_BOUND) + BoardStatisticsBounds/BoundsCalculator
-  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T421)
-  - java: core/scoring/BoardStatistics.getRouterScore/getOptimizerScore (V2_CONTINUOUS, V2_LOWER_BOUND), RouterScoreSettings,
-    OptimizerScoreSettings; DesignRulesChecker.calculateAllIncompletes
-  - cpp: src/core/scoring/BoardStatistics.{h,cpp} (current API is the old calculateScore)
-  - done when: scores for synthetic boards equal Java harness values; BatchLoop (T408) and optimizer acceptance can call them.
-- [ ] T422 | deps: T403 | RoutingBoard::finish_autoroute + clear_transient_autoroute_state
-  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T422)
-  - java: RoutingBoard.finishAutoroute / clearTransientAutorouteState
-- [ ] T407 | deps: T404,T420 | BoardHistory (MAX_HISTORY_SIZE=30; deep-copied boards ranked by router score) + BoardSnapshotManager glue
-  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T407)
-  - java: autoroute/BoardHistory.java (221), board/facade/BoardSnapshotManager.java (101)
-  - note: no longer depends on BoardComparator (T405/T406 moved to Phase 7: only `--compare-boards`/debug use it)
-- [ ] T408a | deps: T404,T407,T421,T422 | AutorouteBatchLoop part 1: setup, SMD fanout pre-pass, pass loop, restore cycle
-  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T408a)
-  - java: autoroute/pipeline/AutorouteBatchLoop.java run() 40-458 + helpers 662-681
-- [ ] T408b | deps: T408a | AutorouteBatchLoop part 2: stagnation detection, fanout recovery, final best-board restore, phase metrics
-  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T408b)
-  - java: AutorouteBatchLoop.java run() 459-661
-- [ ] T409 | deps: T408b | BatchAutorouter rewired onto PassRunner + BatchLoop (replaces the "2 no-progress passes" stop)
-  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T409)
-  - java: autoroute/pipeline/BatchAutorouter.java (603)
-  - cpp: src/autoroute/BatchAutorouter.{h,cpp}
-- [ ] T410 | deps: T409,T305 | BatchFanout part 1
-  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T410)
-  - java: autoroute/pipeline/BatchFanout.java (800, first half)
-- [ ] T411 | deps: T410 | BatchFanout part 2
-  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T411)
-- [ ] T412 | deps: T409 | BatchOptimizer part 1 (item ordering, pass structure)
-  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T412)
-  - java: autoroute/pipeline/BatchOptimizer.java (1250, ~400 lines per part)
-- [ ] T413 | deps: T412 | BatchOptimizer part 2 (per-item optimize: pull tight + via optimize)
-  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T413)
-- [ ] T414 | deps: T413 | BatchOptimizer part 3 (scoring/acceptance, statistics)
-  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T414)
-- [ ] T415 | deps: T409,T411,T414 | RoutingPipeline + NamedAlgorithm + TaskState; wire into the CLI route path
-  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T415)
-  - java: autoroute/pipeline/{RoutingPipeline,NamedAlgorithm,NamedAlgorithmType,TaskState}.java
-  - cpp: also src/Freerouting.cpp (route path)
-- [x] T416 | deps: T415 | BatchAutorouterThread — dropped (dead code in the Java headless path)
-  - result: dropped. Verified 2026-10-10: `BatchAutorouter.autoroutePass` always calls
-    `AutoroutePassRunner.runSingleThread` (called from `AutorouteBatchLoop`); `autoroutePassMultiThread` /
-    `runMultiThread` / `BatchAutorouterThread` have no callers. Nothing to port; the single-thread pass is T403/T404.
-- [ ] T423 | deps: T414,T420 | Optimizer thread pool (`-mt N`)
-  - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T423)
-  - java: BatchOptimizer thread pool with per-thread board copies (autoroute/pipeline/BatchOptimizer.java)
-  - what: results are consumed in item order in Java, so the thread count must not change the outcome (apart from
-    wall-clock-limited runs). Required for the multi-thread benchmark mode. `std::thread` pool + T420 board copies.
-  - done when: same SES for `-mt 1` and `-mt 4` on a small board; speed-up measurable.
-
-- [x] T417 | deps: - | AutorouteEngine.autoroute_connection faithful port (found during T001)
-  - java: autoroute/maze/AutorouteEngine.java autorouteConnection / resetAllDoors / clear
-  - result: removed the invented grid-A* fallback (it queried the search tree for up to 3M cells
-    per failed connection — the cause of every E2E timeout). Now Java order: maze search ->
-    locator -> clear()/reset_all_doors() -> layer-active check -> remove ripped connections + trace
-    tails -> FoundConnectionInserter. Added ripped-item/ripup-cost params, `Item::clear_autoroute_info`,
-    `get_autoroute_info_pur`, `RoutingBoard::clear_all_item_temporary_autoroute_data`; `clear()` now
-    clears item autoroute data like Java. Interim: BatchAutorouter's star loop (default, board-less
-    AutorouteControl -> no maze could ever start) replaced by per-item `RoutingBoard::autoroute`
-    calls until T401-T409 land. ctest 788/788.
-
-- [x] T418 | deps: - | Board library model (prerequisite of T110-T115, found during T417)
-  - java: core/library/{Padstack,Padstacks,Package,Packages,BoardLibrary}.java, board/model/structure/{Component,Components}.java
-  - result: geometry ConvexTileShape (TileShape as ConvexShape, the C++ TileShape is not a Shape) +
-    polymorphic TileShape::turn_90_degree/rotate_approx/mirror_vertical/mirror_horizontal/translate_by/enlarge;
-    Padstack gets Java ctor (owned per-layer ConvexShapes, id, attach_allowed, hole_only); new Padstacks,
-    board::Package/Packages (pins with name/padstack id/rotation, keepouts, side), BoardLibrary
-    (RoutingBoard::library()); Component/Components rewritten Java-faithful (1-based ids, owned, front/back
-    package). core::Package and the dead board/Components.{h,cpp} removed. DRC pin names now Java-equal.
-- [x] T419 | deps: T418 | Drill item geometry + SearchTreeManager parity
-  - java: DrillItem.getShape/tileShapeCount/shapeLayer, Pin.getShape/getPadstackLayer, Via.getShape,
-    ShapeSearchTree.calculateTreeShapes(DrillItem)/drillHoleObstacle/drillHoleClearanceDelta, SearchTreeManager
-  - result: pins/vias have per-layer board shapes and Java tree shapes (bounding box/octagon/tile by angle
-    restriction, enlarged by clearance compensation + drill-hole delta) instead of one bounding-box octagon.
-    SearchTreeManager: get_autoroute_tree inserts all board items, clearance hooks, reinsert; trees are
-    emptied before deletion; ShapeSearchTree::remove drops the item's entries. AutorouteEngine uses the
-    board's compensated autoroute tree (was a private uncompensated tree) and removes its rooms on
-    destruction. Pin_shape_test (6). C++-only: a pin without component uses its padstack at the center.
-    ctest 828/828.
-
 ## Phase 5 — Board gaps found during review
 
-- [ ] T506a | deps: - | ShapeSearchTree45Degree: completeShape/restrainShape/divideLargeRoom/calculateTreeShapes; SearchTreeManager picks the subclass
+- [x] T506a | deps: - | ShapeSearchTree45Degree: completeShape/restrainShape/divideLargeRoom/calculateTreeShapes; SearchTreeManager picks the subclass
   - spec: SOURCE_OF_TRUTH/plans/Phase5_board_gaps.md (section T506a)
   - finding: Java uses ShapeSearchTree45Degree as the autoroute tree on 45° boards (almost all test boards) and 90Degree on
     90° boards (SearchTreeManager.java 140-160); in C++ both subclasses are empty and never instantiated, so room
     completion runs the generic algorithm where Java runs the 45° one.
   - java: board/searchtree/ShapeSearchTree45Degree.java (667)
+  - result: ShapeSearchTree45Degree ported (complete_shape with Java's pruned stack walk, restrain_shape_45, calc_outside/inside_restrained_shape, obstacle_segment_touches_inside, signed_line_distance, divideLargeRoom on octagons, calculate_tree_shapes(DrillItem with offset, ObstacleArea, BoardOutline)); base complete_shape/calculate_tree_shapes are virtual; SearchTreeManager creates the 45 degree tree for FORTYFIVE boards (90 degree stays generic until T506b). Java-parity details: emptiness is IntOctagon==EMPTY (gotcha 15), room shapes are checked with is_IntOctagon() because the C++ engine stores rooms as Simplex, TileShape.offset (not enlarge) for drill items. Deviation kept: an empty tree (root==null, impossible on a real board) still yields the start room. ShapeSearchTree45Degree_test compares 76 completeShape queries (135 rooms, both layers) on Issue026 with Java golden data (tests/data/expected/Issue026-J2_reference.dsn.tree45.txt): identical; all 77 tree shapes identical to Java. Engine fixtures that fed artificial rooms (shape == contained, which Java's 45 degree tree drops) now run on the generic tree (angle restriction NONE). Issue026 no longer crashes in the CLI. ctest 1081/1081.
 - [ ] T506b | deps: T506a | ShapeSearchTree90Degree (IntBox rooms, offsetShapes)
   - spec: SOURCE_OF_TRUTH/plans/Phase5_board_gaps.md (section T506b)
   - java: board/searchtree/ShapeSearchTree90Degree.java (523)
@@ -690,6 +705,10 @@ connections, wrong SES), fix it or file narrower tasks (T6xxa, …). Done when C
   - java: core/RoutingJob.java (resultPhaseMetrics, log plumbing, stats JSON at RoutingJob.java:662-690), RouterJobResourceUsage
   - what: C++ `RouterJobResourceUsage` exists but nothing populates it. Fill cpu_time_seconds and peak_memory_mb
     (getrusage), record per-phase wall times (load / fanout / route / optimize / write) in the manifest.
+- [ ] T707 | deps: T412 | Remove invented enum constants: `autoroute::BoardUpdateStrategy::{GREEDY,HYBRID}` and `ItemSelectionStrategy::RANDOM` have no Java counterpart (Java: GLOBAL_OPTIMAL; SEQUENTIAL, PRIORITIZED)
+  - java: autoroute/BoardUpdateStrategy.java, autoroute/ItemSelectionStrategy.java
+  - what: drop the extra constants and their helper functions/tests once BatchOptimizer (T412) is the only user; the settings field table already rejects their names. Also delete the deprecated alias header `src/settings/RouterScoringSettings.h` and the unused declaration-only `src/core/LogicalPart.h` (superseded by `board/LogicalPart.h`, T115) together with the stale `src/autoroute/BoardHistoryEntry.*` draft users (or switch them to RoutingCostSettings in T407).
+  - done when: `grep -rn "GREEDY\|HYBRID\|ItemSelectionStrategy::RANDOM\|RouterScoringSettings" src` is empty; ctest green.
 - [ ] T705 | deps: T601,T602,T603,T604,T605,T606,T607,T608,T609,T610,T006 | Final docs sync: regenerate 02_PROGRESS/03_MISSING/INDEX from the CSV + E2E_STATUS; archive WP-10 increment logs to docs/migration/history/
   - spec: SOURCE_OF_TRUTH/plans/M7_stragglers.md (section T705)
 

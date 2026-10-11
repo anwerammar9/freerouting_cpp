@@ -3,6 +3,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <set>
 #include <vector>
 #include <functional>
 
@@ -15,7 +16,6 @@
 #include "geometry/planar/IntBox.h"
 #include "geometry/planar/Polyline.h"
 #include "geometry/planar/TileShape.h"
-#include "designforms/specctra/Scanner.h"
 
 namespace freerouting::datastructures {
 class TimeLimit;
@@ -171,15 +171,6 @@ public:
     BoardLibrary& library() { return *library_; }
     const BoardLibrary& library() const { return *library_; }
 
-    // Create Pin items from parsed data
-    void create_pins_from_parsed();
-
-    const designforms::specctra::Result& get_parsed_result() const { return parsed_result_; }
-    void set_parsed_result(const designforms::specctra::Result& p_result) { parsed_result_ = p_result; }
-
-    int get_pin_count() const { return static_cast<int>(parsed_result_.pins.size()); }
-    const designforms::specctra::PinDef* get_pin(int p_index) const;
-
     int get_item_count() const { return static_cast<int>(items_.size()); }
     /**
      * The board items in Java item-list order: descending item id (newest first). Java
@@ -329,6 +320,16 @@ public:
     bool normalize_traces(int p_net_no);
 
     /**
+     * Normalizes the traces of all nets in one pass, nets in the iteration order of Java's
+     * HashMap<Integer, List> (keys added with computeIfAbsent while walking the item list).
+     * Mirrors Java BasicBoard.normalizeAllTraces(); called at the end of the DSN wiring scope.
+     */
+    bool normalize_all_traces();
+
+    /** Java BasicBoard.MAX_NORMALIZE_ITERATIONS: safety cap of the normalize loops. */
+    static constexpr int MAX_NORMALIZE_ITERATIONS = 2000;
+
+    /**
      * Checks if a trace segment from p_from_point to p_to_point can be
      * inserted without conflict. Returns the maximal insertable length
      * (INT_MAX if no conflict exists). Mirrors Java
@@ -407,6 +408,12 @@ public:
     geometry::planar::IntBox get_bounding_box() const override { return bounding_box_; }
 
 private:
+    /** Java BasicBoard.normalizeSuppressedNetNos: nets whose normalization hit the iteration cap. */
+    std::set<int> normalize_suppressed_net_nos_;
+    /** The net name for the normalize log messages (the number if the net is unknown). */
+    std::string normalize_net_name(int p_net_no) const;
+    /** The PolylineTraces on the board containing p_net_no, in Java item-list order. */
+    std::vector<PolylineTrace*> collect_net_polyline_traces(int p_net_no) const;
     static constexpr int64_t PULL_TIGHT_TIME_LIMIT = 2000;
 
     Item* shove_failing_obstacle_ = nullptr;
@@ -422,7 +429,6 @@ private:
     void remove_from_item_list(Item* p_item);
     std::unique_ptr<Components> components_;
     std::unique_ptr<BoardLibrary> library_;
-    designforms::specctra::Result parsed_result_;
 };
 
 } // namespace freerouting::board

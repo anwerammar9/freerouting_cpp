@@ -1,15 +1,19 @@
 #include "Freerouting.h"
 #include "management/SessionManager.h"
-#include "board/BoardLoader.h"
+#include "management/HeadlessBoardManager.h"
 #include "board/RoutingBoard.h"
 #include "autoroute/BatchAutorouter.h"
+#include "designforms/specctra/BoardCountsDump.h"
+#include "designforms/specctra/DsnReader.h"
 #include "designforms/specctra/SessionWriter.h"
+#include "settings/sources/DefaultSettings.h"
 
 #include <iostream>
 #include <fstream>
 #include <filesystem>
 #include <chrono>
 #include <thread>
+#include <climits>
 #include <cstdlib>
 #include <algorithm>
 #include <sstream>
@@ -27,6 +31,13 @@ std::unique_ptr<settings::GlobalSettings> Freerouting::globalSettings = nullptr;
 int Freerouting::main(const std::vector<std::string>& args)
 {
     FR_TRACE_ENTRY("MainApplication.main()");
+
+    if (!args.empty() && args[0] == "--dump-board-counts") {
+        return dump_board_counts(args);
+    }
+    if (!args.empty() && args[0] == "--write-ses") {
+        return write_ses_without_routing(args);
+    }
 
     // Determine the user data directory
     fs::path userdata_path;
@@ -248,34 +259,45 @@ bool Freerouting::InitializeCLI(settings::GlobalSettings& globalSettings)
 
     routingJob.try_to_set_output_file(globalSettings.initial_output_file);
 
-    // Copy settings to the routing job
-    routingJob.router_settings = globalSettings.get_router_settings();
-    // TODO: Set layer count from input statistics: routingJob.router_settings.set_layer_count(...)
+    // Copy settings to the routing job. Java: routingJob.routerSettings = settingsMerger.merge(),
+    // where the CLI values (GlobalSettings.routerSettings) are applied over DefaultSettings.
+    // Interim until SettingsMerger lands (T303): only the Default < CLI part of the merge.
+    routingJob.router_settings = settings::sources::DefaultSettings::create_settings().clone();
+    routingJob.router_settings.apply_new_values_from(globalSettings.get_router_settings());
+    routingJob.router_settings.validate();
     routingJob.drc_settings = globalSettings.get_drc_settings();
     routingJob.set_state(core::RoutingJobState::READY_TO_START);
 
-    // Load the board from the input file.
-    if (!board::BoardLoader::load_board_if_needed(routingJob)) {
+    // Load the board from the input file (Java: HeadlessBoardManager.loadFromSpecctraDsn).
+    management::HeadlessBoardManager board_manager(&routingJob);
+    if (!load_board(board_manager, routingJob, globalSettings.initial_input_file)) {
         logger::FRLogger::instance().error("Failed to load board for routing");
         return false;
     }
+
+    // Java: DsnFileSettings supplies the layers array from the DSN layer count, and
+    // applyBoardSpecificOptimizations (T307) later tunes the per-layer costs.
+    routingJob.router_settings.set_layer_count(routingJob.board->get_layer_count());
 
     routingJob.set_state(core::RoutingJobState::RUNNING);
 
     // Run the autorouter over the loaded board.
     autoroute::BatchAutorouter autorouter;
-    autorouter.set_board(routingJob.board);
+    autorouter.set_board(routingJob.board.get());
     autorouter.set_settings(routingJob.router_settings);
 
-    const int max_passes = routingJob.router_settings.get_max_passes();
+    // Java: autorouter.maxPasses == 0 means "no limit".
+    const int configured_max_passes = routingJob.router_settings.get_max_passes();
+    const int max_passes = configured_max_passes > 0 ? configured_max_passes : INT_MAX;
     autoroute::RouteResult route_result = autorouter.route_all(max_passes, nullptr);
 
     logger::FRLogger::instance().info("DEBUG board items after route: " + std::to_string(routingJob.board->get_item_count()));
 
-    // Write the resulting routes into the output SES file.
-    const std::string board_name = routingJob.board->get_parsed_result().board_name;
-    designforms::specctra::SessionWriter session_writer(globalSettings.initial_output_file);
-    if (!session_writer.write_session(*routingJob.board, board_name)) {
+    // Write the resulting routes into the output SES file. Java writes the session with the job
+    // name, the input file name without extension.
+    const std::string design_name = fs::path(globalSettings.initial_input_file).stem().string();
+    std::ofstream ses_stream(globalSettings.initial_output_file, std::ios::binary);
+    if (!ses_stream.is_open() || !board_manager.save_as_specctra_session_ses(ses_stream, design_name)) {
         logger::FRLogger::instance().error("Failed to write SES output file");
         return false;
     }
@@ -288,6 +310,19 @@ bool Freerouting::InitializeCLI(settings::GlobalSettings& globalSettings)
         "%  Incomplete: " + std::to_string(route_result.incomplete_count) + "%");
 
     return true;
+}
+
+bool Freerouting::load_board(management::HeadlessBoardManager& p_board_manager, core::RoutingJob& p_job,
+                             const std::string& p_input_file)
+{
+    std::ifstream dsn_stream(p_input_file, std::ios::binary);
+    if (!dsn_stream.good()) {
+        logger::FRLogger::instance().error("Couldn't open the input file '" + p_input_file + "'");
+        return false;
+    }
+    p_board_manager.load_from_specctra_dsn(dsn_stream, fs::path(p_input_file).filename().string());
+    p_job.board = p_board_manager.get_shared_routing_board();
+    return p_job.board != nullptr;
 }
 
 bool Freerouting::InitializeDRC(settings::GlobalSettings& globalSettings)
@@ -314,7 +349,8 @@ bool Freerouting::InitializeDRC(settings::GlobalSettings& globalSettings)
     }
 
     // Load the board without routing
-    if (!board::BoardLoader::load_board_if_needed(drcJob)) {
+    management::HeadlessBoardManager board_manager(&drcJob);
+    if (!load_board(board_manager, drcJob, globalSettings.initial_input_file)) {
         logger::FRLogger::instance().error("Failed to load board for DRC check");
         return false;
     }
@@ -340,6 +376,62 @@ bool Freerouting::InitializeDRC(settings::GlobalSettings& globalSettings)
 void Freerouting::ShutdownApplication()
 {
     // Application is shutting down
+}
+
+int Freerouting::dump_board_counts(const std::vector<std::string>& args)
+{
+    if (args.size() < 2) {
+        std::cerr << "Usage: freerouting --dump-board-counts <dsn> [out.json] [--omit-items]\n";
+        return 2;
+    }
+    const std::string dsn_path = args[1];
+    std::string out_path;
+    bool omit_items = false;
+    for (std::size_t i = 2; i < args.size(); ++i) {
+        if (args[i] == "--omit-items") {
+            omit_items = true;
+        } else {
+            out_path = args[i];
+        }
+    }
+
+    std::ifstream dsn_stream(dsn_path, std::ios::binary);
+    designforms::specctra::BoardReadResult result = dsn_stream.good()
+        ? designforms::specctra::DsnReader::read_board(dsn_stream, fs::path(dsn_path).filename().string())
+        : designforms::specctra::BoardReadResult(
+              designforms::specctra::board_read_result::IoError{"cannot open " + dsn_path});
+    const std::string json = designforms::specctra::BoardCountsDump::render(result, dsn_path, omit_items);
+
+    if (!out_path.empty()) {
+        std::ofstream out(out_path, std::ios::binary);
+        out << json;
+        return out.good() ? 0 : 1;
+    }
+    std::cout << "===JSON===\n" << json;
+    return 0;
+}
+
+int Freerouting::write_ses_without_routing(const std::vector<std::string>& args)
+{
+    if (args.size() < 3) {
+        std::cerr << "Usage: freerouting --write-ses <dsn> <out.ses>\n";
+        return 2;
+    }
+    std::ifstream dsn_stream(args[1], std::ios::binary);
+    if (!dsn_stream.good()) {
+        std::cerr << "Cannot open " << args[1] << "\n";
+        return 1;
+    }
+    const std::string design_name = fs::path(args[1]).filename().string();
+    designforms::specctra::BoardReadResult result = designforms::specctra::DsnReader::read_board(dsn_stream, design_name);
+    auto* success = std::get_if<designforms::specctra::board_read_result::Success>(&result);
+    if (success == nullptr || success->board == nullptr) {
+        std::cerr << "The DSN file could not be loaded\n";
+        return 1;
+    }
+    std::ofstream out(args[2], std::ios::binary);
+    designforms::specctra::SessionWriter::write(*success->board, out, design_name);
+    return out.good() ? 0 : 1;
 }
 
 void Freerouting::print_help()

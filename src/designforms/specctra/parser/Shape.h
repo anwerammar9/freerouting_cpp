@@ -112,4 +112,10 @@ std::shared_ptr<geometry::planar::PolylineShape> to_polyline_shape(std::unique_p
  */
 std::shared_ptr<geometry::planar::Area> to_board_area(std::unique_ptr<geometry::planar::Shape> p_shape);
 
+/**
+ * to_board_area for a shape that stays shared (e.g. a package outline): an Area shares ownership
+ * with p_shape, other shapes are wrapped like above. nullptr if p_shape is nullptr or unsupported.
+ */
+std::shared_ptr<geometry::planar::Area> to_board_area(const std::shared_ptr<geometry::planar::Shape>& p_shape);
+
 } // namespace freerouting::designforms::specctra::parser

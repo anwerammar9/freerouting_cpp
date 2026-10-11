@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "board/LogicalPart.h"
 #include "board/Package.h"
 #include "geometry/planar/Point.h"
 
@@ -12,8 +13,7 @@ namespace freerouting::board {
 
 /**
  * A component placed on the board. Port of Java
- * board.model.structure.Component (undo snapshots and logical parts are not
- * ported yet).
+ * board.model.structure.Component (undo snapshots are not ported yet).
  */
 class Component
 {
@@ -44,6 +44,11 @@ public:
     /** The package of the side the component is placed on. Java Component.getPackage. */
     Package* get_package() const { return on_front_ ? package_front_ : package_back_; }
 
+    /** The logical part (pin/gate swap info) or nullptr. Java Component.getLogicalPart. */
+    LogicalPart* get_logical_part() const { return logical_part_; }
+    /** Java Component.setLogicalPart. */
+    void set_logical_part(LogicalPart* p_logical_part) { logical_part_ = p_logical_part; }
+
     /** Java Component.translateBy. */
     void translate_by(const geometry::planar::IntVector& p_vector);
     /** Java Component.turn90Degree. */
@@ -63,6 +68,7 @@ private:
     std::optional<geometry::planar::IntPoint> location_;
     double rotation_in_degree_;
     bool on_front_;
+    LogicalPart* logical_part_ = nullptr;
 };
 
 /** The components of a board. Port of Java board.model.structure.Components. */

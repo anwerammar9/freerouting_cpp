@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include "board/LogicalPart.h"
 #include "board/Package.h"
 #include "board/Padstacks.h"
 
@@ -11,7 +12,7 @@ namespace freerouting::board {
 
 /**
  * The padstacks, packages and via padstacks of a board. Port of Java
- * core.library.BoardLibrary (logical parts are not ported yet).
+ * core.library.BoardLibrary.
  */
 class BoardLibrary
 {
@@ -22,6 +23,9 @@ public:
     const Padstacks& padstacks() const { return padstacks_; }
     Packages& packages() { return packages_; }
     const Packages& packages() const { return packages_; }
+    /** The logical parts (pin and gate swap information). Java BoardLibrary.logicalParts. */
+    LogicalParts& logical_parts() { return logical_parts_; }
+    const LogicalParts& logical_parts() const { return logical_parts_; }
 
     int via_padstack_count() const { return static_cast<int>(via_padstacks_.size()); }
     /** Java BoardLibrary.getViaPadstack(int); nullptr if p_no is out of range. */
@@ -41,6 +45,7 @@ public:
 private:
     Padstacks padstacks_;
     Packages packages_;
+    LogicalParts logical_parts_;
     std::vector<Padstack*> via_padstacks_;
 };
 

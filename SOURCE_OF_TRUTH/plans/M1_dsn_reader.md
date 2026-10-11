@@ -415,7 +415,10 @@ helpers live there); `Keyword.cpp`: `const Wiring k_WIRING_SCOPE;`.
   `key & (capacity-1)` (Integer hash = value; spread `h ^ (h>>>16)` is a no-op below 65536), entries in the same
   bucket in insertion order, where `capacity` is the final table size (16, doubled whenever size > 0.75·capacity).
   Add a small helper `java_hashmap_int_iteration_order(keys_in_insertion_order)` in `src/datastructures/` and use it,
-  with a unit test (keys {1,17,2} with capacity 16 → 1,17,2; 13 keys → capacity 32).
+  with a unit test. **Corrected in T116 (verified against JDK 25):** `normalizeAllTraces` fills the map with
+  `computeIfAbsent`, which *prepends* a new key to its bucket and resizes *before* inserting (so {1,17,2} iterates
+  17,1,2; `put` would give 1,17,2); a bucket reaching 8 keys at capacity < 64 forces a resize. Done in
+  `datastructures/JavaHashMapOrder.h`.
 - Items are collected walking the item list → in **descending id** order (T011).
 - Wire on an unknown net → `tryCorrectNet`; wire with `(type protect)` / fixed states via `calcFixed`.
 - Exceptions during normalize are caught and recorded as warnings (`scopeParameter.warnings`).

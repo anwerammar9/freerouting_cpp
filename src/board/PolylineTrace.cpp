@@ -312,6 +312,13 @@ std::optional<std::array<PolylineTrace*, 2>> PolylineTrace::split_at_line(
     {
         return std::nullopt;
     }
+    // Java guard: if this trace cannot be deleted (e.g. USER_FIXED / protect), splitting would leave
+    // the original on the board AND insert duplicate pieces, and the normalize loops would never
+    // converge.
+    if (is_deletion_forbidden())
+    {
+        return std::nullopt;
+    }
     std::vector<std::unique_ptr<geometry::planar::Polyline>> split_polylines =
         polyline_->split(p_line_no, p_new_end_line);
     if (split_polylines.size() != 2)
@@ -632,7 +639,8 @@ bool PolylineTrace::combine_at_start(bool p_ignore_areas)
         }
         if (trace->get_layer() == get_layer() && trace->nets_equal(this)
             && trace->get_half_width() == get_half_width()
-            && trace->get_fixed_state() == get_fixed_state())
+            && trace->get_fixed_state() == get_fixed_state() && !trace->is_deletion_forbidden()
+            && !is_deletion_forbidden())
         {
             if (start_corner.to_float() == trace->last_corner().to_float())
             {
@@ -776,7 +784,8 @@ bool PolylineTrace::combine_at_end(bool p_ignore_areas)
         }
         if (trace->get_layer() == get_layer() && trace->nets_equal(this)
             && trace->get_half_width() == get_half_width()
-            && trace->get_fixed_state() == get_fixed_state())
+            && trace->get_fixed_state() == get_fixed_state() && !trace->is_deletion_forbidden()
+            && !is_deletion_forbidden())
         {
             if (end_corner.to_float() == trace->first_corner().to_float())
             {
@@ -896,12 +905,6 @@ bool PolylineTrace::normalize_impl(const geometry::planar::IntOctagon* p_clip_sh
         return false;
     }
 
-    // Early exit if trace is very simple (only 2 points)
-    if (corner_count() <= 2)
-    {
-        return false;
-    }
-
     // Java notifies observers here; skipped in the C++ headless port.
     std::vector<PolylineTrace*> split_pieces = split(p_clip_shape);
     bool result = split_pieces.size() != 1;
@@ -914,12 +917,23 @@ bool PolylineTrace::normalize_impl(const geometry::planar::IntOctagon* p_clip_sh
                 && curr_split_trace->first_corner().to_float()
                     == curr_split_trace->last_corner().to_float())
             {
-                // remove trace with only 1 corner
-                if (auto* routing_board =
-                        dynamic_cast<RoutingBoard*>(curr_split_trace->get_board()))
+                // remove trace with only 1 corner - only if deletion is allowed. USER_FIXED traces
+                // cannot be removed; skipping them prevents an endless normalize_traces loop.
+                if (!curr_split_trace->is_deletion_forbidden())
                 {
-                    routing_board->remove_item(curr_split_trace);
-                    result = true;
+                    if (auto* routing_board = dynamic_cast<RoutingBoard*>(curr_split_trace->get_board()))
+                    {
+                        routing_board->remove_item(curr_split_trace);
+                        result = true;
+                    }
+                }
+                else
+                {
+                    logger::FRLogger::instance().debug(
+                        "PolylineTrace.normalize: skipping removal of degenerate user-fixed trace #"
+                        + std::to_string(curr_split_trace->get_id()) + " on net "
+                        + std::to_string(curr_split_trace->net_count() > 0 ? curr_split_trace->get_net_no(0) : -1)
+                        + " (first==last corner)");
                 }
             }
             else if (trace_combined)

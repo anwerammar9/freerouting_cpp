@@ -151,6 +151,34 @@ if(BUILD_TESTS)
         gtest_discover_tests(${test_name})
     endforeach()
 
+    # ---- gtest-based companion tests for the settings classes ----
+    set(SETTINGS_TEST_SOURCES
+        ${CMAKE_SOURCE_DIR}/src/settings/AutorouterSettings_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/settings/FanoutSettings_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/settings/LayerSettings_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/settings/OptimizerScoreSettings_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/settings/OptimizerSettings_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/settings/RouterScoreSettings_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/settings/RouterSettings_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/settings/RoutingCostSettings_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/settings/SettingsFieldTable_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/settings/sources/DefaultSettings_test.cpp
+    )
+
+    foreach(test_src IN LISTS SETTINGS_TEST_SOURCES)
+        get_filename_component(test_name ${test_src} NAME_WE)
+        add_executable(${test_name} ${test_src})
+        target_include_directories(${test_name} PRIVATE
+            ${CMAKE_SOURCE_DIR}/include
+            ${CMAKE_SOURCE_DIR}/src
+        )
+        target_link_libraries(${test_name} PRIVATE
+            freerouting_settings
+            GTest::gtest_main
+        )
+        gtest_discover_tests(${test_name})
+    endforeach()
+
     # ---- gtest-based companion tests for compiled board classes ----
     set(BOARD_TEST_SOURCES
         ${CMAKE_SOURCE_DIR}/src/board/ItemIdentificationNumberGenerator_test.cpp
@@ -169,6 +197,7 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/src/board/Package_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/Padstacks_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/BoardLibrary_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/board/LogicalPart_test.cpp
         ${CMAKE_SOURCE_DIR}/src/board/Component_test.cpp
         ${CMAKE_SOURCE_DIR}/src/rules/ClearanceMatrix_test.cpp
         ${CMAKE_SOURCE_DIR}/src/rules/BoardRules_test.cpp
@@ -238,7 +267,9 @@ if(BUILD_TESTS)
 
     # ---- gtest-based companion tests for compiled designforms classes ----
     set(DESIGNFORMS_TEST_SOURCES
-        ${CMAKE_SOURCE_DIR}/src/designforms/specctra/Wiring_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/designforms/specctra/DsnReader_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/board/ShapeSearchTree45Degree_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/designforms/specctra/SessionWriter_test.cpp
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/SpecctraDsnStreamReader_test.cpp
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/ParserShape_test.cpp
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/ShapeWrite_test.cpp
@@ -251,6 +282,7 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/NetList_test.cpp
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/NetClass_test.cpp
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/Network_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/ParserWiring_test.cpp
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/Library_test.cpp
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/ParserComponent_test.cpp
     )
@@ -266,25 +298,7 @@ if(BUILD_TESTS)
             $<LINK_GROUP:RESCAN,freerouting_designforms,freerouting_settings,freerouting_board,freerouting_autoroute,freerouting_core,freerouting_datastructures,freerouting_geometry,freerouting_rules,freerouting_logger,freerouting_constants>
             GTest::gtest_main
         )
-        gtest_discover_tests(${test_name})
-    endforeach()
-
-    # ---- gtest-based companion test for board loading materialization ----
-    set(BOARDLOADER_TEST_SOURCES
-        ${CMAKE_SOURCE_DIR}/src/board/BoardLoader_test.cpp
-    )
-
-    foreach(test_src IN LISTS BOARDLOADER_TEST_SOURCES)
-        get_filename_component(test_name ${test_src} NAME_WE)
-        add_executable(${test_name} ${test_src})
-        target_include_directories(${test_name} PRIVATE
-            ${CMAKE_SOURCE_DIR}/include
-            ${CMAKE_SOURCE_DIR}/src
-        )
-        target_link_libraries(${test_name} PRIVATE
-            $<LINK_GROUP:RESCAN,freerouting_board,freerouting_autoroute,freerouting_designforms,freerouting_settings,freerouting_core,freerouting_datastructures,freerouting_geometry,freerouting_rules,freerouting_logger,freerouting_constants>
-            GTest::gtest_main
-        )
+        target_compile_definitions(${test_name} PRIVATE FREEROUTING_TEST_DATA_DIR="${CMAKE_SOURCE_DIR}/tests/data")
         gtest_discover_tests(${test_name})
     endforeach()
 
@@ -298,6 +312,7 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/src/geometry/planar/TileShape_test.cpp
         ${CMAKE_SOURCE_DIR}/src/geometry/planar/ConvexTileShape_test.cpp
         ${CMAKE_SOURCE_DIR}/src/geometry/planar/Polyline_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/geometry/planar/LineSegment_test.cpp
         ${CMAKE_SOURCE_DIR}/src/geometry/planar/PolygonShape_test.cpp
         ${CMAKE_SOURCE_DIR}/src/geometry/planar/CircleArea_test.cpp
         ${CMAKE_SOURCE_DIR}/src/geometry/planar/Area_test.cpp
@@ -357,6 +372,19 @@ if(BUILD_TESTS)
         GTest::gtest_main
     )
     gtest_discover_tests(IdentifierType_test)
+
+    add_executable(JavaHashMapOrder_test
+        ${CMAKE_SOURCE_DIR}/src/datastructures/JavaHashMapOrder_test.cpp
+    )
+    target_include_directories(JavaHashMapOrder_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/src
+    )
+    target_link_libraries(JavaHashMapOrder_test PRIVATE
+        freerouting_datastructures
+        GTest::gtest_main
+    )
+    gtest_discover_tests(JavaHashMapOrder_test)
 
     add_executable(JavaFormat_test
         ${CMAKE_SOURCE_DIR}/src/datastructures/JavaFormat_test.cpp
@@ -488,4 +516,24 @@ if(BUILD_TESTS)
         GTest::gtest_main
     )
     gtest_discover_tests(TimeLimit_test)
+
+    # ---- management (HeadlessBoardManager) ----
+    add_executable(HeadlessBoardManager_test ${CMAKE_SOURCE_DIR}/src/management/HeadlessBoardManager_test.cpp)
+    target_include_directories(HeadlessBoardManager_test PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/src)
+    target_link_libraries(HeadlessBoardManager_test PRIVATE
+        freerouting_management
+        $<LINK_GROUP:RESCAN,freerouting_designforms,freerouting_settings,freerouting_board,freerouting_autoroute,freerouting_core,freerouting_datastructures,freerouting_geometry,freerouting_rules,freerouting_logger,freerouting_constants>
+        GTest::gtest_main
+    )
+    target_compile_definitions(HeadlessBoardManager_test PRIVATE FREEROUTING_TEST_DATA_DIR="${CMAKE_SOURCE_DIR}/tests/data")
+    gtest_discover_tests(HeadlessBoardManager_test)
+
+    # ---- DSN reader parity: every tests/data board against the Java oracle JSON (T117/T118) ----
+    find_package(Python3 COMPONENTS Interpreter)
+    if(Python3_Interpreter_FOUND)
+        add_test(NAME DsnReaderJavaOracle
+            COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/dsn_counts_compare.py
+                    $<TARGET_FILE:freerouting> ${CMAKE_SOURCE_DIR} ${CMAKE_BINARY_DIR}/dsn_counts_compare)
+        set_tests_properties(DsnReaderJavaOracle PROPERTIES TIMEOUT 600)
+    endif()
 endif()

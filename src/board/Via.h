@@ -68,7 +68,14 @@ public:
     void clear_derived_data() override;
 
     Padstack* get_padstack() const { return padstack_; }
+    /**
+     * Sets the padstack and the layer range. Java DrillItem.firstLayer/lastLayer: an item placed on
+     * the back side (a back-side pin) of a not absolutely placed padstack gets the mirrored range.
+     */
     void set_padstack(Padstack* p_padstack);
+
+    /** Java DrillItem.isPlacedOnFront: true for vias; a pin answers for its component. */
+    virtual bool is_placed_on_front() const { return true; }
 
     /**
      * Returns the minimum width over all padstack shapes.

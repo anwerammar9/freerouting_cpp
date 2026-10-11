@@ -7,10 +7,19 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <fstream>
+#include <sstream>
 #include <string>
 #include <vector>
 
 #include "board/BoardLibrary.h"
+#include "board/Component.h"
+#include "board/ComponentOutline.h"
+#include "board/LogicalPart.h"
+#include "board/ObstacleArea.h"
+#include "board/ViaObstacleArea.h"
+#include "board/Pin.h"
 #include "board/Padstack.h"
 #include "board/Padstacks.h"
 #include "board/RoutingBoard.h"
@@ -381,6 +390,196 @@ TEST(NetworkTest, ClassUseLayerRestrictsTheActiveTraceLayers)
     EXPECT_FALSE(net_class->is_active_routing_layer(1));
     EXPECT_EQ(3, net_class->get_trace_half_width(0));
     EXPECT_EQ(0, net_class->get_trace_half_width(1));
+}
+
+
+// ---- T115: component, pin, keepout and logical part insertion ----
+
+// Expected values below come from the Java 2.1.0 jar (throwaway PinCenters.java dumper, see
+// docs/migration/MIGRATION_designforms.md, T115).
+constexpr const char* kTwoComponentBoard =
+    "(pcb two_comp"
+    " (parser (host_cad \"test\") (host_version \"1\"))"
+    " (resolution um 10) (unit um)"
+    " (structure (layer F.Cu (type signal)) (layer B.Cu (type signal))"
+    "  (boundary (rect pcb 0 0 100000 100000)) (via V1) (rule (width 250) (clearance 200)))"
+    " (placement (component IMG (place U1 20000 30000 front 0) (place U2 60000 50000 back 90)))"
+    " (library"
+    "  (image IMG (pin SMD 1 -1000 0) (pin THRU 2 1000 500)"
+    "   (keepout \"k1\" (rect F.Cu -500 -500 500 500)) (via_keepout \"\" (rect B.Cu -300 -300 300 300)))"
+    "  (padstack SMD (shape (rect F.Cu -200 -200 200 200)))"
+    "  (padstack THRU (shape (circle F.Cu 600)) (shape (circle B.Cu 600)))"
+    "  (padstack V1 (shape (circle F.Cu 400)) (shape (circle B.Cu 400))))"
+    " (network (net GND (pins U1-1 U2-1)) (net VCC (pins U1-2 U2-2)))"
+    " (wiring))";
+
+/** "PIN <component> <pin> <x> <y> [<nets>] <clearance class>" lines, sorted like the Java dumper. */
+std::vector<std::string> pin_lines(const board::RoutingBoard& p_board)
+{
+    std::vector<std::string> lines;
+    for (board::Item* item : p_board.get_items())
+    {
+        auto* pin = dynamic_cast<board::Pin*>(item);
+        if (pin == nullptr)
+        {
+            continue;
+        }
+        std::string nets;
+        for (int i = 0; i < pin->net_count(); ++i)
+        {
+            nets += (i > 0 ? "," : "") + std::to_string(pin->get_net_no(i));
+        }
+        const auto& center = pin->get_center();
+        lines.push_back("PIN " + std::to_string(pin->get_component_no()) + " " + std::to_string(pin->get_pin_no()) + " "
+            + std::to_string(center.x) + " " + std::to_string(center.y) + " [" + nets + "] "
+            + std::to_string(pin->get_clearance_class()));
+    }
+    std::sort(lines.begin(), lines.end());
+    return lines;
+}
+
+TEST(NetworkTest, ComponentPinsArePlacedRotatedAndMirrored)
+{
+    SpecctraDsnStreamReader scanner(kTwoComponentBoard, true);
+    ReadScopeParameter par(scanner);
+    ASSERT_TRUE(Keyword::PCB_SCOPE->read_scope(par));
+    board::RoutingBoard* board = par.get_board();
+    ASSERT_NE(nullptr, board);
+    ASSERT_EQ(2, board->components()->component_count());
+    EXPECT_EQ("U1", board->components()->get(1)->get_name());
+    EXPECT_FALSE(board->components()->get(2)->is_placed_on_front());
+
+    const std::vector<std::string> expected = {
+        "PIN 1 0 190000 300000 [1] 1",
+        "PIN 1 1 210000 305000 [2] 1",
+        "PIN 2 0 600000 510000 [1] 1",
+        "PIN 2 1 595000 490000 [2] 1",
+    };
+    EXPECT_EQ(expected, pin_lines(*board));
+    for (board::Item* item : board->get_items())
+    {
+        if (auto* pin = dynamic_cast<board::Pin*>(item))
+        {
+            EXPECT_NE(nullptr, pin->get_shape(0)) << "component " << pin->get_component_no() << " pin "
+                                                   << pin->get_pin_no();
+        }
+    }
+}
+
+TEST(NetworkTest, PackageKeepoutsOfBackSideComponentsUseTheMirroredLayer)
+{
+    SpecctraDsnStreamReader scanner(kTwoComponentBoard, true);
+    ReadScopeParameter par(scanner);
+    ASSERT_TRUE(Keyword::PCB_SCOPE->read_scope(par));
+    std::vector<std::string> areas;
+    for (board::Item* item : par.get_board()->get_items())
+    {
+        auto* area = dynamic_cast<board::ObstacleArea*>(item);
+        if (area == nullptr)
+        {
+            continue;
+        }
+        const auto box = area->bounding_box();
+        const bool is_via_keepout = dynamic_cast<board::ViaObstacleArea*>(item) != nullptr;
+        areas.push_back(std::string(is_via_keepout ? "via " : "area ") + std::to_string(area->get_component_no()) + " "
+            + std::to_string(area->get_layer()) + " " + std::to_string(area->get_clearance_class()) + " "
+            + std::to_string(box.ll.x) + "," + std::to_string(box.ll.y) + " " + std::to_string(box.ur.x) + ","
+            + std::to_string(box.ur.y));
+    }
+    std::sort(areas.begin(), areas.end());
+    const std::vector<std::string> expected = {
+        "area 1 0 1 195000,295000 205000,305000",
+        "area 2 1 1 595000,495000 605000,505000",
+        "via 1 1 1 197000,297000 203000,303000",
+        "via 2 0 1 597000,497000 603000,503000",
+    };
+    EXPECT_EQ(expected, areas);
+}
+
+TEST(NetworkTest, UnplacedComponentIsAddedWithoutPins)
+{
+    std::string board_text = kTwoComponentBoard;
+    const std::string placed = "(place U2 60000 50000 back 90)";
+    board_text.replace(board_text.find(placed), placed.size(), "(place U2)");
+    SpecctraDsnStreamReader scanner(board_text, true);
+    ReadScopeParameter par(scanner);
+    ASSERT_TRUE(Keyword::PCB_SCOPE->read_scope(par));
+    board::RoutingBoard* board = par.get_board();
+    ASSERT_EQ(2, board->components()->component_count());
+    EXPECT_FALSE(board->components()->get(2)->is_placed());
+    EXPECT_EQ(2u, pin_lines(*board).size());
+}
+
+TEST(NetworkTest, LogicalPartsAreInsertedAndAssignedToComponents)
+{
+    std::string board_text = kTwoComponentBoard;
+    // The part library scope precedes the network scope, whose end inserts the logical parts.
+    const std::string network = " (network ";
+    board_text.replace(board_text.find(network), network.size(),
+        " (part_library (logical_part_mapping GATE (component U1 U2))"
+        "  (logical_part GATE (pin 2 0 A 1 out 0) (pin 1 0 A 1 in 0)))"
+        " (network ");
+    SpecctraDsnStreamReader scanner(board_text, true);
+    ReadScopeParameter par(scanner);
+    ASSERT_TRUE(Keyword::PCB_SCOPE->read_scope(par));
+    board::RoutingBoard* board = par.get_board();
+    const board::LogicalParts& parts = board->library().logical_parts();
+    ASSERT_EQ(1, parts.count());
+    board::LogicalPart* part = parts.get("GATE");
+    ASSERT_NE(nullptr, part);
+    ASSERT_EQ(2, part->pin_count());
+    // Sorted by package pin index: pin "1" is index 0.
+    EXPECT_EQ("1", part->get_pin(0)->pin_name);
+    EXPECT_EQ(1, part->get_pin(1)->pin_index);
+    EXPECT_EQ(part, board->components()->get(1)->get_logical_part());
+    EXPECT_EQ(part, board->components()->get(2)->get_logical_part());
+}
+
+TEST(NetworkTest, Issue026PinsMatchTheJavaReader)
+{
+    std::ifstream dsn_file(std::string(FREEROUTING_TEST_DATA_DIR) + "/Issue026-J2_reference.dsn");
+    ASSERT_TRUE(dsn_file.good());
+    std::stringstream dsn_text;
+    dsn_text << dsn_file.rdbuf();
+    SpecctraDsnStreamReader scanner(dsn_text.str(), true);
+    ReadScopeParameter par(scanner);
+    ASSERT_TRUE(Keyword::PCB_SCOPE->read_scope(par));
+    board::RoutingBoard* board = par.get_board();
+    ASSERT_NE(nullptr, board);
+    EXPECT_EQ(2, board->components()->component_count());
+
+    std::ifstream expected_file(
+        std::string(FREEROUTING_TEST_DATA_DIR) + "/expected/Issue026-J2_reference.dsn.pins.txt");
+    ASSERT_TRUE(expected_file.good());
+    std::vector<std::string> expected;
+    for (std::string line; std::getline(expected_file, line);)
+    {
+        if (!line.empty())
+        {
+            expected.push_back(line);
+        }
+    }
+    std::sort(expected.begin(), expected.end());
+    ASSERT_EQ(59u, expected.size());
+    EXPECT_EQ(expected, pin_lines(*board));
+
+    // Item counts of tests/data/expected/Issue026-J2_reference.dsn.counts.json (Java T007 harness).
+    int component_outlines = 0;
+    int obstacle_areas = 0;
+    for (board::Item* item : board->get_items())
+    {
+        if (dynamic_cast<board::ComponentOutline*>(item) != nullptr)
+        {
+            ++component_outlines;
+        }
+        else if (dynamic_cast<board::ObstacleArea*>(item) != nullptr
+            && dynamic_cast<board::ViaObstacleArea*>(item) == nullptr)
+        {
+            ++obstacle_areas;
+        }
+    }
+    EXPECT_EQ(17, component_outlines);
+    EXPECT_EQ(4, obstacle_areas);
 }
 
 } // namespace

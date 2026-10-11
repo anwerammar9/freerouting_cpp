@@ -53,6 +53,9 @@ public:
      */
     bool drill_allowed() const { return first_layer() == last_layer(); }
 
+    /** Java Pin.isPlacedOnFront: the side of the component, true without a component. */
+    bool is_placed_on_front() const override;
+
     int get_pin_no() const { return pin_no_; }
     Pin* get_changed_to() const { return changed_to_; }
     void set_changed_to(Pin* p_pin) { changed_to_ = p_pin; }

@@ -68,8 +68,9 @@ public:
 
     /** The quote character of the parser scope. Java stringQuote. */
     std::string string_quote = "\"";
-    std::string host_cad;
-    std::string host_version;
+    /** Java hostCad / hostVersion; absent = Java null. */
+    std::optional<std::string> host_cad;
+    std::optional<std::string> host_version;
     /** (constant name value) entries of the parser scope. Java constants. */
     std::vector<std::array<std::string, 2>> constants;
     /** Java writeResolution (parser scope), absent = Java null. */

@@ -39,6 +39,9 @@ std::shared_ptr<fr::board::RoutingBoard> make_routing_board()
     layers.push_back(std::make_shared<fr::board::Layer>("Bottom", true));
     fr::board::LayerStructure layer_structure(layers);
     auto board_rules = std::make_unique<fr::rules::BoardRules>(layer_structure, 10);
+    // These fixtures exercise the engine bookkeeping on the generic search tree; the Java
+    // 45 degree tree (ShapeSearchTree45Degree, T506a) has its own tests.
+    board_rules->set_trace_angle_restriction(fr::rules::AngleRestriction::NONE);
     // Like a DSN structure scope: without default trace widths the Java
     // min_trace_half_width default (100000) makes every drill check fail.
     board_rules->set_default_trace_half_widths(100);

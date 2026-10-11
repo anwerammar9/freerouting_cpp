@@ -157,7 +157,7 @@ public:
      * p_line has a common point with the interior of this shape. Port of Java
      * TileShape.isIntersectedInteriorBy(Point, Point, Line).
      */
-    bool is_intersected_interior_by(const IntPoint& p_start_point, const IntPoint& p_end_point,
+    bool is_intersected_interior_by(const Point& p_start_point, const Point& p_end_point,
                                     const Line& p_line) const;
 
     /**

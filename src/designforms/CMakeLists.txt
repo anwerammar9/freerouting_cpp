@@ -2,16 +2,7 @@
 # Specctra DSN/SES file format parsing and writing
 
 add_library(freerouting_designforms STATIC
-    specctra/Circle.cpp
-    specctra/Keyword.cpp
-    specctra/Library.cpp
-    specctra/Network.cpp
-    specctra/Placement.cpp
-    specctra/Polygon.cpp
-    specctra/Scanner.cpp
     specctra/SessionWriter.cpp
-    specctra/Structure.cpp
-    specctra/Wiring.cpp
     specctra/parser/AutorouteSettings.cpp
     specctra/parser/Circle.cpp
     specctra/parser/Circuit.cpp
@@ -39,6 +30,9 @@ add_library(freerouting_designforms STATIC
     specctra/parser/ScopeKeyword.cpp
     specctra/parser/SpecctraDsnStreamReader.cpp
     specctra/parser/Structure.cpp
+    specctra/parser/Wiring.cpp
+    specctra/BoardCountsDump.cpp
+    specctra/DsnReader.cpp
     specctra/parser/WriteScopeParameter.cpp
 )
 

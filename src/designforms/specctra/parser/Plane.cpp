@@ -34,7 +34,7 @@ bool Plane::read_scope(ReadScopeParameter& p_par) const
     p_par.scanner.set_scope_identifier(net_name);
     // Cadence Allegro cuts out the pins on power planes, which leads to
     // performance problems when dividing a conduction area into convex pieces.
-    const bool skip_window_scopes = equals_ignore_case(p_par.host_cad, "allegro");
+    const bool skip_window_scopes = equals_ignore_case(p_par.host_cad.value_or(""), "allegro");
     std::optional<Shape::ReadAreaScopeResult> conduction_area =
         Shape::read_area_scope(p_par.scanner, p_par.layer_structure.get(), skip_window_scopes);
     if (!conduction_area)

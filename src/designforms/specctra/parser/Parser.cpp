@@ -91,18 +91,18 @@ void Parser::write_scope(datastructures::IndentFileWriter& p_file,
         p_file.new_line();
         p_file << "(space_in_quoted_tokens on)";
     }
-    if (!p_parser_info.host_cad.empty())
+    if (p_parser_info.host_cad.has_value())
     {
         p_file.new_line();
         p_file << "(host_cad ";
-        p_identifier_type.write(p_parser_info.host_cad, p_file.stream());
+        p_identifier_type.write(*p_parser_info.host_cad, p_file.stream());
         p_file << ")";
     }
-    if (!p_parser_info.host_version.empty())
+    if (p_parser_info.host_version.has_value())
     {
         p_file.new_line();
         p_file << "(host_version ";
-        p_identifier_type.write(p_parser_info.host_version, p_file.stream());
+        p_identifier_type.write(*p_parser_info.host_version, p_file.stream());
         p_file << ")";
     }
     for (const std::array<std::string, 2>& current_constant : p_parser_info.constants)
@@ -186,11 +186,11 @@ bool Parser::read_scope(ReadScopeParameter& p_par) const
             }
             else if (next_token.is(Keyword::HOST_CAD))
             {
-                p_par.host_cad = DsnFile::read_string_scope(p_par.scanner).value_or("");
+                p_par.host_cad = DsnFile::read_string_scope(p_par.scanner);
             }
             else if (next_token.is(Keyword::HOST_VERSION))
             {
-                p_par.host_version = DsnFile::read_string_scope(p_par.scanner).value_or("");
+                p_par.host_version = DsnFile::read_string_scope(p_par.scanner);
             }
             else if (next_token.is(Keyword::CONSTANT))
             {

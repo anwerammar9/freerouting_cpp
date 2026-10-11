@@ -312,3 +312,76 @@
   Tests: `ShapeWrite_test.cpp` (golden token-equal strings captured from the JDK-25 jar + write→read→equal
   round-trips), `WriteScopeParameter_test.cpp`, `CoordinateTransform_test.cpp` (golden values/strings). ctest
   1005/1005, `run_tests` PASSED. Layer/Rule write parts are deferred to the SesWriter/DsnWriter tasks (T201/T202).
+
+## T115 — Network part 3: components, pins, keepouts, outlines, logical parts (2026-10-11)
+
+- `Network::insert_components / insert_component / insert_logical_parts / search_lib_package` port Java
+  `Network.java` 832–1204; `Network::read_scope` calls them last, so `(part_library ...)` must precede `(network ...)`
+  (it does in real DSN files).
+- Golden values come from the Java 2.1.0 jar via a throwaway dumper (`PinCenters.java`: loads with
+  `DsnReader.readBoard`, prints `PIN <component> <pin> <x> <y> [<nets>] <clearance class>` per pin, sorted, plus
+  obstacle areas). Issue026's 59 pins are stored in `tests/data/expected/Issue026-J2_reference.dsn.pins.txt`;
+  `NetworkTest.Issue026PinsMatchTheJavaReader` loads the file through `Keyword::PCB_SCOPE->read_scope` (the
+  designforms tests get `FREEROUTING_TEST_DATA_DIR`).
+- Bug fixed on the way (board): a back-side pin must occupy the mirrored layer range (Java `DrillItem.firstLayer` =
+  `boardLayerCount - padstack.toLayer - 1` when `!isPlacedOnFront && !placedAbsolute`). `DrillItem::set_padstack`
+  now does this; without it back-side SMD pins had no shape and no tree entries.
+- `board::LogicalPart(s)` (Java `core.library`) live next to `board::Package`; `core/LogicalPart.h` is a stale
+  unused declaration (removal tracked in T707).
+
+## T116 — Wiring read + normalizeAllTraces (2026-10-11)
+
+- `parser/Wiring.{h,cpp}` ports the read part of Java `parser/Wiring.java` (the legacy `specctra/Wiring.*` reader is
+  untouched until T124a; the new test file is `ParserWiring_test.cpp` to avoid the `Wiring_test` target clash).
+- Golden data: throwaway `WireDump.java` (loads with `DsnReader.readBoard`, prints every PolylineTrace as
+  `TRACE layer halfWidth [nets] fixedState clearanceClass corners...` with corners = `Math.round` of the float
+  approximation, and every Via). Issue103's 2769 lines are in `tests/data/expected/Issue103-Board-Routed.dsn.wires.txt`.
+  Set `FREEROUTING_DUMP_WIRES=<file>` when running `ParserWiring_test` to get the C++ dump for diffing.
+- Java keeps rational trace corners (`RationalPoint`); compare corners through `corner_approx_arr()` + Java rounding,
+  not `corner_arr()`.
+- Fixed parity bugs (board): exact contact matching in `Trace::get_normal_contacts(point)` and
+  `DrillItem::get_normal_contacts()` (the C++ had invented `half_width + 1` / `min_width / 2 + 1` tolerances, which made
+  `remove_if_cycle` delete ~400 routed traces/vias of Issue103 during normalization); `PolylineTrace::normalize` no
+  longer exits early for 2-corner traces and respects `is_deletion_forbidden`.
+
+## T117/T118 — DsnReader, `--dump-board-counts`, reader audit (2026-10-11)
+
+- `specctra/DsnReader.{h,cpp}` ports Java `io/specctra/DsnReader` (`read_board`, `read_metadata`);
+  `BoardReadResult.h` is a `std::variant<Success, OutlineMissing, ParseError, IoError>` (the board is taken out of
+  the parser's `MinimalBoardManager`). A boundary-less DSN gives `OutlineMissing` with no board, like Java.
+- `freerouting --dump-board-counts <dsn> [out.json] [--omit-items]` prints the T007 oracle schema
+  (`specctra/BoardCountsDump`, byte-identical to `tools/java_ref/BoardCounts.java`).
+- `tools/dsn_counts_compare.py <freerouting> <repo> <scratch>` (ctest `DsnReaderJavaOracle`) compares every board
+  in `tests/data` with `tests/data/expected/*.counts.json`: **117/117 identical**, including the full item list.
+- Bugs fixed to get there (all pre-existing, all Java-parity): `isDeletionForbidden` guards in
+  `PolylineTrace::split_at_line` and `combine_at_start/end`; exact (rational) end points in `LineSegment`
+  (`start_point_exact()/end_point_exact()`), in `LineSegment::intersection`/`sort_endpoints_in_x_y` and in
+  `Polyline::split`; `IntPoint::compare_x/y` against FloatPoints. Before, Issue015/022/187 hung in normalization.
+
+E2E boards (T601–T609) — C++ reader vs Java oracle:
+
+| Board | Result | Nets | Components | Pins | Vias | Traces | Outlines | Items | C++ vs Java |
+|---|---|---|---|---|---|---|---|---|---|
+| empty_board.dsn | success | 0 | 0 | 0 | 0 | 0 | 0 | 1 | identical |
+| Issue034-Green14SegLED.dsn | success | 101 | 37 | 278 | 0 | 0 | 616 | 895 | identical |
+| Issue107-freq_teiler_200kHz_kicad.dsn | success | 77 | 84 | 247 | 0 | 9 | 1512 | 1777 | identical |
+| Issue026-J2_reference.dsn | success | 24 | 2 | 59 | 0 | 0 | 17 | 81 | identical |
+| Issue103-Board-Unrouted.dsn | success | 282 | 55 | 984 | 0 | 0 | 864 | 1849 | identical |
+| Issue006-LPC18XX_43XX_SCH.dsn | parse_error | 0 | 0 | 0 | 0 | 0 | 0 | 0 | identical |
+| Issue070-Autorouter_FQ101_PCB_2022-05-13.dsn | success | 75 | 1 | 564 | 0 | 613 | 0 | 1178 | identical |
+| BBD_Mars-64.dsn | success | 94 | 80 | 200 | 0 | 0 | 752 | 961 | identical |
+| Issue029-hw48na.dsn | success | 163 | 160 | 902 | 24 | 594 | 1762 | 3309 | identical |
+
+## T201/T202 — SesWriter (2026-10-11)
+
+- `specctra/SessionWriter.{h,cpp}` is now the port of Java `io/specctra/SesWriter` (`SessionWriter::write(board,
+  ostream, design_name)`); the old `SessionWriter(file).write_session(board, name)` remains as a thin wrapper used by
+  the CLI. `RoutingBoard::get_connectable_items` includes ConductionAreas (Java `Connectable`), so copper-pour wires
+  are written.
+- Golden SES files come from a throwaway Java `SesDump` (`DsnReader.readBoard` + `SesWriter.write`, no routing) and
+  are stored as `tests/data/expected/<board>.dsn.ses` (empty_board, TestSensel, Issue029, Issue103-Board-Routed,
+  Issue420). `freerouting --write-ses <dsn> <out.ses>` is the C++ counterpart; over all `tests/data` boards the two
+  are byte-identical (116/116 loadable boards). `tools/ses_diff.py a.ses b.ses [--eps N]` reports the scope path of
+  the first token difference.
+- `host_cad` / `host_version` are `std::optional` (Java null) in `Communication::SpecctraParserInfo`,
+  `ReadScopeParameter` and `BoardMetadata`: KiCad writes `(host_version "")`, which Java writes back.

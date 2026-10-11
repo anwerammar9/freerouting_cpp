@@ -29,6 +29,9 @@ std::shared_ptr<fr::board::RoutingBoard> make_routing_board()
     layers.push_back(std::make_shared<fr::board::Layer>("Bottom", true));
     fr::board::LayerStructure layer_structure(layers);
     auto board_rules = std::make_unique<fr::rules::BoardRules>(layer_structure, 10);
+    // These fixtures exercise the engine bookkeeping on the generic search tree; the Java
+    // 45 degree tree (ShapeSearchTree45Degree, T506a) has its own tests.
+    board_rules->set_trace_angle_restriction(fr::rules::AngleRestriction::NONE);
     return std::make_shared<fr::board::RoutingBoard>(
         fr::geometry::planar::IntBox(0, 0, 10000, 10000), layer_structure,
         std::move(board_rules), nullptr);

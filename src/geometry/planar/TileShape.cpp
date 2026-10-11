@@ -655,11 +655,12 @@ std::vector<std::unique_ptr<TileShape>> TileShape::split_to_convex() const
 
 bool TileShape::is_intersected_interior_by(const LineSegment& p_line_segment) const
 {
+    // Java passes the exact (possibly rational) end points.
     return is_intersected_interior_by(
-        p_line_segment.start_point(), p_line_segment.end_point(), p_line_segment.get_line());
+        p_line_segment.start_point_exact(), p_line_segment.end_point_exact(), p_line_segment.get_line());
 }
 
-bool TileShape::is_intersected_interior_by(const IntPoint& p_start_point, const IntPoint& p_end_point,
+bool TileShape::is_intersected_interior_by(const Point& p_start_point, const Point& p_end_point,
     const Line& p_line) const
 {
     FloatPoint float_start_point = p_start_point.to_float();

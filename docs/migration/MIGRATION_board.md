@@ -285,3 +285,19 @@ tree consistent incl. the out-of-range guard, first-corner reduction, last-corne
   ItemIdDescending>`) replaces every pointer-ordered item set; `RoutingBoard` keeps `items_` sorted by ascending id and
   exposes it newest-first (`get_items()`, `get_item(0)` = newest), like Java's item list. Equal ids collapse in an
   `ItemSet` exactly as in a Java `TreeSet<Item>` — test fixtures must give items distinct ids.
+
+## T506a — ShapeSearchTree45Degree (2026-10-11)
+
+- Java creates `ShapeSearchTree45Degree` as the autoroute tree on FORTYFIVE_DEGREE boards (almost all); the C++
+  `SearchTreeManager::get_autoroute_tree` now does too (90 degree boards stay on the generic tree until T506b).
+- Golden data: a throwaway Java program loads Issue026, takes `searchTreeManager.getAutorouteTree(1)` and calls
+  `completeShape(new IncompleteFreeSpaceExpansionRoom(null, layer, IntBox), net 1, null, null)` for a 7x5 point grid
+  plus 3 boxes on both layers; `tests/data/expected/Issue026-J2_reference.dsn.tree45.txt` holds the rooms.
+  `FREEROUTING_DUMP_TREE45=<file>` makes `ShapeSearchTree45Degree_test` write the C++ side for a diff.
+- Traps found on the way: (1) C++ `IntOctagon::is_empty()` is true for degenerate octagons, Java's only for `EMPTY`
+  (a point-sized contained shape made every restraint fail); (2) Java's 45 degree drill tree shapes use
+  `TileShape.offset` (a box stays a box), `enlarge` cuts corners; (3) the C++ engine keeps room shapes as `Simplex`,
+  so "room is an IntOctagon" must be `is_IntOctagon()`; (4) the generic C++ `divide_large_room` divides the bounding
+  box through Simplices and loses point-sized contained shapes — the 45 degree tree divides octagons like Java.
+- The order of obstacles in `completeShape` is the tree's stack order, pruned by the shrinking bounding octagon; it
+  only matches Java when every tree shape matches (compare them first when rooms differ).

@@ -1,4 +1,5 @@
 #include "board/SearchTreeManager.h"
+#include "rules/BoardRules.h"
 #include "board/BasicBoard.h"
 #include "board/Item.h"
 #include "board/ShapeSearchTree.h"
@@ -76,8 +77,7 @@ void SearchTreeManager::set_clearance_compensation_used(bool p_value)
 
 ShapeSearchTree* SearchTreeManager::get_autoroute_tree(int p_clearance_class_no)
 {
-    // Port of Java SearchTreeManager.getAutorouteTree. The C++ ShapeSearchTree
-    // covers the Java 45/90 degree subclasses itself.
+    // Port of Java SearchTreeManager.getAutorouteTree.
     for (auto curr_tree : compensated_search_trees_)
     {
         if (curr_tree->get_compensated_clearance_class_no() == p_clearance_class_no)
@@ -85,7 +85,19 @@ ShapeSearchTree* SearchTreeManager::get_autoroute_tree(int p_clearance_class_no)
             return curr_tree;
         }
     }
-    auto* curr_autoroute_tree = new ShapeSearchTree(board_, p_clearance_class_no);
+    // Create the tree based on the board's trace angle restriction: the 45 degree algorithm with
+    // 45 degree restriction. T506b: Java uses ShapeSearchTree90Degree with 90 degree restriction;
+    // until it is ported those boards use the generic tree like the unrestricted case.
+    ShapeSearchTree* curr_autoroute_tree = nullptr;
+    if (board_ != nullptr
+        && board_->get_rules().get_trace_angle_restriction() == rules::AngleRestriction::FORTY_FIVE)
+    {
+        curr_autoroute_tree = new ShapeSearchTree45Degree(board_, p_clearance_class_no);
+    }
+    else
+    {
+        curr_autoroute_tree = new ShapeSearchTree(board_, p_clearance_class_no);
+    }
     compensated_search_trees_.push_back(curr_autoroute_tree);
     if (board_ != nullptr)
     {

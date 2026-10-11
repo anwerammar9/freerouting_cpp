@@ -8,6 +8,11 @@
 #include <utility>
 
 #include "board/BoardLibrary.h"
+#include "board/Component.h"
+#include "board/FixedState.h"
+#include "board/Layer.h"
+#include "board/LogicalPart.h"
+#include "board/Package.h"
 #include "board/Padstack.h"
 #include "board/Padstacks.h"
 #include "board/RoutingBoard.h"
@@ -17,9 +22,14 @@
 #include "designforms/specctra/parser/NetList.h"
 #include "designforms/specctra/parser/ReadScopeParameter.h"
 #include "designforms/specctra/parser/Rule.h"
+#include "designforms/specctra/parser/Shape.h"
 #include "designforms/specctra/parser/SpecctraDsnStreamReader.h"
 #include "designforms/specctra/parser/Structure.h"
+#include "geometry/planar/IntBox.h"
+#include "geometry/planar/Point.h"
+#include "geometry/planar/Vector.h"
 #include "logger/FRLogger.h"
+#include "rules/DefaultItemClearanceClasses.h"
 #include "rules/BoardRules.h"
 #include "rules/ClearanceMatrix.h"
 #include "rules/Net.h"
@@ -1095,8 +1105,300 @@ bool Network::read_scope(ReadScopeParameter& p_par) const
     insert_via_rules(via_rules, *board);
     insert_net_classes(classes, p_par);
     insert_class_pairs(class_class_list, p_par);
-    // T115: insertComponents and insertLogicalParts.
+    insert_components(p_par);
+    insert_logical_parts(p_par);
     return true;
+}
+
+void Network::insert_components(ReadScopeParameter& p_par)
+{
+    for (const ComponentPlacement& next_lib_component : p_par.placement_list)
+    {
+        for (const ComponentPlacement::ComponentLocation& next_component : next_lib_component.locations)
+        {
+            insert_component(next_component, next_lib_component.lib_name, p_par);
+        }
+    }
+}
+
+bool Network::insert_logical_parts(ReadScopeParameter& p_par)
+{
+    logger::FRLogger& log = logger::FRLogger::instance();
+    board::RoutingBoard* routing_board = p_par.get_board();
+    for (const PartLibrary::LogicalPart& next_part : p_par.logical_parts)
+    {
+        board::Package* lib_package = search_lib_package(next_part.name, p_par.logical_part_mappings, *routing_board);
+        if (lib_package == nullptr)
+        {
+            return false;
+        }
+        std::vector<board::LogicalPart::PartPin> board_part_pins;
+        board_part_pins.reserve(next_part.part_pins.size());
+        for (const PartLibrary::PartPin& current_part_pin : next_part.part_pins)
+        {
+            const int pin_index = lib_package->get_pin_index(current_part_pin.pin_name);
+            if (pin_index < 0)
+            {
+                log.warn("Network.insert_logical_parts: package pin not found at '" + current_part_pin.pin_name + "'");
+                return false;
+            }
+            board_part_pins.push_back({pin_index, current_part_pin.pin_name, current_part_pin.gate_name,
+                current_part_pin.gate_swap_code, current_part_pin.gate_pin_name, current_part_pin.gate_pin_swap_code});
+        }
+        routing_board->library().logical_parts().add(next_part.name, std::move(board_part_pins));
+    }
+
+    for (const PartLibrary::LogicalPartMapping& next_mapping : p_par.logical_part_mappings)
+    {
+        board::LogicalPart* current_logical_part = routing_board->library().logical_parts().get(next_mapping.name);
+        if (current_logical_part == nullptr)
+        {
+            log.warn("Network.insert_logical_parts: logical part not found at '" + next_mapping.name + "'");
+        }
+        for (const std::string& current_cmp_name : next_mapping.components)
+        {
+            board::Component* current_component = routing_board->components()->get_by_name(current_cmp_name);
+            if (current_component != nullptr)
+            {
+                current_component->set_logical_part(current_logical_part);
+            }
+            else
+            {
+                log.warn("Network.insert_logical_parts: board component not found at '" + current_cmp_name + "'");
+            }
+        }
+    }
+    return true;
+}
+
+board::Package* Network::search_lib_package(const std::string& p_part_name,
+    const std::vector<PartLibrary::LogicalPartMapping>& p_logical_part_mappings, board::RoutingBoard& p_board)
+{
+    logger::FRLogger& log = logger::FRLogger::instance();
+    for (const PartLibrary::LogicalPartMapping& current_mapping : p_logical_part_mappings)
+    {
+        if (current_mapping.name == p_part_name)
+        {
+            if (current_mapping.components.empty())
+            {
+                log.warn("Network.search_lib_package: component list empty at '" + p_part_name + "'");
+                return nullptr;
+            }
+            const std::string& component_name = *current_mapping.components.begin();
+            board::Component* current_component = p_board.components()->get_by_name(component_name);
+            if (current_component == nullptr)
+            {
+                log.warn("Network.search_lib_package: component not found at '" + component_name + "'");
+                return nullptr;
+            }
+            return current_component->get_package();
+        }
+    }
+    log.warn("Network.search_lib_package: library package '" + p_part_name + "' not found");
+    return nullptr;
+}
+
+void Network::insert_component(const ComponentPlacement::ComponentLocation& p_location, const std::string& p_lib_key,
+    ReadScopeParameter& p_par)
+{
+    namespace fp = geometry::planar;
+    logger::FRLogger& log = logger::FRLogger::instance();
+    board::RoutingBoard* routing_board = p_par.get_board();
+    board::Package* current_front_package = routing_board->library().packages().get(p_lib_key, true);
+    board::Package* current_back_package = routing_board->library().packages().get(p_lib_key, false);
+    if (current_front_package == nullptr || current_back_package == nullptr)
+    {
+        log.warn("Network.insert_component: component package not found at '" + p_par.scanner.get_scope_identifier()
+            + "'");
+        return;
+    }
+
+    std::optional<fp::IntPoint> component_location;
+    if (p_location.coor)
+    {
+        component_location =
+            p_par.coordinate_transform->dsn_to_board((*p_location.coor)[0], (*p_location.coor)[1]).round();
+    }
+    const double rotation_in_degree = p_location.rotation;
+
+    board::Component* new_component = routing_board->components()->add(p_location.name, component_location,
+        rotation_in_degree, p_location.is_front, current_front_package, current_back_package,
+        p_location.position_fixed, p_location.part_number);
+
+    if (!component_location)
+    {
+        return; // component is not yet placed.
+    }
+    const std::unique_ptr<fp::Vector> component_translation = component_location->difference_by(fp::IntPoint(0, 0));
+    // Java FixedState.UNFIXED is the C++ NOT_FIXED.
+    const board::FixedState fixed_state =
+        p_location.position_fixed ? board::FixedState::SYSTEM_FIXED : board::FixedState::NOT_FIXED;
+    rules::BoardRules& board_rules = routing_board->mutable_rules();
+    board::Package* current_package = new_component->get_package();
+    for (int i = 0; i < current_package->pin_count(); ++i)
+    {
+        const board::Package::Pin* current_pin = current_package->get_pin(i);
+        board::Padstack* current_padstack = routing_board->library().padstacks().get(current_pin->padstack_id);
+        if (current_padstack == nullptr)
+        {
+            log.warn("Network.insert_component: pin padstack not found at '" + p_par.scanner.get_scope_identifier()
+                + "'");
+            return;
+        }
+        std::vector<int> net_number_array;
+        for (const Net* current_pin_net : p_par.netlist.get_nets(p_location.name, current_pin->name))
+        {
+            rules::Net* current_board_net =
+                board_rules.get_nets().get(current_pin_net->id.name, current_pin_net->id.subnet_number);
+            if (current_board_net == nullptr)
+            {
+                log.warn("Network.insert_component: board net not found at '" + p_par.scanner.get_scope_identifier()
+                    + "'");
+            }
+            else
+            {
+                net_number_array.push_back(current_board_net->get_net_no());
+            }
+        }
+        rules::Net* board_net = net_number_array.empty() ? nullptr : board_rules.get_nets().get(net_number_array[0]);
+        rules::NetClass* net_class =
+            board_net != nullptr ? board_net->get_net_class() : board_rules.get_default_net_class();
+        int clearance_class = -1;
+        const auto pin_info = p_location.pin_infos.find(current_pin->name);
+        if (pin_info != p_location.pin_infos.end())
+        {
+            clearance_class = board_rules.get_clearance_matrix().get_no(pin_info->second.clearance_class);
+        }
+        if (clearance_class < 0)
+        {
+            if (current_padstack->get_from_layer() == current_padstack->get_to_layer())
+            {
+                clearance_class = net_class->get_default_item_clearance_classes().get(rules::ItemClass::SMD);
+            }
+            else
+            {
+                clearance_class = net_class->get_default_item_clearance_classes().get(rules::ItemClass::PIN);
+            }
+        }
+        routing_board->insert_pin(new_component->get_id(), i, net_number_array, clearance_class, fixed_state);
+    }
+
+    // insert the keepouts belonging to the package (k = 1 for via keepouts)
+    const int layer_count = routing_board->get_layer_count();
+    for (int k = 0; k <= 2; ++k)
+    {
+        const std::vector<board::Package::Keepout>& keepouts = k == 0 ? current_package->keepouts()
+            : k == 1                                                   ? current_package->via_keepouts()
+                                                                       : current_package->place_keepouts();
+        const std::map<std::string, ComponentPlacement::ItemClearanceInfo>& current_keepout_infos = k == 0
+            ? p_location.keepout_infos
+            : k == 1 ? p_location.via_keepout_infos
+                     : p_location.place_keepout_infos;
+        for (const board::Package::Keepout& current_keepout : keepouts)
+        {
+            int layer = current_keepout.layer;
+            if (layer >= layer_count)
+            {
+                log.warn("Network.insert_component: keepout layer is to big at '"
+                    + p_par.scanner.get_scope_identifier() + "'");
+                continue;
+            }
+            if (layer >= 0 && !p_location.is_front)
+            {
+                layer = layer_count - current_keepout.layer - 1;
+            }
+            int clearance_class =
+                board_rules.get_default_net_class()->get_default_item_clearance_classes().get(rules::ItemClass::AREA);
+            const auto keepout_info = current_keepout_infos.find(current_keepout.name);
+            if (keepout_info != current_keepout_infos.end())
+            {
+                const int current_clearance_class =
+                    board_rules.get_clearance_matrix().get_no(keepout_info->second.clearance_class);
+                if (current_clearance_class > 0)
+                {
+                    clearance_class = current_clearance_class;
+                }
+            }
+            auto insert_on_layer = [&](int p_layer) {
+                if (k == 0)
+                {
+                    routing_board->insert_obstacle(current_keepout.area, p_layer, *component_translation,
+                        rotation_in_degree, !p_location.is_front, clearance_class, new_component->get_id(),
+                        current_keepout.name, fixed_state);
+                }
+                else if (k == 1)
+                {
+                    routing_board->insert_via_obstacle(current_keepout.area, p_layer, *component_translation,
+                        rotation_in_degree, !p_location.is_front, clearance_class, new_component->get_id(),
+                        current_keepout.name, fixed_state);
+                }
+                else
+                {
+                    routing_board->insert_component_obstacle(current_keepout.area, p_layer, *component_translation,
+                        rotation_in_degree, !p_location.is_front, clearance_class, new_component->get_id(),
+                        current_keepout.name, fixed_state);
+                }
+            };
+            if (layer >= 0)
+            {
+                insert_on_layer(layer);
+            }
+            else
+            {
+                // insert the obstacle on all signal layers
+                const board::LayerStructure& board_layers = routing_board->get_layer_structure();
+                for (int j = 0; j < board_layers.layer_count(); ++j)
+                {
+                    if (board_layers.get_layer(j)->is_signal)
+                    {
+                        insert_on_layer(j);
+                    }
+                }
+            }
+        }
+    }
+
+    // insert the outline as component keepout
+    const auto& outline = current_package->outline();
+    const auto& outline_widths = current_package->outline_widths();
+    const auto& outline_is_closed = current_package->outline_is_closed();
+    int courtyard_idx = -1;
+    if (outline.size() > 1)
+    {
+        double max_area = -1;
+        for (int i = 0; i < static_cast<int>(outline.size()); ++i)
+        {
+            if (outline[i] != nullptr)
+            {
+                const double area = outline[i]->bounding_box().area();
+                if (area > max_area)
+                {
+                    max_area = area;
+                    courtyard_idx = i;
+                }
+            }
+        }
+    }
+    for (int i = 0; i < static_cast<int>(outline.size()); ++i)
+    {
+        bool is_courtyard = i == courtyard_idx;
+        if (i < static_cast<int>(outline_widths.size()) && outline_widths[i] == 0.0)
+        {
+            is_courtyard = true;
+        }
+        bool is_fabrication = false;
+        if (!is_courtyard && i < static_cast<int>(outline_widths.size()) && outline_widths[i] <= 110.0)
+        {
+            is_fabrication = true;
+        }
+        bool is_closed = false;
+        if (i < static_cast<int>(outline_is_closed.size()))
+        {
+            is_closed = outline_is_closed[i];
+        }
+        routing_board->insert_component_outline(to_board_area(outline[i]), p_location.is_front, *component_translation,
+            rotation_in_degree, new_component->get_id(), is_courtyard, is_fabrication, is_closed, fixed_state);
+    }
 }
 
 } // namespace freerouting::designforms::specctra::parser

@@ -536,4 +536,34 @@ std::shared_ptr<fp::Area> to_board_area(std::unique_ptr<fp::Shape> p_shape)
     return std::make_shared<fp::PolylineArea>(std::move(border));
 }
 
+std::shared_ptr<fp::Area> to_board_area(const std::shared_ptr<fp::Shape>& p_shape)
+{
+    if (p_shape == nullptr)
+    {
+        return nullptr;
+    }
+    if (auto area = std::dynamic_pointer_cast<fp::Area>(p_shape))
+    {
+        return area;
+    }
+    if (const auto* circle = dynamic_cast<const fp::Circle*>(p_shape.get()))
+    {
+        return std::make_shared<fp::CircleArea>(*circle); // Java Circle is an Area
+    }
+    if (auto polyline_shape = std::dynamic_pointer_cast<fp::PolylineShape>(p_shape))
+    {
+        return std::make_shared<fp::PolylineArea>(std::move(polyline_shape));
+    }
+    if (const auto* tile = dynamic_cast<const fp::ConvexTileShape*>(p_shape.get()))
+    {
+        std::vector<fp::IntPoint> corners;
+        for (int i = 0; i < tile->tile().border_line_count(); ++i)
+        {
+            corners.push_back(tile->tile().corner(i));
+        }
+        return std::make_shared<fp::PolylineArea>(std::make_shared<fp::PolygonShape>(corners));
+    }
+    return nullptr;
+}
+
 } // namespace freerouting::designforms::specctra::parser

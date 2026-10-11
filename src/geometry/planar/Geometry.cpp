@@ -255,6 +255,10 @@ int IntPoint::compare_x(const Point& p_other) const
     const RationalPoint* other_rat = dynamic_cast<const RationalPoint*>(&p_other);
     if (other_rat)
         return -other_rat->compare_x(*this);
+    // C++ only: Line::intersection returns a FloatPoint where Java has a RationalPoint.
+    const double other_x = p_other.to_float().x;
+    if (static_cast<double>(x) > other_x) return 1;
+    if (static_cast<double>(x) < other_x) return -1;
     return 0;
 }
 
@@ -266,6 +270,10 @@ int IntPoint::compare_y(const Point& p_other) const
     const RationalPoint* other_rat = dynamic_cast<const RationalPoint*>(&p_other);
     if (other_rat)
         return -other_rat->compare_y(*this);
+    // C++ only: Line::intersection returns a FloatPoint where Java has a RationalPoint.
+    const double other_y = p_other.to_float().y;
+    if (static_cast<double>(y) > other_y) return 1;
+    if (static_cast<double>(y) < other_y) return -1;
     return 0;
 }
 

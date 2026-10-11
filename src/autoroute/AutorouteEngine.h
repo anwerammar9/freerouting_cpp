@@ -240,6 +240,10 @@ private:
 
     std::vector<std::unique_ptr<IncompleteFreeSpaceExpansionRoom>> incomplete_expansion_rooms_;
     std::vector<std::unique_ptr<CompleteFreeSpaceExpansionRoom>> complete_expansion_rooms_;
+    // Removed rooms stay alive until the next engine reset: Java's garbage collector keeps a removed
+    // room valid while callers (e.g. complete_neighbour_rooms) still iterate it.
+    std::vector<std::unique_ptr<IncompleteFreeSpaceExpansionRoom>> retired_incomplete_rooms_;
+    std::vector<std::unique_ptr<CompleteFreeSpaceExpansionRoom>> retired_complete_rooms_;
     int expansion_room_instance_count_ = 0;
 };
 

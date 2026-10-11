@@ -6,12 +6,15 @@
 #include <string>
 #include <vector>
 
+#include "designforms/specctra/parser/ComponentPlacement.h"
 #include "designforms/specctra/parser/Net.h"
 #include "designforms/specctra/parser/NetClass.h"
+#include "designforms/specctra/parser/PartLibrary.h"
 #include "designforms/specctra/parser/Rule.h"
 #include "designforms/specctra/parser/ScopeKeyword.h"
 
 namespace freerouting::board {
+class Package;
 class RoutingBoard;
 } // namespace freerouting::board
 
@@ -32,9 +35,9 @@ class ReadScopeParameter;
 /**
  * Reads the (network ...) scope of a dsn file. Port of the read part of Java
  * parser.Network. T113 ports the scope skeleton plus the net scopes
- * (read_net_scope / read_net_pins / create_ordered_subnets); the via, via-rule,
- * class and class-class branches plus the component insertion follow in
- * T114a/T114b/T115.
+ * (read_net_scope / read_net_pins / create_ordered_subnets), T114a/T114b the
+ * via, via-rule, class and class-class branches, T115 the component and
+ * logical part insertion.
  */
 class Network : public ScopeKeyword
 {
@@ -84,6 +87,29 @@ public:
 
     /** Java Network.insertClassPairs: insert the clearance rules of the class pairs. */
     static void insert_class_pairs(const std::vector<NetClass::ClassClass>& p_class_classes, ReadScopeParameter& p_par);
+
+    /** Java Network.insertComponents: insert every placed component of the placement scope. */
+    static void insert_components(ReadScopeParameter& p_par);
+
+    /**
+     * Java Network.insertComponent: adds the component, its pins (with nets and clearance
+     * classes), its package keepouts and its outlines to the board.
+     */
+    static void insert_component(const ComponentPlacement::ComponentLocation& p_location, const std::string& p_lib_key,
+        ReadScopeParameter& p_par);
+
+    /**
+     * Java Network.insertLogicalParts: creates the part library on the board (after the components
+     * are inserted). Returns false if an error occurred.
+     */
+    static bool insert_logical_parts(ReadScopeParameter& p_par);
+
+    /**
+     * Java Network.searchLibPackage: the package of the first component mapped to the logical part
+     * p_part_name, or nullptr.
+     */
+    static board::Package* search_lib_package(const std::string& p_part_name,
+        const std::vector<PartLibrary::LogicalPartMapping>& p_logical_part_mappings, board::RoutingBoard& p_board);
 
 private:
     /** Java Network.insertClassPairInfo. */

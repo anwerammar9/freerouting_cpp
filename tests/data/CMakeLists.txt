@@ -5,11 +5,7 @@ target_include_directories(run_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/src
 )
 target_link_libraries(run_tests PRIVATE
-    freerouting_core
-    freerouting_geometry
-    freerouting_rules
-    freerouting_board
-    freerouting_designforms
+    $<LINK_GROUP:RESCAN,freerouting_designforms,freerouting_settings,freerouting_board,freerouting_autoroute,freerouting_core,freerouting_datastructures,freerouting_geometry,freerouting_rules,freerouting_logger,freerouting_constants>
     freerouting_drc
     Threads::Threads
 )

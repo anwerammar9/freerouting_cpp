@@ -99,64 +99,99 @@ LineSegment LineSegment::from_endpoints(const IntPoint& p_start, const IntPoint&
     return LineSegment(start, middle, end);
 }
 
+namespace {
+
+/** Java Point.compareXY: compare x, then y (exact for rational points). */
+int compare_x_y(const Point& p_first, const Point& p_second)
+{
+    int result = p_first.compare_x(p_second);
+    if (result == 0)
+    {
+        result = p_first.compare_y(p_second);
+    }
+    return result;
+}
+
+} // namespace
+
 IntPoint LineSegment::start_point() const
 {
     if (!precalculated_start_point_.has_value())
+    {
+        const Point& exact = start_point_exact();
+        if (const IntPoint* int_point = dynamic_cast<const IntPoint*>(&exact))
+        {
+            precalculated_start_point_ = *int_point;
+        }
+        else
+        {
+            precalculated_start_point_ = exact.to_float().round();
+        }
+    }
+    return *precalculated_start_point_;
+}
+
+const Point& LineSegment::start_point_exact() const
+{
+    if (exact_start_point_ == nullptr)
     {
         std::unique_ptr<Point> is = middle_.intersection(start_);
         if (!is)
         {
             logger::FRLogger::instance().warn("LineSegment.start_point: lines are parallel");
-            precalculated_start_point_ = IntPoint(0, 0);
+            is = std::make_unique<IntPoint>(0, 0);
         }
-        else if (const IntPoint* int_point = dynamic_cast<const IntPoint*>(is.get()))
-        {
-            precalculated_start_point_ = *int_point;
-        }
-        else if (const FloatPoint* float_point = dynamic_cast<const FloatPoint*>(is.get()))
-        {
-            precalculated_start_point_ = float_point->round();
-        }
+        exact_start_point_ = std::move(is);
     }
-    return *precalculated_start_point_;
+    return *exact_start_point_;
 }
 
 IntPoint LineSegment::end_point() const
 {
     if (!precalculated_end_point_.has_value())
     {
-        std::unique_ptr<Point> is = middle_.intersection(end_);
-        if (!is)
-        {
-            logger::FRLogger::instance().warn("LineSegment.end_point: lines are parallel");
-            precalculated_end_point_ = IntPoint(0, 0);
-        }
-        else if (const IntPoint* int_point = dynamic_cast<const IntPoint*>(is.get()))
+        const Point& exact = end_point_exact();
+        if (const IntPoint* int_point = dynamic_cast<const IntPoint*>(&exact))
         {
             precalculated_end_point_ = *int_point;
         }
-        else if (const FloatPoint* float_point = dynamic_cast<const FloatPoint*>(is.get()))
+        else
         {
-            precalculated_end_point_ = float_point->round();
+            precalculated_end_point_ = exact.to_float().round();
         }
     }
     return *precalculated_end_point_;
 }
 
+const Point& LineSegment::end_point_exact() const
+{
+    if (exact_end_point_ == nullptr)
+    {
+        std::unique_ptr<Point> is = middle_.intersection(end_);
+        if (!is)
+        {
+            logger::FRLogger::instance().warn("LineSegment.end_point: lines are parallel");
+            is = std::make_unique<IntPoint>(0, 0);
+        }
+        exact_end_point_ = std::move(is);
+    }
+    return *exact_end_point_;
+}
+
 FloatPoint LineSegment::start_point_approx() const
 {
-    if (precalculated_start_point_.has_value())
+    if (exact_start_point_ != nullptr)
     {
-        return precalculated_start_point_->to_float();
+        return exact_start_point_->to_float();
     }
     return start_.intersection_approx(middle_);
 }
 
 FloatPoint LineSegment::end_point_approx() const
 {
-    if (precalculated_end_point_.has_value())
+    if (exact_end_point_ != nullptr)
     {
-        return precalculated_end_point_->to_float();
+        return exact_end_point_->to_float();
     }
     return end_.intersection_approx(middle_);
 }
@@ -179,7 +214,7 @@ std::unique_ptr<Simplex> LineSegment::to_simplex() const
 {
     std::vector<Line> line_arr;
     line_arr.reserve(4);
-    if (start_.side_of(end_point()) == Side::ON_THE_RIGHT)
+    if (start_.side_of(end_point_exact()) == Side::ON_THE_RIGHT)
     {
         line_arr.push_back(start_.opposite());
     }
@@ -189,7 +224,7 @@ std::unique_ptr<Simplex> LineSegment::to_simplex() const
     }
     line_arr.push_back(middle_);
     line_arr.push_back(middle_.opposite());
-    if (end_.side_of(start_point()) == Side::ON_THE_RIGHT)
+    if (end_.side_of(start_point_exact()) == Side::ON_THE_RIGHT)
     {
         line_arr.push_back(end_.opposite());
     }
@@ -210,8 +245,8 @@ bool LineSegment::contains(const IntPoint& p_point) const
     // endpoints of this segment are on different sides of that line.
     const IntDirection perpendicular_direction(middle_.direction().y, -middle_.direction().x);
     const Line perpendicular_line = Line::get_instance(p_point, perpendicular_direction);
-    const Side start_point_side = perpendicular_line.side_of(start_point());
-    const Side end_point_side = perpendicular_line.side_of(end_point());
+    const Side start_point_side = perpendicular_line.side_of(start_point_exact());
+    const Side end_point_side = perpendicular_line.side_of(end_point_exact());
     return start_point_side != end_point_side || start_point_side == Side::COLLINEAR;
 }
 
@@ -265,16 +300,17 @@ std::vector<Line> LineSegment::intersection(const LineSegment& p_other) const
     {
         return result;
     }
-    const Side start_point_side = p_other.middle_.side_of(start_point());
-    const Side end_point_side = p_other.middle_.side_of(end_point());
+    const Side start_point_side = p_other.middle_.side_of(start_point_exact());
+    const Side end_point_side = p_other.middle_.side_of(end_point_exact());
     if (start_point_side == Side::COLLINEAR && end_point_side == Side::COLLINEAR)
     {
         // there may be an overlap
         const LineSegment this_sorted = sort_endpoints_in_x_y();
         const LineSegment other_sorted = p_other.sort_endpoints_in_x_y();
-        const LineSegment& left_line = (this_sorted.start_point().compare_x_y(other_sorted.start_point()) <= 0) ? this_sorted : other_sorted;
-        const LineSegment& right_line = (this_sorted.start_point().compare_x_y(other_sorted.start_point()) <= 0) ? other_sorted : this_sorted;
-        const int cmp = left_line.end_point().compare_x_y(right_line.start_point());
+        const bool this_is_left = compare_x_y(this_sorted.start_point_exact(), other_sorted.start_point_exact()) <= 0;
+        const LineSegment& left_line = this_is_left ? this_sorted : other_sorted;
+        const LineSegment& right_line = this_is_left ? other_sorted : this_sorted;
+        const int cmp = compare_x_y(left_line.end_point_exact(), right_line.start_point_exact());
         if (cmp < 0)
         {
             // end point of the left line is to the left of the start point of the right line
@@ -288,7 +324,7 @@ std::vector<Line> LineSegment::intersection(const LineSegment& p_other) const
         }
         // now there is a real overlap
         result.push_back(right_line.start_);
-        if (right_line.end_point().compare_x_y(left_line.end_point()) >= 0)
+        if (compare_x_y(right_line.end_point_exact(), left_line.end_point_exact()) >= 0)
         {
             result.push_back(left_line.end_);
         }
@@ -298,7 +334,8 @@ std::vector<Line> LineSegment::intersection(const LineSegment& p_other) const
         }
         return result;
     }
-    if (start_point_side == end_point_side || middle_.side_of(p_other.start_point()) == middle_.side_of(p_other.end_point()))
+    if (start_point_side == end_point_side
+        || middle_.side_of(p_other.start_point_exact()) == middle_.side_of(p_other.end_point_exact()))
     {
         // no intersection possible
         return result;
@@ -321,11 +358,13 @@ bool LineSegment::overlaps(const LineSegment& p_other) const
 
 LineSegment LineSegment::sort_endpoints_in_x_y() const
 {
-    if (start_point().compare_x_y(end_point()) > 0)
+    if (compare_x_y(start_point_exact(), end_point_exact()) > 0)
     {
         LineSegment result(end_, middle_, start_);
         result.precalculated_start_point_ = precalculated_end_point_;
         result.precalculated_end_point_ = precalculated_start_point_;
+        result.exact_start_point_ = exact_end_point_;
+        result.exact_end_point_ = exact_start_point_;
         return result;
     }
     return *this;

@@ -10,6 +10,7 @@
 #include "designforms/specctra/parser/Resolution.h"
 #include "designforms/specctra/parser/ScopeKeyword.h"
 #include "designforms/specctra/parser/Structure.h"
+#include "designforms/specctra/parser/Wiring.h"
 
 namespace freerouting::designforms::specctra::parser {
 
@@ -125,7 +126,7 @@ const KeywordInstance k_VIA_RULE("via_rule");
 const KeywordInstance k_WIDTH("width");
 const KeywordInstance k_WINDOW("window");
 const KeywordInstance k_WIRE("wire");
-const ScopeKeyword k_WIRING_SCOPE("wiring"); // Java: new Wiring()
+const Wiring k_WIRING_SCOPE; // Java: new Wiring()
 const KeywordInstance k_WRITE_RESOLUTION("write_resolution");
 
 } // namespace

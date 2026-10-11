@@ -22,6 +22,7 @@
 #include "board/Trace.h"
 #include "board/Via.h"
 #include "board/PullTightAlgo.h"
+#include "datastructures/JavaHashMapOrder.h"
 #include "datastructures/TimeLimit.h"
 #include "geometry/planar/IntOctagon.h"
 #include "geometry/planar/LineSegment.h"
@@ -32,6 +33,7 @@
 #include "geometry/planar/TileShape.h"
 
 #include <algorithm>
+#include <map>
 #include <cmath>
 #include <limits>
 #include <numeric>
@@ -220,7 +222,9 @@ std::vector<Item*> RoutingBoard::get_connectable_items() const
     std::vector<Item*> connectable;
     for (auto* item : get_items())
     {
-        if (item && (item->is_pin() || item->is_via() || item->is_trace()))
+        // Java: currentItem instanceof Connectable (DrillItem, Trace, ConductionArea)
+        if (item && (item->is_pin() || item->is_via() || item->is_trace()
+                        || dynamic_cast<const ConductionArea*>(item) != nullptr))
         {
             connectable.push_back(item);
         }
@@ -237,7 +241,8 @@ std::vector<Item*> RoutingBoard::get_connectable_items(int p_net_no) const
         {
             continue;
         }
-        if (item->is_pin() || item->is_via() || item->is_trace())
+        // Java: currentItem instanceof Connectable (DrillItem, Trace, ConductionArea)
+        if (item->is_pin() || item->is_via() || item->is_trace() || dynamic_cast<const ConductionArea*>(item) != nullptr)
         {
             connectable.push_back(item);
         }
@@ -292,194 +297,6 @@ Item* RoutingBoard::get_item(int p_index) const
         return items_[items_.size() - 1 - static_cast<size_t>(p_index)];
     }
     return nullptr;
-}
-
-const designforms::specctra::PinDef* RoutingBoard::get_pin(int p_index) const
-{
-    if (p_index >= 0 && p_index < static_cast<int>(parsed_result_.pins.size()))
-    {
-        return &parsed_result_.pins[p_index];
-    }
-    return nullptr;
-}
-
-void RoutingBoard::create_pins_from_parsed()
-{
-    if (!parsed_result_.pins.empty())
-    {
-        logger::FRLogger::instance().info("Creating " + 
-            std::to_string(parsed_result_.pins.size()) + " Pin items...");
-
-        // Resolve each pin's position from the placement section (component origin).
-        auto find_component = [this](const std::string& p_name) -> const designforms::specctra::ComponentDef*
-        {
-            for (const auto& comp : parsed_result_.components)
-            {
-                if (comp.name == p_name)
-                {
-                    return &comp;
-                }
-            }
-            return nullptr;
-        };
-
-        auto find_image = [this](const std::string& p_name) -> const designforms::specctra::ImageDef*
-        {
-            for (const auto& img : parsed_result_.images)
-            {
-                if (img.name == p_name)
-                {
-                    return &img;
-                }
-            }
-            return nullptr;
-        };
-
-        auto find_padstack = [this](const std::string& p_name) -> const designforms::specctra::PadstackDef*
-        {
-            for (const auto& padstack : parsed_result_.padstacks)
-            {
-                if (padstack.name == p_name)
-                {
-                    return &padstack;
-                }
-            }
-            return nullptr;
-        };
-
-        struct Offset
-        {
-            int64_t dx = 0;
-            int64_t dy = 0;
-        };
-        auto find_pin_offset = [](const designforms::specctra::ImageDef* p_image,
-                                  const std::string& p_pin_name) -> Offset
-            {
-                if (p_image == nullptr)
-                {
-                    return {};
-                }
-                // Prefer an exact match, then a match with the '@' variant suffix stripped.
-                std::string base_name = p_pin_name;
-                std::size_t at_pos = base_name.find('@');
-                if (at_pos != std::string::npos)
-                {
-                    base_name = base_name.substr(0, at_pos);
-                }
-                for (const auto& p : p_image->pins)
-                {
-                    if (p.name == p_pin_name)
-                    {
-                        return {static_cast<int64_t>(std::round(p.x)), static_cast<int64_t>(std::round(p.y))};
-                    }
-                }
-                for (const auto& p : p_image->pins)
-                {
-                    if (p.name == base_name)
-                    {
-                        return {static_cast<int64_t>(std::round(p.x)), static_cast<int64_t>(std::round(p.y))};
-                    }
-                }
-                return {};
-            };
-
-        auto rotate_offset = [](int64_t p_dx, int64_t p_dy, int p_rotation) -> std::pair<int64_t, int64_t>
-            {
-                int r = p_rotation % 360;
-                if (r < 0)
-                {
-                    r += 360;
-                }
-                switch (r)
-                {
-                    case 90:
-                        return {-p_dy, p_dx};
-                    case 180:
-                        return {-p_dx, -p_dy};
-                    case 270:
-                        return {p_dy, -p_dx};
-                    default:
-                        return {p_dx, p_dy};
-                }
-            };
-
-        int id_no = 1;
-        int unmatched = 0;
-        for (int i = 0; i < static_cast<int>(parsed_result_.pins.size()); ++i)
-        {
-            const auto& pin_def = parsed_result_.pins[i];
-
-            // Locate the owning component to position the pin.
-            int64_t center_x = 0;
-            int64_t center_y = 0;
-            int64_t half_width = 50;
-            int64_t half_height = 50;
-            const auto* comp = find_component(pin_def.component);
-            if (comp != nullptr)
-            {
-                center_x = comp->x;
-                center_y = comp->y;
-
-                // Add the pad offset within the image, transformed by the rotation.
-                const auto* image = find_image(comp->package);
-                if (image == nullptr)
-                {
-                    image = find_image(comp->footprint);
-                }
-                const Offset offset = find_pin_offset(image, pin_def.pin);
-                auto rotated = rotate_offset(offset.dx, offset.dy, comp->rotation);
-                center_x += rotated.first;
-                center_y += rotated.second;
-
-                if (image != nullptr)
-                {
-                    for (const auto& image_pin : image->pins)
-                    {
-                        if (image_pin.name == pin_def.pin)
-                        {
-                            if (const auto* padstack = find_padstack(image_pin.padstack))
-                            {
-                                half_width = std::max<int64_t>(1, static_cast<int64_t>(std::ceil(padstack->width / 2.0)));
-                                half_height = std::max<int64_t>(1, static_cast<int64_t>(std::ceil(padstack->height / 2.0)));
-                            }
-                            break;
-                        }
-                    }
-                }
-            }
-            else
-            {
-                ++unmatched;
-            }
-
-            // Create Pin item with net number
-            std::vector<int> net_nos{pin_def.net_no};
-
-            auto pin = std::make_unique<Pin>(
-                0,  // component_no (not used yet)
-                static_cast<int>(i),
-                net_nos,
-                1,  // clearance_class
-                generate_item_id(),
-                FixedState::FROM_DESIGN,
-                this);
-
-            pin->set_center(geometry::planar::IntPoint(center_x, center_y));
-            // Use the parsed padstack extent; retain a small fallback for incomplete DSNs.
-            pin->set_bounding_box(geometry::planar::IntBox(
-                center_x - half_width, center_y - half_height,
-                center_x + half_width, center_y + half_height));
-
-            ++id_no;
-            add_to_item_list(pin.get());
-            pin.release();
-        }
-
-        if (unmatched > 0)
-        {
-            logger::FRLogger::instance().warn("Pins without placement: " + std::to_string(unmatched));
-        }
-    }
 }
 
 PolylineTrace* RoutingBoard::add_polyline_trace(const std::vector<geometry::planar::IntPoint>& p_points,
@@ -953,21 +770,34 @@ double RoutingBoard::check_trace_segment(const geometry::planar::LineSegment& p_
 
 bool RoutingBoard::normalize_traces(int p_net_no)
 {
+    if (normalize_suppressed_net_nos_.count(p_net_no) != 0)
+    {
+        logger::FRLogger::instance().debug("BasicBoard.normalizeTraces: skipping net '" + normalize_net_name(p_net_no)
+            + "' because normalization already hit the oscillation cap on this board candidate.");
+        return false;
+    }
     bool result = false;
     bool something_changed = true;
+    int iteration_count = 0;
     while (something_changed)
     {
+        if (++iteration_count > MAX_NORMALIZE_ITERATIONS)
+        {
+            logger::FRLogger::instance().warn("BasicBoard.normalizeTraces: reached "
+                + std::to_string(MAX_NORMALIZE_ITERATIONS) + " iterations for net '" + normalize_net_name(p_net_no)
+                + "' \u2014 stopping to prevent hang."
+                  " The board geometry for this net may be oscillating (split/combine cycle);"
+                  " traces are kept as-is and further normalization for this net is suppressed"
+                  " on this board candidate.");
+            normalize_suppressed_net_nos_.insert(p_net_no);
+            break;
+        }
         something_changed = false;
         // Snapshot: traces may be removed while iterating.
-        std::vector<Item*> snapshot = get_items(); // Java item-list order
-        for (Item* curr_item : snapshot)
+        std::vector<PolylineTrace*> net_traces = collect_net_polyline_traces(p_net_no);
+        for (PolylineTrace* curr_trace : net_traces)
         {
-            if (curr_item == nullptr || !curr_item->contains_net(p_net_no))
-            {
-                continue;
-            }
-            auto* curr_trace = dynamic_cast<PolylineTrace*>(curr_item);
-            if (curr_trace == nullptr || !curr_trace->is_on_board())
+            if (!curr_trace->is_on_board())
             {
                 continue;
             }
@@ -980,6 +810,97 @@ bool RoutingBoard::normalize_traces(int p_net_no)
             {
                 something_changed = true;
                 result = true;
+            }
+        }
+    }
+    return result;
+}
+
+std::string RoutingBoard::normalize_net_name(int p_net_no) const
+{
+    const rules::Net* net = get_rules().get_nets().get(p_net_no);
+    return net != nullptr ? net->get_name() : std::to_string(p_net_no);
+}
+
+std::vector<PolylineTrace*> RoutingBoard::collect_net_polyline_traces(int p_net_no) const
+{
+    std::vector<PolylineTrace*> result;
+    for (Item* curr_item : get_items()) // Java item-list order
+    {
+        if (curr_item == nullptr || !curr_item->contains_net(p_net_no))
+        {
+            continue;
+        }
+        auto* curr_trace = dynamic_cast<PolylineTrace*>(curr_item);
+        if (curr_trace != nullptr && curr_trace->is_on_board())
+        {
+            result.push_back(curr_trace);
+        }
+    }
+    return result;
+}
+
+bool RoutingBoard::normalize_all_traces()
+{
+    bool result = false;
+    // Group all PolylineTrace items by net (Java HashMap + computeIfAbsent).
+    std::vector<int> net_insertion_order;
+    std::map<int, std::vector<PolylineTrace*>> traces_by_net;
+    for (Item* curr_item : get_items())
+    {
+        auto* curr_trace = dynamic_cast<PolylineTrace*>(curr_item);
+        if (curr_trace == nullptr || !curr_trace->is_on_board())
+        {
+            continue;
+        }
+        for (int net_no : curr_trace->get_net_nos())
+        {
+            auto [it, inserted] = traces_by_net.try_emplace(net_no);
+            if (inserted)
+            {
+                net_insertion_order.push_back(net_no);
+            }
+            it->second.push_back(curr_trace);
+        }
+    }
+
+    for (int net_no : datastructures::java_hashmap_int_iteration_order(
+             net_insertion_order, datastructures::JavaHashMapInsert::COMPUTE_IF_ABSENT))
+    {
+        std::vector<PolylineTrace*> net_traces = traces_by_net[net_no];
+        bool something_changed = true;
+        int iteration_count = 0;
+        while (something_changed)
+        {
+            if (++iteration_count > MAX_NORMALIZE_ITERATIONS)
+            {
+                logger::FRLogger::instance().warn("BasicBoard.normalize_all_traces: reached "
+                    + std::to_string(MAX_NORMALIZE_ITERATIONS) + " iterations for net '" + normalize_net_name(net_no)
+                    + "' \u2014 stopping to prevent hang.");
+                break;
+            }
+            something_changed = false;
+            for (PolylineTrace* curr_trace : net_traces)
+            {
+                if (!curr_trace->is_on_board())
+                {
+                    continue;
+                }
+                if (curr_trace->normalize(nullptr))
+                {
+                    something_changed = true;
+                    result = true;
+                }
+                else if (!curr_trace->is_user_fixed() && remove_if_cycle(curr_trace))
+                {
+                    something_changed = true;
+                    result = true;
+                }
+            }
+            // If something changed, collect the traces for this net again.
+            if (something_changed)
+            {
+                net_traces = collect_net_polyline_traces(net_no);
             }
         }
     }

@@ -207,7 +207,8 @@ void BoardStatistics::init_from_board(board::RoutingBoard* board, const std::str
     // Host info
     auto* comm = board->communication();
     if (comm != nullptr && comm->get_parser_info().has_host_cad()) {
-        host_ = comm->get_parser_info().host_cad + "," + comm->get_parser_info().host_version;
+        // Java string concatenation writes a null host version as "null".
+        host_ = *comm->get_parser_info().host_cad + "," + comm->get_parser_info().host_version.value_or("null");
     } else {
         host_ = "Freerouting," + std::string(constants::FREEROUTING_VERSION);
     }
@@ -498,26 +499,27 @@ std::string BoardStatistics::toString() const {
     return oss.str();
 }
 
-float BoardStatistics::calculateScore(settings::RouterScoringSettings scoringSettings) {
+float BoardStatistics::calculateScore(const settings::RoutingCostSettings& scoringSettings) {
     float maximumScore = getMaximumScore(scoringSettings);
-    float penalties = connections_.incompleteCount * scoringSettings.unroutedNetPenalty
-        + clearanceViolations_.totalCount * scoringSettings.clearanceViolationPenalty
-        + bends_.totalCount * scoringSettings.bendPenalty;
+    // Java unboxes the nullable weights (NullPointerException when unset); value() throws likewise.
+    float penalties = connections_.incompleteCount * scoringSettings.unrouted_net_penalty.value()
+        + clearanceViolations_.totalCount * scoringSettings.clearance_violation_penalty.value()
+        + bends_.totalCount * scoringSettings.bend_penalty.value();
     // Use the mm-normalised trace length so that the trace-cost term is
     // comparable to the unroutedNetPenalty regardless of the DSN internal
     // coordinate resolution (mirrors Java BoardStatistics.calculateScore).
     float traceLengthForCost =
         traces_.totalLengthMm != 0.0f ? traces_.totalLengthMm : traces_.totalLength;
-    float costs = static_cast<float>(traceLengthForCost * scoringSettings.defaultPreferredDirectionTraceCost
-        + vias_.totalCount * scoringSettings.via_costs);
+    float costs = static_cast<float>(traceLengthForCost * scoringSettings.default_preferred_direction_trace_cost.value()
+        + vias_.totalCount * scoringSettings.via_costs.value());
     return maximumScore - penalties - costs;
 }
 
-float BoardStatistics::getMaximumScore(settings::RouterScoringSettings scoringSettings) {
-    return static_cast<float>(connections_.maximumCount * scoringSettings.unroutedNetPenalty);
+float BoardStatistics::getMaximumScore(const settings::RoutingCostSettings& scoringSettings) {
+    return static_cast<float>(connections_.maximumCount * scoringSettings.unrouted_net_penalty.value());
 }
 
-float BoardStatistics::getNormalizedScore(settings::RouterScoringSettings scoringSettings) {
+float BoardStatistics::getNormalizedScore(const settings::RoutingCostSettings& scoringSettings) {
     // Legacy score normalized to a range from zero to one thousand. Mirrors
     // Java getLegacyNormalizedScore().
     float maximumScore = getMaximumScore(scoringSettings);

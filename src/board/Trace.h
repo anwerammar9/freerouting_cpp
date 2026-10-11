@@ -120,14 +120,6 @@ public:
 
 protected:
     /**
-     * Java Trace.isWithinTolerance: Manhattan distance connectivity test with
-     * tolerance half_width + 1.
-     */
-    static bool is_within_tolerance(const geometry::planar::Point& p_point,
-                                    const geometry::planar::Point& p_other,
-                                    int p_tolerance);
-
-    /**
      * Creates a copy of p_point preserving its concrete point type.
      */
     static std::shared_ptr<geometry::planar::Point> create_point_copy(const geometry::planar::Point& p_point);

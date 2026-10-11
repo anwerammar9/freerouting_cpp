@@ -100,9 +100,14 @@ TEST(PinShapeTest, BackSideMirrorsTheLocationAndUsesTheMirroredPadstackLayer)
     auto board = make_board(2);
     Padstack* padstack = add_smd_padstack(*board);
     Pin* pin = add_pin(*board, padstack, IntPoint(0, 0), 0.0, false, IntVector(300, 0));
-    // The SMD padstack is on layer 0; on the back side the pin uses padstack
-    // layer board_layer_count - index - first_layer - 1.
-    EXPECT_EQ(2 - 0 - 0 - 1, pin->get_padstack_layer(0));
+    // The SMD padstack is on layer 0; on the back side the pin occupies the
+    // mirrored board layer (Java DrillItem.firstLayer = board_layer_count -
+    // to_layer - 1) and maps it back to padstack layer board_layer_count -
+    // index - first_layer - 1 = 0.
+    EXPECT_EQ(1, pin->first_layer());
+    EXPECT_EQ(1, pin->last_layer());
+    EXPECT_EQ(2 - 0 - 1 - 1, pin->get_padstack_layer(0));
+    EXPECT_NE(nullptr, pin->get_shape(0));
     delete pin;
 }
 

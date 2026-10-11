@@ -30,19 +30,19 @@ public:
     };
 
     /**
-     * Information from the parser scope in a Specctra-dsn-file. Java SpecctraParserInfo; an empty
-     * host_cad / host_version stands for Java null.
+     * Information from the parser scope in a Specctra-dsn-file. Java SpecctraParserInfo; an absent
+     * host_cad / host_version is Java null (an empty string is a value and is written back).
      */
     struct SpecctraParserInfo
     {
         std::string string_quote = "\"";
-        std::string host_cad;
-        std::string host_version;
+        std::optional<std::string> host_cad;
+        std::optional<std::string> host_version;
         std::vector<std::array<std::string, 2>> constants;
         std::optional<WriteResolution> write_resolution;
         bool dsn_file_generated_by_host = false;
 
-        bool has_host_cad() const { return !host_cad.empty(); }
+        bool has_host_cad() const { return host_cad.has_value(); }
     };
 
     /** Java Communication(): MIL, resolution 1, quote '"', transform (1, 0, 0). */
@@ -54,7 +54,7 @@ public:
     /** Java hostCadIsFusion: host cad contains "fusion", "cadsoft" or "eagle" (case-insensitive). */
     bool host_cad_is_fusion() const;
     /** Kept for existing callers: host cad is exactly "CadSoft". */
-    bool host_cad_is_eagle() const { return parser_info_.has_host_cad() && parser_info_.host_cad == "CadSoft"; }
+    bool host_cad_is_eagle() const { return parser_info_.has_host_cad() && *parser_info_.host_cad == "CadSoft"; }
     /** Java hostIsOldKicad: host cad contains "kicad" and the first number in host_version is <= 5. */
     bool host_is_old_kicad() const;
     bool host_cad_exists() const { return parser_info_.has_host_cad(); }

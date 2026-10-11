@@ -1112,4 +1112,511 @@ ShapeSearchTree45Degree::ShapeSearchTree45Degree(BasicBoard* p_board, int p_comp
 {
 }
 
+// ---------------------------------------------------------------------------------------------
+// ShapeSearchTree45Degree (Java board/searchtree/ShapeSearchTree45Degree.java)
+// ---------------------------------------------------------------------------------------------
+
+namespace {
+
+/** Java IntOctagon.dimension(): identity with EMPTY gives -1 (01_MEMORY gotcha 15). */
+int java_octagon_dimension(const fp::IntOctagon& p_oct)
+{
+    if (p_oct == fp::IntOctagon::EMPTY)
+    {
+        return -1;
+    }
+    if (p_oct.right > p_oct.left && p_oct.top > p_oct.bottom && p_oct.right_bottom > p_oct.left_top
+        && p_oct.right_top > p_oct.left_bottom)
+    {
+        return 2;
+    }
+    if (p_oct.right == p_oct.left && p_oct.top == p_oct.bottom)
+    {
+        return 0;
+    }
+    return 1;
+}
+
+/**
+ * Java TileShape.isEmpty: an IntOctagon is empty only if it is IntOctagon.EMPTY (the C++
+ * IntOctagon::is_empty also treats degenerate octagons as empty, 01_MEMORY gotcha 15).
+ */
+bool java_tile_is_empty(const fp::TileShape& p_shape)
+{
+    if (const auto* octagon = dynamic_cast<const fp::IntOctagon*>(&p_shape))
+    {
+        return *octagon == fp::IntOctagon::EMPTY;
+    }
+    return p_shape.is_empty();
+}
+
+/** Java TileShape.contains(TileShape): every corner of p_inner lies in p_outer. */
+bool java_tile_contains(const fp::TileShape& p_outer, const fp::TileShape& p_inner)
+{
+    for (int i = 0; i < p_inner.border_line_count(); ++i)
+    {
+        if (!p_outer.contains(p_inner.corner(i)))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * Java obstacleSegmentTouchesInside: the border line segment p_obstacle_border_line_no of the
+ * obstacle intersects the inside of p_room_shape.
+ */
+bool obstacle_segment_touches_inside(
+    const fp::IntOctagon& p_obstacle_shape, int p_obstacle_border_line_no, const fp::IntOctagon& p_room_shape)
+{
+    int curr_border_line_no = p_obstacle_border_line_no;
+    const int curr_obstacle_corner_x = static_cast<int>(p_obstacle_shape.corner_x(p_obstacle_border_line_no));
+    const int curr_obstacle_corner_y = static_cast<int>(p_obstacle_shape.corner_y(p_obstacle_border_line_no));
+    for (int j = 0; j < 5; ++j)
+    {
+        if (p_room_shape.side_of_border_line(curr_obstacle_corner_x, curr_obstacle_corner_y, curr_border_line_no)
+            != fp::Side::ON_THE_LEFT)
+        {
+            return false;
+        }
+        curr_border_line_no = (curr_border_line_no + 1) % 8;
+    }
+    const int next_obstacle_border_line_no = (p_obstacle_border_line_no + 1) % 8;
+    const int next_obstacle_corner_x = static_cast<int>(p_obstacle_shape.corner_x(next_obstacle_border_line_no));
+    const int next_obstacle_corner_y = static_cast<int>(p_obstacle_shape.corner_y(next_obstacle_border_line_no));
+    curr_border_line_no = (p_obstacle_border_line_no + 5) % 8;
+    for (int j = 0; j < 3; ++j)
+    {
+        if (p_room_shape.side_of_border_line(next_obstacle_corner_x, next_obstacle_corner_y, curr_border_line_no)
+            != fp::Side::ON_THE_LEFT)
+        {
+            return false;
+        }
+        curr_border_line_no = (curr_border_line_no + 1) % 8;
+    }
+    return true;
+}
+
+/** Java signedLineDistance. */
+double signed_line_distance(
+    const fp::IntOctagon& p_obstacle_shape, int p_obstacle_line_no, const fp::IntOctagon& p_contained_shape)
+{
+    switch (p_obstacle_line_no)
+    {
+    case 0:
+        return static_cast<double>(p_obstacle_shape.bottom - p_contained_shape.top);
+    case 2:
+        return static_cast<double>(p_contained_shape.left - p_obstacle_shape.right);
+    case 4:
+        return static_cast<double>(p_contained_shape.bottom - p_obstacle_shape.top);
+    case 6:
+        return static_cast<double>(p_obstacle_shape.left - p_contained_shape.right);
+    // factor 0.5 used instead to 1 / sqrt(2) to prefer orthogonal lines slightly to diagonal
+    // restraining lines.
+    case 1:
+        return 0.5 * static_cast<double>(p_contained_shape.left_top - p_obstacle_shape.right_bottom);
+    case 3:
+        return 0.5 * static_cast<double>(p_contained_shape.left_bottom - p_obstacle_shape.right_top);
+    case 5:
+        return 0.5 * static_cast<double>(p_obstacle_shape.left_top - p_contained_shape.right_bottom);
+    case 7:
+        return 0.5 * static_cast<double>(p_obstacle_shape.left_bottom - p_contained_shape.right_top);
+    default:
+        logger::FRLogger::instance().warn(
+            "ShapeSearchTree45Degree.signed_line_distance: obstacleLineNo out of range");
+        return 0;
+    }
+}
+
+} // namespace
+
+fp::IntOctagon ShapeSearchTree45Degree::calc_outside_restrained_shape(
+    const fp::IntOctagon& p_obstacle_shape, int p_obstacle_line_no, const fp::IntOctagon& p_room_shape)
+{
+    int64_t lx = p_room_shape.left;
+    int64_t ly = p_room_shape.bottom;
+    int64_t rx = p_room_shape.right;
+    int64_t uy = p_room_shape.top;
+    int64_t ulx = p_room_shape.left_top;
+    int64_t lrx = p_room_shape.right_bottom;
+    int64_t llx = p_room_shape.left_bottom;
+    int64_t urx = p_room_shape.right_top;
+    switch (p_obstacle_line_no)
+    {
+    case 0: uy = p_obstacle_shape.bottom; break;
+    case 2: lx = p_obstacle_shape.right; break;
+    case 4: ly = p_obstacle_shape.top; break;
+    case 6: rx = p_obstacle_shape.left; break;
+    case 1: ulx = p_obstacle_shape.right_bottom; break;
+    case 3: llx = p_obstacle_shape.right_top; break;
+    case 5: lrx = p_obstacle_shape.left_top; break;
+    case 7: urx = p_obstacle_shape.left_bottom; break;
+    default:
+        logger::FRLogger::instance().warn(
+            "ShapeSearchTree45Degree.calc_outside_restrained_shape: obstacleLineNo out of range");
+    }
+    return fp::IntOctagon(lx, ly, rx, uy, ulx, lrx, llx, urx).normalize();
+}
+
+fp::IntOctagon ShapeSearchTree45Degree::calc_inside_restrained_shape(
+    const fp::IntOctagon& p_obstacle_shape, int p_obstacle_line_no, const fp::IntOctagon& p_room_shape)
+{
+    int64_t lx = p_room_shape.left;
+    int64_t ly = p_room_shape.bottom;
+    int64_t rx = p_room_shape.right;
+    int64_t uy = p_room_shape.top;
+    int64_t ulx = p_room_shape.left_top;
+    int64_t lrx = p_room_shape.right_bottom;
+    int64_t llx = p_room_shape.left_bottom;
+    int64_t urx = p_room_shape.right_top;
+    switch (p_obstacle_line_no)
+    {
+    case 0: ly = p_obstacle_shape.bottom; break;
+    case 2: rx = p_obstacle_shape.right; break;
+    case 4: uy = p_obstacle_shape.top; break;
+    case 6: lx = p_obstacle_shape.left; break;
+    case 1: lrx = p_obstacle_shape.right_bottom; break;
+    case 3: urx = p_obstacle_shape.right_top; break;
+    case 5: ulx = p_obstacle_shape.left_top; break;
+    case 7: llx = p_obstacle_shape.left_bottom; break;
+    default:
+        logger::FRLogger::instance().warn(
+            "ShapeSearchTree45Degree.calc_inside_restrained_shape: obstacleLineNo out of range");
+    }
+    return fp::IntOctagon(lx, ly, rx, uy, ulx, lrx, llx, urx).normalize();
+}
+
+void ShapeSearchTree45Degree::restrain_shape_45(
+    const CompleteShapePiece& p_room, const fp::IntOctagon& p_obstacle_shape, std::vector<CompleteShapePiece>& p_result)
+{
+    // Search the edge line of p_obstacle_shape, so that the shape to be contained is on the right
+    // side of this line and the line segment intersects the inside of the room shape. If there are
+    // more than 1 such lines take the line which is furthest away from the shape to be contained,
+    // then intersect the room shape with the half plane defined by the opposite of this line.
+    const fp::TileShape* contained_shape = p_room.contained_shape.get();
+    if (contained_shape == nullptr || java_tile_is_empty(*contained_shape))
+    {
+        logger::FRLogger::instance().debug("ShapeSearchTree45Degree.restrain_shape: shapeToBeContained is empty");
+        return;
+    }
+    if (!contained_shape->is_IntOctagon() && dynamic_cast<const fp::Simplex*>(contained_shape) == nullptr)
+    {
+        logger::FRLogger::instance().warn("restrain_shape: incompatible shape type");
+        return;
+    }
+    const fp::IntOctagon shape_to_be_contained = contained_shape->bounding_octagon();
+    if (p_room.shape == nullptr
+        || (dynamic_cast<const fp::IntOctagon*>(p_room.shape.get()) == nullptr
+            && dynamic_cast<const fp::IntBox*>(p_room.shape.get()) == nullptr // C++: see complete_shape
+            && dynamic_cast<const fp::Simplex*>(p_room.shape.get()) == nullptr))
+    {
+        logger::FRLogger::instance().warn("restrain_shape: unsupported room shape type");
+        return;
+    }
+    const fp::IntOctagon room_shape = p_room.shape->bounding_octagon();
+
+    double cut_line_distance = -1;
+    int restraining_line_no = -1;
+    for (int obstacle_line_no = 0; obstacle_line_no < 8; ++obstacle_line_no)
+    {
+        const double curr_distance = signed_line_distance(p_obstacle_shape, obstacle_line_no, shape_to_be_contained);
+        if (curr_distance > cut_line_distance
+            && obstacle_segment_touches_inside(p_obstacle_shape, obstacle_line_no, room_shape))
+        {
+            cut_line_distance = curr_distance;
+            restraining_line_no = obstacle_line_no;
+        }
+    }
+    if (cut_line_distance >= 0)
+    {
+        CompleteShapePiece piece;
+        piece.shape = std::make_unique<fp::IntOctagon>(
+            calc_outside_restrained_shape(p_obstacle_shape, restraining_line_no, room_shape));
+        piece.contained_shape = std::make_unique<fp::IntOctagon>(shape_to_be_contained);
+        p_result.push_back(std::move(piece));
+        return;
+    }
+
+    // There is no cut line, so that all of the shape to be contained is completely on the right
+    // side of that line. Search a cut line, so that at least part of it is on the right side.
+    if (java_octagon_dimension(shape_to_be_contained) < 1)
+    {
+        // There is already a completed expansion room around the shape to be contained.
+        return;
+    }
+    restraining_line_no = -1;
+    for (int obstacle_line_no = 0; obstacle_line_no < 8; ++obstacle_line_no)
+    {
+        if (obstacle_segment_touches_inside(p_obstacle_shape, obstacle_line_no, room_shape))
+        {
+            const fp::Line curr_line = p_obstacle_shape.border_line(obstacle_line_no);
+            if (shape_to_be_contained.side_of(curr_line) == fp::Side::COLLINEAR)
+            {
+                // curr_line intersects with the interior of the shape to be contained
+                restraining_line_no = obstacle_line_no;
+                break;
+            }
+        }
+    }
+    if (restraining_line_no < 0)
+    {
+        // cut line not found, parts or the whole of shape may be already occupied from somewhere else.
+        return;
+    }
+    const fp::IntOctagon restrained_shape =
+        calc_outside_restrained_shape(p_obstacle_shape, restraining_line_no, room_shape);
+    if (java_octagon_dimension(restrained_shape) == 2)
+    {
+        const fp::IntOctagon new_shape_to_be_contained = shape_to_be_contained.intersection(restrained_shape);
+        if (java_octagon_dimension(new_shape_to_be_contained) > 0)
+        {
+            CompleteShapePiece piece;
+            piece.shape = std::make_unique<fp::IntOctagon>(restrained_shape);
+            piece.contained_shape = std::make_unique<fp::IntOctagon>(new_shape_to_be_contained);
+            p_result.push_back(std::move(piece));
+        }
+    }
+    const fp::IntOctagon rest_piece = calc_inside_restrained_shape(p_obstacle_shape, restraining_line_no, room_shape);
+    if (java_octagon_dimension(rest_piece) >= 2)
+    {
+        const fp::IntOctagon rest_shape_to_be_contained = shape_to_be_contained.intersection(rest_piece);
+        if (java_octagon_dimension(rest_shape_to_be_contained) >= 0)
+        {
+            CompleteShapePiece rest_room;
+            rest_room.shape = std::make_unique<fp::IntOctagon>(rest_piece);
+            rest_room.contained_shape = std::make_unique<fp::IntOctagon>(rest_shape_to_be_contained);
+            restrain_shape_45(rest_room, p_obstacle_shape, p_result);
+        }
+    }
+}
+
+void ShapeSearchTree45Degree::divide_large_room_45(
+    const fp::IntBox& p_board_box, std::vector<CompleteShapePiece>& p_rooms) const
+{
+    // Java ShapeSearchTree.divideLargeRoom (the base class) followed by the bounding octagons of
+    // the 45 degree override. The base is ported here on octagons: the C++ base
+    // divide_large_room divides the bounding box and intersects through Simplices, which loses
+    // point-sized contained shapes.
+    if (p_rooms.size() != 1)
+    {
+        return;
+    }
+    const CompleteShapePiece& curr_room = p_rooms[0];
+    const fp::IntBox room_bounding_box = curr_room.shape->bounding_box();
+    if (2 * room_bounding_box.height() <= p_board_box.height()
+        || 2 * room_bounding_box.width() <= p_board_box.width())
+    {
+        return;
+    }
+    const double max_section_width = 0.5 * std::max(p_board_box.height(), p_board_box.width());
+    const fp::IntOctagon contained_octagon = curr_room.contained_shape->bounding_octagon();
+    std::vector<CompleteShapePiece> result;
+    for (const std::unique_ptr<fp::TileShape>& curr_section : curr_room.shape->divide_into_sections(max_section_width))
+    {
+        const fp::IntOctagon section_octagon = curr_section->bounding_octagon();
+        CompleteShapePiece section_room;
+        section_room.shape = std::make_unique<fp::IntOctagon>(section_octagon);
+        section_room.contained_shape = std::make_unique<fp::IntOctagon>(section_octagon.intersection(contained_octagon));
+        result.push_back(std::move(section_room));
+    }
+    p_rooms = std::move(result);
+}
+
+std::vector<ShapeSearchTree::CompleteShapePiece> ShapeSearchTree45Degree::complete_shape(const CompleteShapeInput& p_input)
+{
+    // Port of Java ShapeSearchTree45Degree.completeShapeUnlocked.
+    std::vector<CompleteShapePiece> result;
+    if (p_input.contained_shape == nullptr)
+    {
+        logger::FRLogger::instance().warn(
+            "ShapeSearchTree45Degree.completeShape: contained shape is null, skipping expansion room");
+        return result;
+    }
+    // A non-IntOctagon contained shape (e.g. a Simplex of a non-45 degree trace) is approximated by
+    // its bounding octagon.
+    const fp::IntOctagon shape_to_be_contained = p_input.contained_shape->bounding_octagon();
+    // Deviation: Java returns no room for an empty tree (root == null). On a real board the tree
+    // always holds the board outline, so this only matters for synthetic fixtures; like the generic
+    // C++ complete_shape, an empty tree yields the (divided) start room.
+    BasicBoard* board = get_board();
+    const fp::IntBox board_box = board != nullptr ? board->get_bounding_box() : fp::IntBox::EMPTY;
+    fp::IntOctagon start_shape = board_box.bounding_octagon();
+    if (p_input.shape != nullptr)
+    {
+        // Java requires the room shape to be an IntOctagon object. The C++ AutorouteEngine stores
+        // every room shape as a Simplex (or an IntBox), so the check is whether the shape is an
+        // octagon, not its class.
+        if (!p_input.shape->is_IntOctagon())
+        {
+            logger::FRLogger::instance().warn(
+                "ShapeSearchTree45Degree.complete_shape: startShape of type IntOctagon expected");
+            return result;
+        }
+        start_shape = p_input.shape->bounding_octagon().intersection(start_shape);
+    }
+    fp::IntOctagon bounding_shape = start_shape;
+    const int room_layer = p_input.layer;
+    {
+        CompleteShapePiece start_room;
+        start_room.shape = std::make_unique<fp::IntOctagon>(start_shape);
+        start_room.contained_shape = std::make_unique<fp::IntOctagon>(shape_to_be_contained);
+        result.push_back(std::move(start_room));
+    }
+
+    std::vector<TreeNode*> stack;
+    stack.push_back(root);
+    while (!stack.empty())
+    {
+        TreeNode* curr_node = stack.back();
+        stack.pop_back();
+        if (curr_node == nullptr || curr_node->bounding_shape == nullptr
+            || !curr_node->bounding_shape->intersects(bounding_shape))
+        {
+            continue;
+        }
+        auto* curr_leaf = dynamic_cast<Leaf*>(curr_node);
+        if (curr_leaf == nullptr)
+        {
+            auto* inner = static_cast<InnerNode*>(curr_node);
+            stack.push_back(inner->first_child);
+            stack.push_back(inner->second_child);
+            continue;
+        }
+        auto* curr_object = static_cast<SearchTreeObject*>(curr_leaf->object);
+        if (curr_object == nullptr)
+        {
+            continue;
+        }
+        const int shape_index = curr_leaf->shape_index_in_object;
+        if (!curr_object->is_trace_obstacle(p_input.net_no) || curr_object->shape_layer(shape_index) != room_layer
+            || curr_object == p_input.ignore_object)
+        {
+            continue;
+        }
+        const fp::TileShape* curr_tree_shape = curr_object->get_tree_shape(*this, shape_index);
+        if (curr_tree_shape == nullptr)
+        {
+            continue;
+        }
+        const fp::IntOctagon curr_object_shape = curr_tree_shape->bounding_octagon();
+        std::vector<CompleteShapePiece> new_result;
+        fp::IntOctagon new_bounding_shape = fp::IntOctagon::EMPTY;
+        for (CompleteShapePiece& curr_room : result)
+        {
+            const auto& curr_shape = static_cast<const fp::IntOctagon&>(*curr_room.shape);
+            if (curr_shape.overlaps(curr_object_shape))
+            {
+                if (curr_object->is_free_space_room() && p_input.ignore_shape != nullptr)
+                {
+                    const fp::IntOctagon intersection = curr_shape.intersection(curr_object_shape);
+                    if (java_tile_contains(*p_input.ignore_shape, intersection))
+                    {
+                        // ignore also all objects, whose intersection is contained in the
+                        // 2-dim overlap-door with the from room.
+                        if (!java_tile_contains(*p_input.ignore_shape, curr_shape))
+                        {
+                            new_bounding_shape = new_bounding_shape.union_with(curr_shape);
+                            new_result.push_back(std::move(curr_room));
+                        }
+                        continue;
+                    }
+                }
+                restrain_shape_45(curr_room, curr_object_shape, new_result);
+                for (const CompleteShapePiece& tmp_room : new_result)
+                {
+                    new_bounding_shape =
+                        new_bounding_shape.union_with(static_cast<const fp::IntOctagon&>(*tmp_room.shape));
+                }
+            }
+            else
+            {
+                new_bounding_shape = new_bounding_shape.union_with(curr_shape);
+                new_result.push_back(std::move(curr_room));
+            }
+        }
+        result = std::move(new_result);
+        bounding_shape = new_bounding_shape;
+    }
+
+    divide_large_room_45(board_box, result);
+    // remove rooms with shapes equal to the contained shape to prevent endless loop.
+    result.erase(std::remove_if(result.begin(), result.end(),
+                     [](const CompleteShapePiece& p_room)
+                     { return java_tile_contains(*p_room.contained_shape, *p_room.shape); }),
+        result.end());
+    return result;
+}
+
+std::vector<std::shared_ptr<fp::TileShape>> ShapeSearchTree45Degree::calculate_tree_shapes(
+    const DrillItem& p_drill_item) const
+{
+    // Port of Java ShapeSearchTree45Degree.calculateTreeShapes(DrillItem).
+    std::vector<std::shared_ptr<fp::TileShape>> result;
+    BasicBoard* board = get_board();
+    if (board == nullptr)
+    {
+        return result;
+    }
+    result.resize(static_cast<size_t>(p_drill_item.tile_shape_count()));
+    for (int i = 0; i < static_cast<int>(result.size()); ++i)
+    {
+        const fp::Shape* curr_shape = p_drill_item.get_shape(i);
+        std::unique_ptr<fp::Shape> hole_shape;
+        if (curr_shape == nullptr)
+        {
+            hole_shape = drill_hole_obstacle(board, p_drill_item);
+            curr_shape = hole_shape.get();
+        }
+        if (curr_shape == nullptr)
+        {
+            continue;
+        }
+        std::unique_ptr<fp::TileShape> curr_tile_shape =
+            std::make_unique<fp::IntOctagon>(curr_shape->bounding_shape(fp::FortyfiveDegreeBoundingDirections::INSTANCE));
+        if (curr_tile_shape->is_IntBox())
+        {
+            // To avoid small corner cutoffs when taking the offset as an octagon.
+            curr_tile_shape = std::make_unique<fp::IntBox>(curr_shape->bounding_box());
+        }
+        int offset_width =
+            clearance_compensation_value(p_drill_item.get_clearance_class(), p_drill_item.shape_layer(i));
+        offset_width += drill_hole_clearance_delta(
+            board, get_compensated_clearance_class_no(), p_drill_item, curr_shape, p_drill_item.shape_layer(i));
+        // Java TileShape.offset (an IntBox stays a box; enlarge would cut its corners).
+        curr_tile_shape = curr_tile_shape->offset(offset_width);
+        result[i] = std::make_shared<fp::IntOctagon>(curr_tile_shape->bounding_octagon());
+    }
+    return result;
+}
+
+std::vector<std::shared_ptr<fp::TileShape>> ShapeSearchTree45Degree::calculate_tree_shapes(
+    const ObstacleArea& p_obstacle_area) const
+{
+    std::vector<std::shared_ptr<fp::TileShape>> result = ShapeSearchTree::calculate_tree_shapes(p_obstacle_area);
+    for (auto& shape : result)
+    {
+        if (shape != nullptr)
+        {
+            shape = std::make_shared<fp::IntOctagon>(shape->bounding_octagon());
+        }
+    }
+    return result;
+}
+
+std::vector<std::shared_ptr<fp::TileShape>> ShapeSearchTree45Degree::calculate_tree_shapes(
+    const BoardOutline& p_board_outline) const
+{
+    std::vector<std::shared_ptr<fp::TileShape>> result = ShapeSearchTree::calculate_tree_shapes(p_board_outline);
+    for (auto& shape : result)
+    {
+        if (shape != nullptr)
+        {
+            shape = std::make_shared<fp::IntOctagon>(shape->bounding_octagon());
+        }
+    }
+    return result;
+}
+
 } // namespace freerouting::board
+
