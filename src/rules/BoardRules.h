@@ -84,6 +84,8 @@ public:
     const std::vector<std::unique_ptr<ViaRule>>& get_via_rules() const { return via_rules_; }
     /** Appends p_via_rule to the via rules (Java viaRules.add) and returns it. */
     ViaRule* add_via_rule(std::unique_ptr<ViaRule> p_via_rule);
+    /** Removes p_via_rule (pointer identity, like Java ArrayList.remove). Java viaRules.remove. */
+    bool remove_via_rule(const ViaRule* p_via_rule);
     const board::LayerStructure& get_layer_structure() const { return layer_structure_; }
 
     /** Java getTraceHalfWidth(netNumber, layer). */

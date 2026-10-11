@@ -368,9 +368,10 @@ net classes, keepouts) equal Java's. T110 adds the count dump used as acceptance
     Added `Network_test.cpp` to `tests/CMakeLists.txt` (DESIGNFORMS_TEST_SOURCES — it was missing, so the 9 tests never ran).
     Parity verified incl. `+5V` kept raw by `nextString()` (raw-buffer read, unlike the illegal-char-skipping identifier
     tokenizer of gotcha 37). Network_test 9, ctest 962/962, run_tests PASSED.
-- [ ] T114a | deps: T113,T125 | Network part 2a: via infos, via rules, via padstacks
+- [x] T114a | deps: T113,T125 | Network part 2a: via infos, via rules, via padstacks
   - spec: SOURCE_OF_TRUTH/plans/M1_dsn_reader.md (section T114a)
   - java: parser/Network.java readViaInfo/readViaRule/insertViaInfos/createDefaultViaInfos/insertViaRules/addViaRule (255-422) + readScope via-padstack block (1273-1318)
+  - result: Ported read_via_info (three NAME reads, padstack lookup falls back to padstacks + add_via_padstack, ATTACH handling), read_via_rule, insert_via_infos, create_default_via_infos (name = padstack or padstack+'-'+class for non-default classes), insert_via_rules + add_via_rule (replaces an existing same-named rule) into parser/Network.{h,cpp}. Ported the readScope via-padstack block: names cleaned with `\.\d+`, missing padstacks dropped with the Java warning, `setViaPadstacks`. Added `BoardRules::remove_via_rule` (Java viaRules.remove, pointer identity). The net-class `use_via` → viaPadstackNames loop is deferred to T114b (NetClass reader not ported yet), marked with a T114b comment. 4 new NetworkTest cases (via info+rule, default via infos from padstacks, missing padstack dropped, via rule without via infos falls back). Network_test 13, ctest 966/966, run_tests PASSED.
 - [ ] T114b | deps: T114a | Network part 2b: net classes and class pairs → BoardRules
   - spec: SOURCE_OF_TRUTH/plans/M1_dsn_reader.md (section T114b)
   - java: parser/NetClass.java (197), parser/Network.java insertNetClasses … getClearanceClass (423-831)

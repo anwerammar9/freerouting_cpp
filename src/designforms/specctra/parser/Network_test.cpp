@@ -1,6 +1,7 @@
 // Tests for the DSN network scope reader (Java parser.Network): net scopes,
-// pins, subnet numbers and ordered subnets (T113). The via/class branches are
-// stubs until T114a/T114b.
+// pins, subnet numbers and ordered subnets (T113). The via infos / via rules /
+// via padstacks are covered by the T114a tests below; the class branches are
+// stubs until T114b.
 
 #include "designforms/specctra/parser/Network.h"
 
@@ -9,6 +10,9 @@
 #include <string>
 #include <vector>
 
+#include "board/BoardLibrary.h"
+#include "board/Padstack.h"
+#include "board/Padstacks.h"
 #include "board/RoutingBoard.h"
 #include "designforms/specctra/parser/Keyword.h"
 #include "designforms/specctra/parser/NetList.h"
@@ -16,6 +20,8 @@
 #include "designforms/specctra/parser/SpecctraDsnStreamReader.h"
 #include "rules/Net.h"
 #include "rules/NetClass.h"
+#include "rules/ViaInfo.h"
+#include "rules/ViaRule.h"
 
 namespace freerouting::designforms::specctra::parser {
 namespace {
@@ -145,6 +151,113 @@ TEST(NetworkTest, NetScopeWithoutStructureFails)
     ReadScopeParameter par(scanner);
     EXPECT_FALSE(Keyword::NETWORK_SCOPE->read_scope(par));
     EXPECT_EQ(nullptr, par.get_board());
+}
+
+TEST(NetworkTest, ViaInfoAndViaRuleAreReadAndInserted)
+{
+    // structure declares the via padstack list, network the via info and the via rule.
+    SpecctraDsnStreamReader scanner(
+        "(resolution um 10)"
+        "(structure (layer F.Cu (type signal)) (layer B.Cu (type signal))"
+        " (via MyVia) (boundary (rect pcb 0 0 100000 100000)))"
+        "(library (padstack MyVia (shape (circle signal 600))))"
+        "(network (via V1 MyVia default attach) (via_rule default V1))",
+        true);
+    ReadScopeParameter par(scanner);
+    ASSERT_TRUE(Keyword::PCB_SCOPE->read_scope(par));
+    ASSERT_NE(nullptr, par.get_board());
+    board::RoutingBoard& board = *par.get_board();
+
+    // The structure's (via MyVia) list made MyVia a via padstack.
+    ASSERT_EQ(1, board.library().via_padstack_count());
+    EXPECT_EQ("MyVia", board.library().get_via_padstack(0)->get_name());
+
+    // readViaInfo added V1 to the via infos (clearance class 1 = default).
+    rules::ViaInfos& via_infos = board.mutable_rules().get_via_infos();
+    ASSERT_EQ(1, via_infos.count());
+    std::shared_ptr<rules::ViaInfo> v1 = via_infos.get("V1");
+    ASSERT_NE(nullptr, v1);
+    EXPECT_EQ(board.library().get_via_padstack(0), v1->get_padstack());
+    EXPECT_EQ(1, v1->get_clearance_class());
+    EXPECT_TRUE(v1->attach_smd_allowed());
+
+    // insertViaRules created the "default" rule from V1 and assigned it to every net class.
+    rules::ViaRule* default_rule = board.mutable_rules().get_via_rule("default");
+    ASSERT_NE(nullptr, default_rule);
+    ASSERT_EQ(1, default_rule->via_count());
+    EXPECT_EQ(v1, default_rule->get_via(0));
+    ASSERT_EQ(1, board.mutable_rules().get_net_classes().count());
+    EXPECT_EQ(default_rule, board.mutable_rules().get_net_classes().get(0)->get_via_rule());
+}
+
+TEST(NetworkTest, NoViaInfoCreatesDefaultViaInfosFromViaPadstacks)
+{
+    SpecctraDsnStreamReader scanner(
+        "(resolution um 10)"
+        "(structure (layer F.Cu (type signal)) (layer B.Cu (type signal))"
+        " (via MyVia) (boundary (rect pcb 0 0 100000 100000)))"
+        "(library (padstack MyVia (shape (circle signal 600)) (attach off)))"
+        "(network (net N (pins U1-1)))",
+        true);
+    ReadScopeParameter par(scanner);
+    ASSERT_TRUE(Keyword::PCB_SCOPE->read_scope(par));
+    ASSERT_NE(nullptr, par.get_board());
+    board::RoutingBoard& board = *par.get_board();
+
+    ASSERT_EQ(1, board.library().via_padstack_count());
+    rules::ViaInfos& via_infos = board.mutable_rules().get_via_infos();
+    ASSERT_EQ(1, via_infos.count());
+    std::shared_ptr<rules::ViaInfo> via = via_infos.get("MyVia");
+    ASSERT_NE(nullptr, via);
+    EXPECT_EQ(1, via->get_clearance_class());
+    // (attach off) on the padstack, so even with viaAtSmdAllowed the via is not attachable.
+    EXPECT_FALSE(via->attach_smd_allowed());
+
+    rules::ViaRule* default_rule = board.mutable_rules().get_via_rule("default");
+    ASSERT_NE(nullptr, default_rule);
+    ASSERT_EQ(1, default_rule->via_count());
+    EXPECT_EQ(via, default_rule->get_via(0));
+}
+
+TEST(NetworkTest, MissingViaPadstackIsDroppedWithAWarning)
+{
+    SpecctraDsnStreamReader scanner(
+        "(resolution um 10)"
+        "(structure (layer F.Cu (type signal)) (layer B.Cu (type signal))"
+        " (via NoSuchPadstack) (boundary (rect pcb 0 0 100000 100000)))"
+        "(library (padstack Foo (shape (circle signal 600))))"
+        "(network (net N (pins U1-1)))",
+        true);
+    ReadScopeParameter par(scanner);
+    ASSERT_TRUE(Keyword::PCB_SCOPE->read_scope(par));
+    ASSERT_NE(nullptr, par.get_board());
+    board::RoutingBoard& board = *par.get_board();
+
+    // NoSuchPadstack is not in the library, so the via padstack list stays empty and no default
+    // via info (nor via rule) can be created.
+    EXPECT_EQ(0, board.library().via_padstack_count());
+    EXPECT_EQ(0, board.mutable_rules().get_via_infos().count());
+    EXPECT_EQ(nullptr, board.mutable_rules().get_via_rule("default"));
+}
+
+TEST(NetworkTest, ViaRuleWithoutViaInfosFallsBackToTheDefaultRule)
+{
+    // The via rule names a via info that does not exist: addViaRule fails, so insertViaRules
+    // creates the default rule from the (also empty) via infos.
+    SpecctraDsnStreamReader scanner(
+        "(resolution um 10)"
+        "(structure (layer F.Cu (type signal)) (layer B.Cu (type signal))"
+        " (boundary (rect pcb 0 0 100000 100000)))"
+        "(network (via_rule r1 NoSuchVia))",
+        true);
+    ReadScopeParameter par(scanner);
+    ASSERT_TRUE(Keyword::PCB_SCOPE->read_scope(par));
+    ASSERT_NE(nullptr, par.get_board());
+    board::RoutingBoard& board = *par.get_board();
+
+    EXPECT_EQ(nullptr, board.mutable_rules().get_via_rule("r1"));
+    // createDefaultViaRule returns early with no via infos, so no rule exists at all.
+    EXPECT_EQ(nullptr, board.mutable_rules().get_default_via_rule());
 }
 
 } // namespace

@@ -1,7 +1,9 @@
 #pragma once
 
+#include <memory>
 #include <optional>
 #include <set>
+#include <string>
 #include <vector>
 
 #include "designforms/specctra/parser/Net.h"
@@ -10,6 +12,11 @@
 namespace freerouting::board {
 class RoutingBoard;
 } // namespace freerouting::board
+
+namespace freerouting::rules {
+class NetClass;
+class ViaInfo;
+} // namespace freerouting::rules
 
 namespace freerouting::designforms::specctra::parser {
 
@@ -45,6 +52,25 @@ public:
 
     /** Reads a pin list of a net scope. Java Network.readNetPins; nullopt = Java false. */
     static std::optional<std::vector<Net::Pin>> read_net_pins(IJFlexScanner& p_scanner);
+
+    /** Reads a (via ...) scope. Java Network.readViaInfo; nullptr = Java null. */
+    static std::shared_ptr<rules::ViaInfo> read_via_info(IJFlexScanner& p_scanner, board::RoutingBoard& p_board);
+
+    /** Reads a (via_rule ...) scope. Java Network.readViaRule; nullopt = Java null. */
+    static std::optional<std::vector<std::string>> read_via_rule(IJFlexScanner& p_scanner, board::RoutingBoard& p_board);
+
+    /** Java Network.insertViaInfos: add the read via infos, or create default ones. */
+    static void insert_via_infos(const std::vector<std::shared_ptr<rules::ViaInfo>>& p_via_infos,
+        board::RoutingBoard& p_board, bool p_attach_allowed);
+
+    /** Java Network.createDefaultViaInfos: one via info per via padstack. */
+    static void create_default_via_infos(board::RoutingBoard& p_board, rules::NetClass* p_net_class, bool p_attach_allowed);
+
+    /** Java Network.insertViaRules: add all rules and assign the default rule to every net class. */
+    static void insert_via_rules(const std::vector<std::vector<std::string>>& p_via_rules, board::RoutingBoard& p_board);
+
+    /** Java Network.addViaRule: replaces an existing rule with the same name. */
+    static bool add_via_rule(const std::vector<std::string>& p_name_list, board::RoutingBoard& p_board);
 };
 
 } // namespace freerouting::designforms::specctra::parser

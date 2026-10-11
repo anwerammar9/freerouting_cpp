@@ -244,3 +244,27 @@
   **not registered** in `tests/CMakeLists.txt` — added to `DESIGNFORMS_TEST_SOURCES`; ctest 962/962.
 - Deferred: the via/class post-processing (via padstacks, `insertViaInfos`, `insertViaRules`, `insertNetClasses`,
   `insertClassPairs`) and `insertComponents`/`insertLogicalParts` (T114a/T114b/T115).
+
+## T114a Network part 2a — via infos, via rules, via padstacks (2026-10-11)
+
+- `parser::Network` gains `read_via_info`, `read_via_rule`, `insert_via_infos`, `create_default_via_infos`,
+  `insert_via_rules` and `add_via_rule` (Java `parser/Network.java` 255–422). The `(via …)`/`(via_rule …)` branches
+  of `read_scope` now call them; only `(class …)`/`(class_class …)` stay `skip_scope` stubs (T114b).
+- `read_via_info` mirrors Java: three `yybegin(NAME)` string reads (via name, padstack name, clearance-class name),
+  padstack lookup `library.get_via_padstack` → fallback `library.padstacks().get` + `add_via_padstack`, unknown
+  clearance name → `BoardRules::default_clearance_class()` (1), then `ATTACH` or `)`; returns `nullptr` on any
+  Java `null`/exception path.
+- The readScope via-padstack block (Java 1273–1318): padstack names are cleaned with `replaceAll("\\.\\d+","")`,
+  missing names are dropped with the exact Java `"Library.read_scope: via padstack with name '… not found at '…'"`
+  warning, and the surviving list is stored with `BoardLibrary::set_via_padstacks`.
+- `add_via_rule` needed `BoardRules::remove_via_rule` (Java `viaRules.remove`, pointer identity) to replace an
+  existing same-named rule; the new rule is then added and `insert_via_rules` assigns the first via rule to every
+  net class.
+- Divergence from Java: none observed. **Deferred to T114b:** the loop that appends each net class's `use_via`
+  names to `via_padstack_names` (needs the NetClass reader); it is marked with a `// T114b:` comment in `read_scope`.
+- Verdict / risk: until T114b lands, `via_padstack_names` is only filled by the structure `(via …)` list, so a real
+  DSN whose net classes declare the vias will fall back to default via infos (Java would use the class list). This
+  is expected for an incremental port.
+- `Network_test.cpp`: +4 tests (via info + via rule inserted; no via info → default via infos from via padstacks;
+  missing via padstack dropped with a warning; via rule naming an unknown via falls back to the default rule).
+  Network_test 13, ctest 966/966, `run_tests` PASSED.

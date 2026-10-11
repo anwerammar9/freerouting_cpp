@@ -146,6 +146,19 @@ ViaRule* BoardRules::add_via_rule(std::unique_ptr<ViaRule> p_via_rule)
     return via_rules_.back().get();
 }
 
+bool BoardRules::remove_via_rule(const ViaRule* p_via_rule)
+{
+    for (auto it = via_rules_.begin(); it != via_rules_.end(); ++it)
+    {
+        if (it->get() == p_via_rule)
+        {
+            via_rules_.erase(it);
+            return true;
+        }
+    }
+    return false;
+}
+
 int BoardRules::get_trace_half_width(int p_net_no, int p_layer) const
 {
     // Java dereferences the net without a null check.
