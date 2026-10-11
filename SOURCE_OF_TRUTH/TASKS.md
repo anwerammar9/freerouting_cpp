@@ -182,8 +182,7 @@ real boards like Java as soon as possible.
 
 ## Phase 4 — Autoroute pipeline (Java autoroute/pipeline ≈ 5.4k lines; C++ BatchAutorouter 352)
 
-- [!] T401 | deps: - | AutorouteAirlineCalculator
-  - blocked: gate failed after 3 attempts on 20261011-151319 (logs: .migration-logs/20261011-151319-T401-try*.log)
+- [ ] T401 | deps: - | AutorouteAirlineCalculator
   - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T401)
   - java: autoroute/pipeline/AutorouteAirlineCalculator.java (214)
 - [ ] T402 | deps: T401 | AutorouteConnectionRouter
@@ -195,8 +194,7 @@ real boards like Java as soon as possible.
 - [ ] T404 | deps: T403 | AutoroutePassRunner part 2 (ripup escalation, pass result) + AutorouteRuntimeMetrics + AutorouteUnroutedReport
   - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T404)
   - java: AutoroutePassRunner.java second half, AutorouteRuntimeMetrics.java (66), AutorouteUnroutedReport.java (80)
-- [!] T420 | deps: - | Board deep copy + state hash (history, batch loop and optimizer all need it)
-  - blocked: gate failed after 3 attempts on 20261011-151340 (logs: .migration-logs/20261011-151340-T420-try*.log)
+- [ ] T420 | deps: - | Board deep copy + state hash (history, batch loop and optimizer all need it)
   - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T420)
   - java: board/facade/RoutingBoardUndoFacade.deepCopy (serialization) + BoardSnapshotManager.getHash (MD5)
   - cpp: src/board/RoutingBoard.{h,cpp}
@@ -292,8 +290,7 @@ real boards like Java as soon as possible.
   - spec: SOURCE_OF_TRUTH/plans/TrackB_settings_cli.md (section T301)
   - java: settings/RouterSettings.java (1042) — C++ src/settings/RouterSettings.cpp is 162 lines
   - result: Structs AutorouterSettings, FanoutSettings, OptimizerSettings, RoutingCostSettings, RouterScoreSettings, OptimizerScoreSettings, LayerSettings (+ RouterScoringVersion/OptimizerScoringVersion enums) with std::optional fields in Java order and snake_case names; per-struct copy_fields (ReflectionUtil.copyFields incl. transient fields, empty-array and object-array merge rules) and a field table `settings_fields<X>()` (@SerializedName + alternates, transient flag, Java text conversion, getFieldByNameOrSerializedName matching, `set_field_value` path navigation incl. `layers.routable=a,b`) in SettingsFieldTable.h. RouterSettings now holds the Java fields; clone() (drops resultJsonPath like Java), apply_new_values_from, validate, normalize/default max threads, setLayerCount and all per-layer/cost accessors with Java null fallbacks (getBendCost is real now). Ported sources::DefaultSettings (all DEFAULT_* constants + getSettings) early because nullable fields need it; SettingsSource.h keeps only the interface. Invented RouterOptimizerSettings and the C++ RouterScoringSettings defaults are gone (RouterScoringSettings.h is a deprecated alias of RoutingCostSettings; BoardStatistics takes RoutingCostSettings like Java). Interim CLI path merges DefaultSettings <- CLI, validates, sets the layer count after load and maps max_passes 0 to "no limit". 10 new settings test binaries (48 cases); ctest 1045/1045 (incl. AllTests).
-- [!] T302 | deps: T301 | RouterSettings behaviour: getters/setters with Java null fallbacks, per-layer accessors
-  - blocked: gate failed after 3 attempts on 20261011-151356 (logs: .migration-logs/20261011-151356-T302-try*.log)
+- [ ] T302 | deps: T301 | RouterSettings behaviour: getters/setters with Java null fallbacks, per-layer accessors
   - spec: SOURCE_OF_TRUTH/plans/TrackB_settings_cli.md (section T302)
   - java: settings/{FanoutSettings,RoutingCostSettings,LayerSettings,AutorouterSettings,OptimizerScoreSettings,RouterScoreSettings}.java
 - [ ] T303 | deps: T302 | SettingsMerger + GlobalSettings load/save (hand-rolled JSON with the `@SerializedName` names)
