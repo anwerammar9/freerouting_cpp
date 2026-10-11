@@ -1,4 +1,5 @@
 #include "geometry/planar/TileShape.h"
+#include "geometry/planar/Polygon.h"
 
 #include <algorithm>
 #include <cmath>
@@ -118,6 +119,132 @@ int TileShape::contains_on_border_line_no(const IntPoint& p_point) const
         }
     }
     return containing_line_no;
+}
+
+int TileShape::equals_corner(const IntPoint& p_point) const
+{
+    int line_count = border_line_count();
+    for (int i = 0; i < line_count; i++)
+    {
+        if (corner(i) == p_point)
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
+int TileShape::prev_no(int p_no) const
+{
+    if (p_no == 0)
+    {
+        return border_line_count() - 1;
+    }
+    return p_no - 1;
+}
+
+int TileShape::next_no(int p_no) const
+{
+    int count = border_line_count();
+    if (count <= 0)
+    {
+        return p_no;
+    }
+    return (p_no + 1) % count;
+}
+
+std::vector<int> TileShape::touching_sides(const TileShape& p_other) const
+{
+    // Java Line.direction() returns a Direction; the C++ port only has the
+    // raw IntVector, so the direction pairs are compared through a temporary
+    // IntDirection.
+    struct DirectionPair
+    {
+        int64_t x = 0;
+        int64_t y = 0;
+    };
+    const auto line_direction = [](const Line& p_line) {
+        IntVector vector = p_line.direction();
+        return DirectionPair{vector.x, vector.y};
+    };
+    const auto opposite_direction = [](DirectionPair p_direction) {
+        return DirectionPair{-p_direction.x, -p_direction.y};
+    };
+    const auto compare_direction = [](DirectionPair p_a, DirectionPair p_b) {
+        return IntDirection(p_a.x, p_a.y).compareTo(IntDirection(p_b.x, p_b.y));
+    };
+
+    // Search the first edge line of p_other with reverse direction >= right.
+    int side_no2 = -1;
+    DirectionPair dir2;
+    bool dir2_found = false;
+    for (int i = 0; i < p_other.border_line_count(); i++)
+    {
+        DirectionPair current_direction = line_direction(p_other.border_line(i));
+        if (compare_direction(current_direction, {IntDirection::LEFT.x, IntDirection::LEFT.y}) >= 0)
+        {
+            side_no2 = i;
+            dir2 = opposite_direction(current_direction);
+            dir2_found = true;
+            break;
+        }
+    }
+    if (!dir2_found)
+    {
+        logger::FRLogger::instance().warn("TileShape::touching_sides: dir2 not found");
+        return {};
+    }
+
+    int this_count = border_line_count();
+    int other_count = p_other.border_line_count();
+    if (this_count == 0 || other_count == 0)
+    {
+        return {};
+    }
+    int side_no1 = 0;
+    DirectionPair dir1 = line_direction(border_line(0));
+    const int max_ind = this_count + other_count;
+
+    for (int i = 0; i < max_ind; i++)
+    {
+        int compare = compare_direction(dir2, dir1);
+        if (compare == 0)
+        {
+            if (border_line(side_no1).is_equal_or_opposite(p_other.border_line(side_no2)))
+            {
+                return {side_no1, side_no2};
+            }
+        }
+        if (compare >= 0)
+        {
+            // dir2 is bigger than dir1
+            side_no1 = (side_no1 + 1) % this_count;
+            dir1 = line_direction(border_line(side_no1));
+        }
+        else
+        {
+            // dir1 is bigger than dir2
+            side_no2 = (side_no2 + 1) % other_count;
+            dir2 = opposite_direction(line_direction(p_other.border_line(side_no2)));
+        }
+    }
+    return {};
+}
+
+std::unique_ptr<TileShape> TileShape::intersection_of(const TileShape& p_first, const TileShape& p_second)
+{
+    Simplex result = p_first.to_Simplex().intersection(p_second.to_Simplex());
+    // Java Simplex.intersection() returns the Simplex of the reduced line set
+    // without simplifying it. Simplifying a 0 or 1 dimensional result would
+    // convert it into a degenerate regular shape, because Simplex::simplify()
+    // only checks the 45 degree multiples of the border lines and not the
+    // dimension, so a valid segment would be reported as an empty octagon.
+    // Only 2 dimensional results are converted to the cheaper regular shape.
+    if (result.dimension() == 2)
+    {
+        return result.simplify();
+    }
+    return std::make_unique<Simplex>(std::move(result));
 }
 
 bool TileShape::contains_on_border(const IntPoint& p_point) const
@@ -360,6 +487,40 @@ int TileShape::index_of_nearest_corner(const IntPoint& p_from_point) const
     return result;
 }
 
+int TileShape::index_of_left_most_corner(const FloatPoint& p_from_point) const
+{
+    FloatPoint left_most_corner = corner_approx(0);
+    int corner_count = border_line_count();
+    int result = 0;
+    for (int i = 1; i < corner_count; i++)
+    {
+        FloatPoint current_corner = corner_approx(i);
+        if (current_corner.side_of(p_from_point, left_most_corner) == Side::ON_THE_LEFT)
+        {
+            left_most_corner = current_corner;
+            result = i;
+        }
+    }
+    return result;
+}
+
+int TileShape::index_of_right_most_corner(const FloatPoint& p_from_point) const
+{
+    FloatPoint right_most_corner = corner_approx(0);
+    int corner_count = border_line_count();
+    int result = 0;
+    for (int i = 1; i < corner_count; i++)
+    {
+        FloatPoint current_corner = corner_approx(i);
+        if (current_corner.side_of(p_from_point, right_most_corner) == Side::ON_THE_RIGHT)
+        {
+            right_most_corner = current_corner;
+            result = i;
+        }
+    }
+    return result;
+}
+
 std::optional<FloatLine> TileShape::diagonal_corner_segment() const
 {
     if (this->is_empty())
@@ -369,6 +530,31 @@ std::optional<FloatLine> TileShape::diagonal_corner_segment() const
     FloatPoint first_corner = this->corner_approx(0);
     FloatPoint last_corner = this->corner_approx(this->border_line_count() / 2);
     return FloatLine(first_corner, last_corner);
+}
+
+std::optional<FloatLine> TileShape::polar_line_segment(const FloatPoint& p_from_point) const
+{
+    if (this->is_empty())
+    {
+        logger::FRLogger::instance().warn("TileShape.polar_line_segment: shape is empty");
+        return std::nullopt;
+    }
+    FloatPoint left_most_corner = this->corner_approx(0);
+    FloatPoint right_most_corner = this->corner_approx(0);
+    int corner_count = border_line_count();
+    for (int i = 1; i < corner_count; i++)
+    {
+        FloatPoint current_corner = this->corner_approx(i);
+        if (current_corner.side_of(p_from_point, right_most_corner) == Side::ON_THE_RIGHT)
+        {
+            right_most_corner = current_corner;
+        }
+        if (current_corner.side_of(p_from_point, left_most_corner) == Side::ON_THE_LEFT)
+        {
+            left_most_corner = current_corner;
+        }
+    }
+    return FloatLine(left_most_corner, right_most_corner);
 }
 
 double TileShape::length() const
@@ -467,6 +653,106 @@ std::vector<std::unique_ptr<TileShape>> TileShape::split_to_convex() const
     return result;
 }
 
+bool TileShape::is_intersected_interior_by(const LineSegment& p_line_segment) const
+{
+    // Java passes the exact (possibly rational) end points.
+    return is_intersected_interior_by(
+        p_line_segment.start_point_exact(), p_line_segment.end_point_exact(), p_line_segment.get_line());
+}
+
+bool TileShape::is_intersected_interior_by(const Point& p_start_point, const Point& p_end_point,
+    const Line& p_line) const
+{
+    FloatPoint float_start_point = p_start_point.to_float();
+    FloatPoint float_end_point = p_end_point.to_float();
+
+    const int line_count = this->border_line_count();
+    std::vector<Side> border_line_side_of_start_point_arr(static_cast<size_t>(line_count));
+    std::vector<Side> border_line_side_of_end_point_arr(static_cast<size_t>(line_count));
+    for (int i = 0; i < line_count; i++)
+    {
+        Line current_border_line = this->border_line(i);
+        Side border_line_side_of_start_point = current_border_line.side_of(float_start_point, 1);
+        if (border_line_side_of_start_point == Side::COLLINEAR)
+        {
+            border_line_side_of_start_point = current_border_line.side_of(p_start_point);
+        }
+        Side border_line_side_of_end_point = current_border_line.side_of(float_end_point, 1);
+        if (border_line_side_of_end_point == Side::COLLINEAR)
+        {
+            border_line_side_of_end_point = current_border_line.side_of(p_end_point);
+        }
+        if (border_line_side_of_start_point != Side::ON_THE_RIGHT
+            && border_line_side_of_end_point != Side::ON_THE_RIGHT)
+        {
+            // both endpoints are outside the borderLine, no intersection possible
+            return false;
+        }
+        border_line_side_of_start_point_arr[static_cast<size_t>(i)] = border_line_side_of_start_point;
+        border_line_side_of_end_point_arr[static_cast<size_t>(i)] = border_line_side_of_end_point;
+    }
+    bool start_point_is_inside = true;
+    for (int i = 0; i < line_count; i++)
+    {
+        if (border_line_side_of_start_point_arr[static_cast<size_t>(i)] != Side::ON_THE_RIGHT)
+        {
+            start_point_is_inside = false;
+            break;
+        }
+    }
+    if (start_point_is_inside)
+    {
+        return true;
+    }
+    bool end_point_is_inside = true;
+    for (int i = 0; i < line_count; i++)
+    {
+        if (border_line_side_of_end_point_arr[static_cast<size_t>(i)] != Side::ON_THE_RIGHT)
+        {
+            end_point_is_inside = false;
+            break;
+        }
+    }
+    if (end_point_is_inside)
+    {
+        return true;
+    }
+    Line segment_line = p_line;
+    // Check, if this line segment intersects a border line of this shape.
+    for (int i = 0; i < line_count; i++)
+    {
+        Side border_line_side_of_start_point = border_line_side_of_start_point_arr[static_cast<size_t>(i)];
+        Side border_line_side_of_end_point = border_line_side_of_end_point_arr[static_cast<size_t>(i)];
+        if (border_line_side_of_start_point != border_line_side_of_end_point)
+        {
+            if ((border_line_side_of_start_point == Side::COLLINEAR && border_line_side_of_end_point == Side::ON_THE_LEFT)
+                || (border_line_side_of_end_point == Side::COLLINEAR && border_line_side_of_start_point == Side::ON_THE_LEFT))
+            {
+                // the interior of shape is not intersected.
+                continue;
+            }
+            Side prev_corner_side = segment_line.side_of(this->corner_approx(i), 1);
+            if (prev_corner_side == Side::COLLINEAR)
+            {
+                prev_corner_side = segment_line.side_of(this->corner(i));
+            }
+            int next_corner_index = (i == line_count - 1) ? 0 : i + 1;
+            Side next_corner_side = segment_line.side_of(this->corner_approx(next_corner_index), 1);
+            if (next_corner_side == Side::COLLINEAR)
+            {
+                next_corner_side = segment_line.side_of(this->corner(next_corner_index));
+            }
+            if ((prev_corner_side == Side::ON_THE_LEFT && next_corner_side == Side::ON_THE_RIGHT)
+                || (prev_corner_side == Side::ON_THE_RIGHT && next_corner_side == Side::ON_THE_LEFT))
+            {
+                // this line segment crosses a border line of this shape
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 std::vector<std::pair<int, int>> TileShape::entrance_points(const Polyline& p_polyline) const
 {
     std::vector<std::pair<int, int>> result;
@@ -506,8 +792,23 @@ std::vector<std::unique_ptr<TileShape>> wrap_tile_pieces(std::vector<T> pieces)
 
 } // namespace
 
-// Port of Java TileShape.cutout: this.cutout(p_shape) == p_shape.cutout_from(this).
+// Port of Java TileShape.cutout: this.cutout(p_shape) == p_shape.cutout_from(this),
+// i.e. the pieces of this shape minus p_shape. Java IntBox.cutout additionally
+// simplifies every piece; Simplex.cutout and IntOctagon.cutout do not.
 std::vector<std::unique_ptr<TileShape>> TileShape::cutout(const TileShape& p_shape) const
+{
+    std::vector<std::unique_ptr<TileShape>> result = cutout_pieces(p_shape);
+    if (dynamic_cast<const IntBox*>(this) != nullptr)
+    {
+        for (auto& piece : result)
+        {
+            piece = piece->simplify();
+        }
+    }
+    return result;
+}
+
+std::vector<std::unique_ptr<TileShape>> TileShape::cutout_pieces(const TileShape& p_shape) const
 {
     if (const auto* hole_simplex = dynamic_cast<const Simplex*>(&p_shape))
     {
@@ -517,11 +818,11 @@ std::vector<std::unique_ptr<TileShape>> TileShape::cutout(const TileShape& p_sha
         }
         if (const auto* divide_octagon = dynamic_cast<const IntOctagon*>(this))
         {
-            return wrap_tile_pieces(divide_octagon->cutout_from(*hole_simplex));
+            return wrap_tile_pieces(hole_simplex->cutout_from(*divide_octagon));
         }
         if (const auto* divide_box = dynamic_cast<const IntBox*>(this))
         {
-            return wrap_tile_pieces(divide_box->cutout_from(*hole_simplex));
+            return wrap_tile_pieces(hole_simplex->cutout_from(*divide_box));
         }
     }
     else if (const auto* hole_octagon = dynamic_cast<const IntOctagon*>(&p_shape))
@@ -580,6 +881,44 @@ std::unique_ptr<TileShape> TileShape::get_instance(const std::vector<IntPoint>& 
     return get_instance(line_arr);
 }
 
+std::unique_ptr<TileShape> TileShape::enlarge(double p_offset) const
+{
+    if (const auto* b = dynamic_cast<const IntBox*>(this))
+    {
+        return std::make_unique<IntOctagon>(b->enlarge(p_offset));
+    }
+    if (const auto* o = dynamic_cast<const IntOctagon*>(this))
+    {
+        return std::make_unique<IntOctagon>(o->enlarge(p_offset));
+    }
+    if (const auto* s = dynamic_cast<const Simplex*>(this))
+    {
+        return std::make_unique<Simplex>(s->enlarge(p_offset));
+    }
+    logger::FRLogger::instance().warn("TileShape.enlarge: unsupported shape type");
+    return clone();
+}
+
+std::vector<std::unique_ptr<TileShape>> TileShape::divide_into_sections(double p_max_section_width) const
+{
+    std::vector<std::unique_ptr<TileShape>> result;
+    if (is_empty())
+    {
+        result.push_back(clone());
+        return result;
+    }
+    for (const IntBox& section_box : bounding_box().divide_into_sections(p_max_section_width))
+    {
+        // Java intersectionWithSimplify(sectionBox)
+        std::unique_ptr<TileShape> curr_section = intersection_of(*this, section_box);
+        if (curr_section->dimension() == 2)
+        {
+            result.push_back(std::move(curr_section));
+        }
+    }
+    return result;
+}
+
 std::unique_ptr<TileShape> TileShape::offset(double p_dist) const
 {
     if (auto* s = dynamic_cast<const Simplex*>(this))
@@ -596,6 +935,309 @@ std::unique_ptr<TileShape> TileShape::offset(double p_dist) const
     }
     logger::FRLogger::instance().warn("TileShape.offset: unsupported shape type");
     return clone();
+}
+
+std::unique_ptr<TileShape> TileShape::turn_90_degree(int p_factor, const IntPoint& p_pole) const
+{
+    if (const auto* box = dynamic_cast<const IntBox*>(this))
+    {
+        return std::make_unique<IntBox>(box->turn_90_degree(p_factor, p_pole));
+    }
+    std::vector<Line> new_lines;
+    new_lines.reserve(border_line_count());
+    for (int i = 0; i < border_line_count(); ++i)
+    {
+        new_lines.push_back(border_line(i).turn_90_degree(p_factor, p_pole));
+    }
+    return get_instance(new_lines);
+}
+
+std::unique_ptr<TileShape> TileShape::rotate_approx(double p_angle, const FloatPoint& p_pole) const
+{
+    if (p_angle == 0)
+    {
+        return clone();
+    }
+    std::vector<IntPoint> new_corners;
+    new_corners.reserve(border_line_count());
+    for (int i = 0; i < border_line_count(); ++i)
+    {
+        new_corners.push_back(corner_approx(i).rotate(p_angle, p_pole).round());
+    }
+    const std::vector<IntPoint> polygon_corners = Polygon(new_corners).corner_array();
+    if (polygon_corners.size() >= 3)
+    {
+        return get_instance(polygon_corners);
+    }
+    if (polygon_corners.size() == 2)
+    {
+        const Polyline curr_polyline = Polyline::from_corners(polygon_corners);
+        return LineSegment(curr_polyline, 0).to_simplex();
+    }
+    if (polygon_corners.size() == 1)
+    {
+        return std::make_unique<IntBox>(get_instance(polygon_corners[0]));
+    }
+    return std::make_unique<Simplex>(Simplex::EMPTY);
+}
+
+std::unique_ptr<TileShape> TileShape::mirror_vertical(const IntPoint& p_pole) const
+{
+    std::vector<Line> new_lines;
+    new_lines.reserve(border_line_count());
+    for (int i = 0; i < border_line_count(); ++i)
+    {
+        new_lines.push_back(border_line(i).mirror_vertical(p_pole));
+    }
+    return get_instance(new_lines);
+}
+
+std::unique_ptr<TileShape> TileShape::mirror_horizontal(const IntPoint& p_pole) const
+{
+    std::vector<Line> new_lines;
+    new_lines.reserve(border_line_count());
+    for (int i = 0; i < border_line_count(); ++i)
+    {
+        new_lines.push_back(border_line(i).mirror_horizontal(p_pole));
+    }
+    return get_instance(new_lines);
+}
+
+std::unique_ptr<TileShape> TileShape::translate_by(const IntVector& p_vector) const
+{
+    if (const auto* box = dynamic_cast<const IntBox*>(this))
+    {
+        return std::make_unique<IntBox>(box->translate_by(p_vector));
+    }
+    if (const auto* oct = dynamic_cast<const IntOctagon*>(this))
+    {
+        return std::make_unique<IntOctagon>(oct->translate_by(p_vector));
+    }
+    if (const auto* simplex = dynamic_cast<const Simplex*>(this))
+    {
+        return std::make_unique<Simplex>(simplex->translate_by(p_vector));
+    }
+    logger::FRLogger::instance().warn("TileShape.translate_by: unsupported shape type");
+    return clone();
+}
+
+// Port of Java TileShape.cutout(Polyline): cuts the parts of p_polyline which
+// are in the interior of this shape out of the polyline and returns the
+// remaining outside pieces. Pieces completely contained in the border of this
+// shape are not returned.
+std::vector<Polyline> TileShape::cutout(const Polyline& p_polyline) const
+{
+    std::vector<std::pair<int, int>> intersection_no = entrance_points(p_polyline);
+    const IntPoint first_corner = p_polyline.first_corner();
+    const bool first_corner_is_inside = contains_inside(first_corner);
+    if (intersection_no.empty())
+    {
+        // no intersections
+        if (first_corner_is_inside)
+        {
+            // polyline is contained completely in this shape
+            return {};
+        }
+        // polyline is completely outside
+        return {p_polyline};
+    }
+
+    std::vector<Polyline> pieces;
+    int current_intersection_no = 0;
+    std::pair<int, int> current_intersection_tuple = intersection_no[current_intersection_no];
+    std::unique_ptr<Point> first_intersection =
+        p_polyline.arr[current_intersection_tuple.first]
+            .intersection(border_line(current_intersection_tuple.second));
+    // Java compares the corners with Point.equals; IntPoint.equals compares
+    // the coordinates exactly, so the integer comparison is preferred.
+    bool first_corner_equals_intersection = false;
+    if (const auto* intersection_int_point = dynamic_cast<const IntPoint*>(first_intersection.get()))
+    {
+        first_corner_equals_intersection = (first_corner == *intersection_int_point);
+    }
+    else if (first_intersection != nullptr)
+    {
+        first_corner_equals_intersection = (first_corner.to_float() == first_intersection->to_float());
+    }
+    if (!first_corner_is_inside)
+    {
+        // calculate the outside piece at the start
+        if (!first_corner_equals_intersection)
+        {
+            // otherwise skip 1 point outside the polyline at the start
+            const int current_polyline_intersection_no = current_intersection_tuple.first;
+            std::vector<Line> current_lines;
+            current_lines.reserve(current_polyline_intersection_no + 2);
+            for (int i = 0; i <= current_polyline_intersection_no; i++)
+            {
+                current_lines.push_back(p_polyline.arr[i]);
+            }
+            // close the polyline piece with the intersected edge line
+            current_lines.push_back(border_line(current_intersection_tuple.second));
+            Polyline current_piece(std::move(current_lines));
+            if (!current_piece.is_empty())
+            {
+                pieces.push_back(std::move(current_piece));
+            }
+        }
+        current_intersection_no++;
+    }
+    while (current_intersection_no < static_cast<int>(intersection_no.size()) - 1)
+    {
+        // calculate the next outside polyline piece
+        current_intersection_tuple = intersection_no[current_intersection_no];
+        const std::pair<int, int> next_intersection_tuple = intersection_no[current_intersection_no + 1];
+        const int current_intersection_no_of_polyline = current_intersection_tuple.first;
+        const int next_intersection_no_of_polyline = next_intersection_tuple.first;
+        // check that at least 1 corner of the polyline with a number between
+        // current_intersection_no_of_polyline and next_intersection_no_of_polyline is not
+        // contained in this shape. Otherwise the part of the polyline between
+        // these intersections is completely contained in the border and can be
+        // ignored.
+        bool insert_piece = false;
+        for (int i = current_intersection_no_of_polyline + 1; i < next_intersection_no_of_polyline; i++)
+        {
+            if (is_outside(p_polyline.corner(i)))
+            {
+                insert_piece = true;
+                break;
+            }
+        }
+        if (insert_piece)
+        {
+            const int piece_line_count = next_intersection_no_of_polyline -
+                                        current_intersection_no_of_polyline + 3;
+            std::vector<Line> current_lines;
+            current_lines.reserve(piece_line_count);
+            current_lines.push_back(border_line(current_intersection_tuple.second));
+            for (int i = 1; i < piece_line_count - 1; i++)
+            {
+                current_lines.push_back(p_polyline.arr[current_intersection_no_of_polyline + i - 1]);
+            }
+            current_lines.push_back(border_line(next_intersection_tuple.second));
+            Polyline current_piece(std::move(current_lines));
+            if (!current_piece.is_empty())
+            {
+                pieces.push_back(std::move(current_piece));
+            }
+        }
+        current_intersection_no += 2;
+    }
+    if (current_intersection_no <= static_cast<int>(intersection_no.size()) - 1)
+    {
+        // calculate the outside piece at the end
+        current_intersection_tuple = intersection_no[current_intersection_no];
+        const int current_polyline_intersection_no = current_intersection_tuple.first;
+        const int piece_line_count = static_cast<int>(p_polyline.arr.size()) -
+                                     current_polyline_intersection_no + 1;
+        std::vector<Line> current_lines;
+        current_lines.reserve(piece_line_count);
+        current_lines.push_back(border_line(current_intersection_tuple.second));
+        for (int i = 1; i < piece_line_count; i++)
+        {
+            current_lines.push_back(p_polyline.arr[current_polyline_intersection_no + i - 1]);
+        }
+        Polyline current_piece(std::move(current_lines));
+        if (!current_piece.is_empty())
+        {
+            pieces.push_back(std::move(current_piece));
+        }
+    }
+    return pieces;
+}
+
+std::unique_ptr<TileShape> TileShape::shrink(double p_offset) const
+{    std::unique_ptr<TileShape> result = offset(-p_offset);
+    if (result && result->is_empty())
+    {
+        IntBox centre_box = centre_of_gravity().surrounding_box();
+        result = TileShape::intersection_of(*this, centre_box);
+    }
+    return result;
+}
+
+double TileShape::min_width() const
+{
+    if (auto* s = dynamic_cast<const Simplex*>(this))
+    {
+        return s->min_width();
+    }
+    if (auto* b = dynamic_cast<const IntBox*>(this))
+    {
+        return b->min_width();
+    }
+    if (auto* o = dynamic_cast<const IntOctagon*>(this))
+    {
+        return o->min_width();
+    }
+    logger::FRLogger::instance().warn("TileShape.min_width: unsupported shape type");
+    return 0.0;
+}
+
+double TileShape::max_width() const
+{
+    if (auto* s = dynamic_cast<const Simplex*>(this))
+    {
+        return s->max_width();
+    }
+    if (auto* b = dynamic_cast<const IntBox*>(this))
+    {
+        return b->max_width();
+    }
+    if (auto* o = dynamic_cast<const IntOctagon*>(this))
+    {
+        return o->max_width();
+    }
+    logger::FRLogger::instance().warn("TileShape.max_width: unsupported shape type");
+    return 0.0;
+}
+
+IntOctagon TileShape::bounding_octagon() const
+{
+    if (auto* s = dynamic_cast<const Simplex*>(this))
+    {
+        return s->bounding_octagon();
+    }
+    if (auto* o = dynamic_cast<const IntOctagon*>(this))
+    {
+        return o->bounding_octagon();
+    }
+    if (auto* b = dynamic_cast<const IntBox*>(this))
+    {
+        // Java IntBox.boundingOctagon() returns this.toIntOctagon().
+        return b->to_IntOctagon();
+    }
+    logger::FRLogger::instance().warn("TileShape.bounding_octagon: unsupported shape type");
+    return IntOctagon::EMPTY;
+}
+
+bool TileShape::is_contained_in(const IntBox& p_box) const
+{
+    if (auto* b = dynamic_cast<const IntBox*>(this))
+    {
+        return b->is_contained_in(p_box);
+    }
+    if (auto* o = dynamic_cast<const IntOctagon*>(this))
+    {
+        return o->is_contained_in(p_box);
+    }
+    if (auto* s = dynamic_cast<const Simplex*>(this))
+    {
+        if (s->is_empty())
+        {
+            return true;
+        }
+        for (int i = 0; i < s->border_line_count(); ++i)
+        {
+            if (!p_box.contains(s->corner(i)))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+    logger::FRLogger::instance().warn("TileShape.is_contained_in: unsupported shape type");
+    return false;
 }
 
 std::unique_ptr<TileShape> TileShape::get_instance(const Line& p_line)

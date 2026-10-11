@@ -2,7 +2,7 @@
 
 **Module**: `src/drc/`
 **CMake Target**: `freerouting_drc`
-**Java Files**: 7 | **C++ Headers**: 2 | **C++ Impls**: 1 | **Tests**: 0
+**Java Files**: 7 | **C++ Headers**: 14 | **C++ Impls**: 7 | **Tests**: 7 (gtest)
 
 ---
 
@@ -10,27 +10,35 @@
 
 | Java Class | C++ Header | C++ Impl | Test | Java Lines | Notes |
 |------------|-----------|----------|------|-----------|-------|
-| ClearanceViolation | ClearanceViolation.h | ClearanceViolation.cpp | - | 66 | DRC violation type |
+| AirLine | interactive/RatsNest.h/.cpp | - | - | 16 | Lives in `interactive/` (RatsNest), not `src/drc/` |
+| ClearanceViolation | ClearanceViolation.h | ClearanceViolation.cpp | - | 66 | DRC violation type; ported |
+| DesignRulesChecker | DesignRulesChecker.h | DesignRulesChecker.cpp | DesignRulesChecker_test.cpp | 466 | Core DRC engine; 7 gtest cases, deterministic |
+| DrcSummaryResponse | DrcSummaryResponse.h | DrcSummaryResponse.cpp | (via DesignRulesChecker_test) | 8 | JSON summary for KiCad schema |
+| NetIncompletes | interactive/NetIncompletes.h/.cpp | - | NetIncompletes_test.cpp | 19 | Lives in `interactive/` |
+| UnconnectedItems | UnconnectedItems.h | UnconnectedItems.cpp | (via DesignRulesChecker_test) | 70 | Ported |
+| ZoneIslandViolation | ZoneIslandViolation.h | ZoneIslandViolation.cpp | - | 20 | Ported |
 
-## Partially Migrated
+Additional C++-only helpers: `DrcReport.{h,cpp}`, `DrcViolation.h`, `DrcViolationItem.h`, `DrcPosition.h`, `drc_json_internal.h`.
 
-| Java Class | C++ Header | C++ Impl | Java Lines | What's Missing |
-|------------|-----------|----------|-----------|----------------|
-| UnconnectedItems | UnconnectedItems.h | - | 70 | Implementation file needed |
+`freerouting_drc` links `freerouting_core`, `freerouting_board`, `freerouting_constants`, `freerouting_interactive`.
 
-## Not Migrated
+## Dependencies
 
-| Java Class | Java Lines | Priority | Dependencies / Notes |
-|------------|-----------|----------|---------------------|
-| DesignRulesChecker | 466 | HIGH | Core DRC engine |
-| DrcPosition | N/A | MED | Violation position |
-| DrcReport | 92 | MED | Violation reporting |
-| DrcViolation | N/A | MED | Violation entity |
-| DrcViolationItem | N/A | MED | Individual violation item |
+- `freerouting_rules` (`ClearanceMatrix`, `BoardRules`, `NetClass`) — see Porting Note 1 below.
+- Test fixtures build a `RoutingBoard` inline (see `make_routing_board` in `DesignRulesChecker_test.cpp`).
+
+## Porting Notes
+
+1. **Dangling-reference fix (clearance violations)**: `ClearanceMatrix`, `BoardRules`, and `NetClass`
+   originally held `const board::LayerStructure&` reference members bound to stack-locals that die when
+   `make_routing_board()`/`BoardBuilder`/`BoardLoader` return. That made `get_value()`/`layer_count()`
+   read freed memory, so the clearance prefilter shrank and violations were skipped nondeterministically
+   (flaky ctest). Fix: store `LayerStructure` **by value** (it is a `vector<shared_ptr<Layer>>`, so the
+   copy is cheap and Layer identity is preserved). Any future class that needs a long-lived
+   `LayerStructure` must own it (by value or `shared_ptr`), never a plain reference.
 
 ## Summary
 
-- **Done**: 1 class (14% of Java files)
-- **Partial**: 1 class (14%)
-- **Remaining**: 5 classes (71%)
-- **Blockers**: DesignRulesChecker is the core DRC engine and critical for validation. Depends on board rules and clearance checks being complete.
+- **Done**: 7 classes (100% of Java DRC files).
+- **Tests**: 7 gtest cases in `src/drc/DesignRulesChecker_test.cpp` — all deterministic and green.
+- **Known, unrelated**: 4 pre-existing failures in `RatsNestTest.*` (in-progress RatsNest/NetIncompletes logic); unrelated to DRC module.

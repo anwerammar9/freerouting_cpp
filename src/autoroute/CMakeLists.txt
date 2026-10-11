@@ -13,18 +13,31 @@ add_library(freerouting_autoroute STATIC
     DrillPageArray.cpp
     ExpansionDrill.cpp
     ExpansionRoom.cpp
-    InsertFoundConnectionAlgo.cpp
+    FoundConnectionInserter.cpp
+    FoundConnectionLocator.cpp
+    FoundConnectionLocator45Degree.cpp
+    FoundConnectionLocatorAnyAngle.cpp
     ItemAutorouteInfo.cpp
     ItemRouteResult.cpp
     ItemSelectionStrategy.cpp
     LocateFoundConnectionAlgo.cpp
+    MazeRandom.h
+    MazeRipupResolver.cpp
     MazeSearchAlgo.cpp
+    MazeExpansionEngine.cpp
+    MazeFanoutDiagnostics.cpp
     MazeSearchElement.cpp
     MazeSearchRoute.cpp
+    MazeTraceShover.cpp
     NamedAlgorithm.cpp
     NamedAlgorithmType.cpp
     PerformanceProfiler.cpp
+    RoutingBoardAutoroute.cpp
+    RoutingBoardFanout.cpp
     RoutingFailureLog.cpp
+    Sorted45DegreeRoomNeighbours.cpp
+    SortedOrthogonalRoomNeighbours.cpp
+    SortedRoomNeighbours.cpp
     TaskState.cpp
 )
 

@@ -6,7 +6,7 @@
 #include <cstdint>
 
 #include "board/RoutingBoard.h"
-#include "settings/RouterScoringSettings.h"
+#include "settings/RoutingCostSettings.h"
 #include "core/FileFormat.h"
 #include "geometry/planar/Point.h"
 
@@ -134,9 +134,9 @@ public:
     BoardStatistics(board::RoutingBoard* board, const std::string& unit);
     BoardStatistics(const std::string& data, FileFormat format);
 
-    float calculateScore(settings::RouterScoringSettings scoringSettings);
-    float getMaximumScore(settings::RouterScoringSettings scoringSettings);
-    float getNormalizedScore(settings::RouterScoringSettings scoringSettings);
+    float calculateScore(const settings::RoutingCostSettings& scoringSettings);
+    float getMaximumScore(const settings::RoutingCostSettings& scoringSettings);
+    float getNormalizedScore(const settings::RoutingCostSettings& scoringSettings);
     std::string toString() const;
 
     // Accessors for sub-sections

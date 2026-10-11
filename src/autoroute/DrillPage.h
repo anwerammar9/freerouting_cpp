@@ -38,10 +38,17 @@ public:
 
     geometry::planar::IntBox get_shape() const override { return shape; }
     int get_dimension() const override { return 2; }
-    CompleteExpansionRoom* other_room(CompleteExpansionRoom* p_room) override { return nullptr; }
+    CompleteExpansionRoom* other_room(CompleteExpansionRoom* p_room) override { (void)p_room; return nullptr; }
     int maze_search_element_count() const override;
     MazeSearchElement* get_maze_search_element(int p_no) override;
     void reset() override;
+
+    /**
+     * Returns a unique identification number for this drill page: a stable hash
+     * of the page shape and the autoroute net number. Port of Java
+     * DrillPage.getId().
+     */
+    int64_t get_id() const override;
 
     /**
      * Returns the drills on this page. If p_attach_smd, drilling to smd pins is

@@ -42,9 +42,9 @@ double get_trace_length(board::RoutingBoard* p_board, int p_net_no)
 struct NetIncompletes::NetItem : datastructures::PlanarDelaunayTriangulation::Storable
 {
     board::Item* item;
-    std::shared_ptr<std::set<board::Item*>> connected_set;
+    std::shared_ptr<board::ItemSet> connected_set;
 
-    NetItem(board::Item* p_item, std::shared_ptr<std::set<board::Item*>> p_connected_set)
+    NetItem(board::Item* p_item, std::shared_ptr<board::ItemSet> p_connected_set)
         : item(p_item), connected_set(std::move(p_connected_set))
     {
     }
@@ -137,7 +137,7 @@ NetIncompletes::NetIncompletes(int p_net_no, const std::vector<board::Item*>& p_
     // Count the number of distinct connected groups. Items of the same group
     // share the same connected_set object, so identity is the right check.
     // Mirrors Java: uniqueConnectedSets over the NetItem connected sets.
-    std::set<const std::set<board::Item*>*> unique_connected_sets;
+    std::set<const board::ItemSet*> unique_connected_sets;
     for (const auto& net_item : net_items)
     {
         unique_connected_sets.insert(net_item->connected_set.get());
@@ -223,12 +223,12 @@ std::vector<std::shared_ptr<NetIncompletes::NetItem>> NetIncompletes::calculate_
     const std::vector<board::Item*>& p_item_list, int p_net_no) const
 {
     std::vector<std::shared_ptr<NetItem>> result;
-    std::set<board::Item*> unique_items(p_item_list.begin(), p_item_list.end());
+    board::ItemSet unique_items(p_item_list.begin(), p_item_list.end());
 
     while (!unique_items.empty())
     {
         board::Item* start_item = *unique_items.begin();
-        auto curr_connected_set = std::make_shared<std::set<board::Item*>>(
+        auto curr_connected_set = std::make_shared<board::ItemSet>(
             start_item->get_connected_set(p_net_no, false));
 
         // Collect the items of the connected set which are still present to
@@ -253,8 +253,8 @@ std::vector<std::shared_ptr<NetIncompletes::NetItem>> NetIncompletes::calculate_
 
 void NetIncompletes::join_connected_sets(
     const std::vector<std::shared_ptr<NetItem>>& p_net_items,
-    std::shared_ptr<std::set<board::Item*>> p_from_connected_set,
-    std::shared_ptr<std::set<board::Item*>> p_to_connected_set) const
+    std::shared_ptr<board::ItemSet> p_from_connected_set,
+    std::shared_ptr<board::ItemSet> p_to_connected_set) const
 {
     // Copy the shared_ptrs by value: the parameters alias the NetItem members
     // they were passed from, and the join reassigns those very members. Holding

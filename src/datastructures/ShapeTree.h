@@ -170,6 +170,19 @@ public:
     int size() const { return leaf_count; }
 
     /**
+     * The fixed directions for calculating bounding RegularTileShapes of the
+     * shapes stored in this tree. Java keeps the field
+     * ShapeTree.boundingDirections protected, because the search tree
+     * implementation (ShapeSearchTree45Degree etc.) is a subclass; the C++
+     * selection of the neighbour calculation mode needs the directions from
+     * outside, so they are exposed here.
+     */
+    const geometry::planar::ShapeBoundingDirections& get_bounding_directions() const
+    {
+        return bounding_directions;
+    }
+
+    /**
      * Outputs some statistic information about the tree.
      */
     void statistics(const std::string& p_message);

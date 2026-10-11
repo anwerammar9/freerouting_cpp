@@ -1,5 +1,6 @@
 #pragma once
 
+#include "board/ItemSet.h"
 #include <list>
 #include <memory>
 #include <set>
@@ -87,8 +88,8 @@ private:
      * reassigns. Mirrors Java NetIncompletes.join_connected_sets().
      */
     void join_connected_sets(const std::vector<std::shared_ptr<NetItem>>& p_net_items,
-                             std::shared_ptr<std::set<board::Item*>> p_from_connected_set,
-                             std::shared_ptr<std::set<board::Item*>> p_to_connected_set) const;
+                             std::shared_ptr<board::ItemSet> p_from_connected_set,
+                             std::shared_ptr<board::ItemSet> p_to_connected_set) const;
 
     board::RoutingBoard* board_;
     rules::Net* net_;

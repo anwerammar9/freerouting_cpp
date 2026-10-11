@@ -11,8 +11,25 @@ TEST(IncompleteFreeSpaceExpansionRoomTest, Construction) {
     IncompleteFreeSpaceExpansionRoom room(&source_room, 1, shape);
 
     EXPECT_EQ(room.get_layer(), 1);
-    EXPECT_EQ(room.get_room_id(), 0);
     EXPECT_EQ(room.get_shape(), shape);
+    // Port of Java IncompleteFreeSpaceExpansionRoom.getId(): a stable hash of
+    // the room shape and the room layer.
+    EXPECT_EQ(room.get_room_id(), static_cast<int>(31 * shape.get_id() + 1));
+}
+
+TEST(IncompleteFreeSpaceExpansionRoomTest, RoomIdIsStableAndDependsOnShapeAndLayer) {
+    geometry::planar::IntBox shape(50, 50, 150, 150);
+    geometry::planar::IntBox other_shape(50, 50, 150, 160);
+    CompleteFreeSpaceExpansionRoom source_room(1, 10, geometry::planar::IntBox(0, 0, 200, 200));
+
+    IncompleteFreeSpaceExpansionRoom room(&source_room, 1, shape);
+    IncompleteFreeSpaceExpansionRoom same_room(&source_room, 1, shape);
+    IncompleteFreeSpaceExpansionRoom other_layer(&source_room, 2, shape);
+    IncompleteFreeSpaceExpansionRoom other_shape_room(&source_room, 1, other_shape);
+
+    EXPECT_EQ(room.get_room_id(), same_room.get_room_id());
+    EXPECT_NE(room.get_room_id(), other_layer.get_room_id());
+    EXPECT_NE(room.get_room_id(), other_shape_room.get_room_id());
 }
 
 TEST(IncompleteFreeSpaceExpansionRoomTest, DoorsStartEmpty) {

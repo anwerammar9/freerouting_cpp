@@ -2,7 +2,13 @@
 #include <cassert>
 #include <cmath>
 #include <filesystem>
-#include "designforms/specctra/Scanner.h"
+#include <fstream>
+#include <memory>
+#include <variant>
+#include "board/RoutingBoard.h"
+#include "designforms/specctra/DsnReader.h"
+#include "rules/BoardRules.h"
+#include "rules/Net.h"
 #include "geometry/planar/Point.h"
 #include "geometry/planar/Vector.h"
 #include "geometry/planar/LineSegment.h"
@@ -33,50 +39,62 @@ std::string get_test_file_path(const std::string& filename)
     return filename; // Fallback
 }
 
+/** Loads a DSN with the DsnReader (the board of a Success result, else nullptr). */
+std::unique_ptr<freerouting::board::RoutingBoard> load_dsn(const std::string& p_path)
+{
+    std::ifstream input(p_path, std::ios::binary);
+    BoardReadResult result = DsnReader::read_board(input, p_path);
+    if (auto* success = std::get_if<board_read_result::Success>(&result))
+    {
+        return std::move(success->board);
+    }
+    std::cerr << "Failed to read " << p_path << " (current path " << fs::current_path() << ")" << std::endl;
+    return nullptr;
+}
+
+int net_count(const freerouting::board::RoutingBoard& p_board)
+{
+    return p_board.get_rules().get_nets().max_net_no();
+}
+
 void test_scanner_empty_board()
 {
-    std::string path = get_test_file_path("empty_board.dsn");
-    auto result = read_dsn(path);
-    if (!result.success) {
-        std::cerr << "Failed to read " << path << ": " << result.error_message << std::endl;
-        std::cerr << "Current path: " << fs::current_path() << std::endl;
-    }
-    std::cout << "  empty_board.dsn: layers=" << result.layers.size()
-              << " width=" << result.board_width << " height=" << result.board_height << std::endl;
-    assert(result.success == true);
+    auto board = load_dsn(get_test_file_path("empty_board.dsn"));
+    assert(board != nullptr);
+    std::cout << "  empty_board.dsn: layers=" << board->get_layer_count() << std::endl;
+    assert(board->get_layer_count() == 2);
     std::cout << "test_scanner_empty_board PASSED" << std::endl;
 }
 
 void test_scanner_bbd_mars64()
 {
-    auto result = read_dsn(get_test_file_path("BBD_Mars-64.dsn"));
-    std::cout << "  BBD_Mars-64.dsn: layers=" << result.layers.size()
-              << " nets=" << result.nets.size() << " vias=" << result.vias.size() << std::endl;
-    assert(result.success == true);
-    assert(result.layers.size() == 2);
-    assert(result.nets.size() == 94);
+    auto board = load_dsn(get_test_file_path("BBD_Mars-64.dsn"));
+    assert(board != nullptr);
+    std::cout << "  BBD_Mars-64.dsn: layers=" << board->get_layer_count() << " nets=" << net_count(*board) << std::endl;
+    assert(board->get_layer_count() == 2);
+    assert(net_count(*board) == 94);
     std::cout << "test_scanner_bbd_mars64 PASSED" << std::endl;
 }
 
 void test_scanner_issue026()
 {
-    auto result = read_dsn(get_test_file_path("Issue026-J2_reference.dsn"));
-    std::cout << "  Issue026-J2_reference.dsn: layers=" << result.layers.size()
-              << " nets=" << result.nets.size() << std::endl;
-    assert(result.success == true);
-    assert(result.layers.size() > 0);
-    assert(result.nets.size() > 0);
+    auto board = load_dsn(get_test_file_path("Issue026-J2_reference.dsn"));
+    assert(board != nullptr);
+    std::cout << "  Issue026-J2_reference.dsn: layers=" << board->get_layer_count() << " nets=" << net_count(*board)
+              << std::endl;
+    assert(board->get_layer_count() > 0);
+    assert(net_count(*board) > 0);
     std::cout << "test_scanner_issue026 PASSED" << std::endl;
 }
 
 void test_scanner_issue103()
 {
-    auto result = read_dsn(get_test_file_path("Issue103-Board-Unrouted.dsn"));
-    std::cout << "  Issue103-Board-Unrouted.dsn: layers=" << result.layers.size()
-              << " nets=" << result.nets.size() << std::endl;
-    assert(result.success == true);
-    assert(result.layers.size() > 0);
-    assert(result.nets.size() > 0);
+    auto board = load_dsn(get_test_file_path("Issue103-Board-Unrouted.dsn"));
+    assert(board != nullptr);
+    std::cout << "  Issue103-Board-Unrouted.dsn: layers=" << board->get_layer_count() << " nets=" << net_count(*board)
+              << std::endl;
+    assert(board->get_layer_count() > 0);
+    assert(net_count(*board) > 0);
     std::cout << "test_scanner_issue103 PASSED" << std::endl;
 }
 

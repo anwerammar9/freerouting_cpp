@@ -26,6 +26,12 @@ public:
     int get_first_layer() const override { return first_layer_; }
     int get_last_layer() const override { return last_layer_; }
 
+    /**
+     * Returns true, if this item has a shape on p_layer.
+     * Mirrors Java DrillItem.isOnLayer(int).
+     */
+    bool is_on_layer(int p_layer) const { return p_layer >= first_layer() && p_layer <= last_layer(); }
+
     double get_min_width() const;
 
     virtual std::shared_ptr<geometry::planar::TileShape> get_tile_shape() const = 0;

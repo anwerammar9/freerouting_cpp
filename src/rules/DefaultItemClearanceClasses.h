@@ -23,6 +23,7 @@ public:
 
     DefaultItemClearanceClasses();
     DefaultItemClearanceClasses(const DefaultItemClearanceClasses& p_classes);
+    DefaultItemClearanceClasses& operator=(const DefaultItemClearanceClasses& p_classes) = default;
 
     int get(ItemClass p_item_class) const;
     void set(ItemClass p_item_class, int p_index);

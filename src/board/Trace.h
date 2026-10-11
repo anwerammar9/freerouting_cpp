@@ -62,10 +62,10 @@ public:
      * this trace. If p_ignore_net is false, only contacts to items sharing a
      * net with this trace are calculated. This is the normal case.
      */
-    std::set<Item*> get_normal_contacts(const geometry::planar::Point& p_point, bool p_ignore_net) const;
+    ItemSet get_normal_contacts(const geometry::planar::Point& p_point, bool p_ignore_net) const;
 
-    std::set<Item*> get_start_contacts() const;
-    std::set<Item*> get_end_contacts() const;
+    ItemSet get_start_contacts() const;
+    ItemSet get_end_contacts() const;
     std::vector<Item*> get_normal_contacts() const override;
 
     // ---- Trace-specific overrides of Item virtuals ----
@@ -119,14 +119,6 @@ public:
     virtual bool combine();
 
 protected:
-    /**
-     * Java Trace.isWithinTolerance: Manhattan distance connectivity test with
-     * tolerance half_width + 1.
-     */
-    static bool is_within_tolerance(const geometry::planar::Point& p_point,
-                                    const geometry::planar::Point& p_other,
-                                    int p_tolerance);
-
     /**
      * Creates a copy of p_point preserving its concrete point type.
      */

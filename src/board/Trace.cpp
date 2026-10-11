@@ -72,20 +72,9 @@ bool Trace::is_routable() const
     return get_fixed_state() != FixedState::USER_FIXED && !net_nos_.empty();
 }
 
-bool Trace::is_within_tolerance(const geometry::planar::Point& p_point,
-                                const geometry::planar::Point& p_other,
-                                int p_tolerance)
+ItemSet Trace::get_normal_contacts(const geometry::planar::Point& p_point, bool p_ignore_net) const
 {
-    const geometry::planar::FloatPoint fp1 = p_point.to_float();
-    const geometry::planar::FloatPoint fp2 = p_other.to_float();
-    const double dx = std::abs(fp1.x - fp2.x);
-    const double dy = std::abs(fp1.y - fp2.y);
-    return (dx + dy) <= static_cast<double>(p_tolerance);
-}
-
-std::set<Item*> Trace::get_normal_contacts(const geometry::planar::Point& p_point, bool p_ignore_net) const
-{
-    std::set<Item*> result;
+    ItemSet result;
     const geometry::planar::Point& first = first_corner();
     const geometry::planar::Point& last = last_corner();
     if (!(p_point.equals(&first) || p_point.equals(&last)))
@@ -96,18 +85,15 @@ std::set<Item*> Trace::get_normal_contacts(const geometry::planar::Point& p_poin
     {
         return result;
     }
-    // Java Trace.get_normal_contacts: tolerance half_width + 1 for
-    // connectivity detection.
-    const int tolerance = half_width_ + 1;
-    // Java uses TileShape.get_instance(p_point) = point.surrounding_box(),
-    // which is a degenerate zero-size box. The C++ MinAreaTree requires
-    // non-degenerate bounding shapes, so we use a tolerance-sized box.
+    // Java searches with TileShape.getInstance(point), the degenerate box of the point. The C++
+    // MinAreaTree needs a non-degenerate box, so the box grows by 1; the candidates are then
+    // filtered by Java's exact corner / center equality, so the result is the same.
     const geometry::planar::FloatPoint fp = p_point.to_float();
     const geometry::planar::IntBox search_shape(
-        static_cast<int64_t>(fp.x) - tolerance,
-        static_cast<int64_t>(fp.y) - tolerance,
-        static_cast<int64_t>(fp.x) + tolerance,
-        static_cast<int64_t>(fp.y) + tolerance);
+        static_cast<int64_t>(std::floor(fp.x)) - 1,
+        static_cast<int64_t>(std::floor(fp.y)) - 1,
+        static_cast<int64_t>(std::ceil(fp.x)) + 1,
+        static_cast<int64_t>(std::ceil(fp.y)) + 1);
     const std::set<SearchTreeObject*, TreeStorableLess> overlaps = board_->overlapping_objects(search_shape, layer_);
     for (SearchTreeObject* curr_ob : overlaps)
     {
@@ -126,16 +112,14 @@ std::set<Item*> Trace::get_normal_contacts(const geometry::planar::Point& p_poin
         }
         if (const Trace* curr_trace = dynamic_cast<const Trace*>(curr_item))
         {
-            // Check if points are within tolerance distance.
-            if (is_within_tolerance(p_point, curr_trace->first_corner(), tolerance) ||
-                is_within_tolerance(p_point, curr_trace->last_corner(), tolerance))
+            if (p_point.equals(&curr_trace->first_corner()) || p_point.equals(&curr_trace->last_corner()))
             {
                 result.insert(curr_item);
             }
         }
         else if (const DrillItem* curr_drill_item = dynamic_cast<const DrillItem*>(curr_item))
         {
-            if (is_within_tolerance(p_point, curr_drill_item->get_center(), tolerance))
+            if (p_point.equals(&curr_drill_item->get_center()))
             {
                 result.insert(curr_item);
             }
@@ -152,20 +136,20 @@ std::set<Item*> Trace::get_normal_contacts(const geometry::planar::Point& p_poin
     return result;
 }
 
-std::set<Item*> Trace::get_start_contacts() const
+ItemSet Trace::get_start_contacts() const
 {
     return get_normal_contacts(first_corner(), false);
 }
 
-std::set<Item*> Trace::get_end_contacts() const
+ItemSet Trace::get_end_contacts() const
 {
     return get_normal_contacts(last_corner(), false);
 }
 
 std::vector<Item*> Trace::get_normal_contacts() const
 {
-    std::set<Item*> contacts = get_normal_contacts(first_corner(), false);
-    const std::set<Item*> end_contacts = get_normal_contacts(last_corner(), false);
+    ItemSet contacts = get_normal_contacts(first_corner(), false);
+    const ItemSet end_contacts = get_normal_contacts(last_corner(), false);
     contacts.insert(end_contacts.begin(), end_contacts.end());
     return std::vector<Item*>(contacts.begin(), contacts.end());
 }
@@ -249,8 +233,8 @@ bool Trace::is_tail() const
 
 bool Trace::is_overlap() const
 {
-    const std::set<Item*> start_contacts = get_start_contacts();
-    const std::set<Item*> end_contacts = get_end_contacts();
+    const ItemSet start_contacts = get_start_contacts();
+    const ItemSet end_contacts = get_end_contacts();
     for (const Item* curr_start : start_contacts)
     {
         if (end_contacts.find(const_cast<Item*>(curr_start)) != end_contacts.end())
@@ -338,8 +322,8 @@ bool Trace::is_cycle() const
     {
         return true;
     }
-    std::set<Item*> start_contacts = get_start_contacts();
-    std::set<Item*> visited_items = start_contacts;
+    ItemSet start_contacts = get_start_contacts();
+    ItemSet visited_items = start_contacts;
     bool ignore_areas = false;
     if (!net_nos_.empty() && board_ != nullptr)
     {

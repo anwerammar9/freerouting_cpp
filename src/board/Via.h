@@ -1,17 +1,40 @@
 #pragma once
 
 #include "board/Item.h"
+#include "geometry/planar/IntOctagon.h"
 #include "geometry/planar/Point.h"
+#include "geometry/planar/Shape.h"
 
-namespace freerouting::board {
+#include <memory>
+#include <vector>
+
+namespace freerouting {
+namespace board {
 
 class Padstack;
 
 class DrillItem : public Item
 {
 public:
-    const geometry::planar::IntPoint& get_center() const { return center_; }
-    void set_center(const geometry::planar::IntPoint& p_center) { center_ = p_center; }
+    /**
+     * Returns the center point of this drill item. The Java DrillItem.center
+     * field is null until it is calculated or set, so a pin overrides this
+     * method to calculate its center from the component placement.
+     * Mirrors Java DrillItem.get_center().
+     */
+    virtual const geometry::planar::IntPoint& get_center() const { return center_; }
+    void set_center(const geometry::planar::IntPoint& p_center)
+    {
+        center_ = p_center;
+        center_is_set_ = true;
+        shapes_precalculated_ = false;
+    }
+
+    /**
+     * Returns true, if the center of this drill item has already been
+     * calculated or set. Java checks the nullable DrillItem.center field.
+     */
+    bool center_is_set() const { return center_is_set_; }
 
     int get_layer() const override { return from_layer_; }
     int first_layer() const override { return from_layer_; }
@@ -19,19 +42,54 @@ public:
     int get_from_layer() const { return from_layer_; }
     int get_to_layer() const { return to_layer_; }
 
-    // A drill item (pin/via) is a single convex shape on the tree (the pad
-    // octagon). Without this the item is skipped by ShapeSearchTree::insert
-    // and can never block routing.
-    int tile_shape_count() const override { return 1; }
+    /** Mirrors Java DrillItem.isOnLayer(). */
+    bool is_on_layer(int p_layer) const { return p_layer >= from_layer_ && p_layer <= to_layer_; }
+
+    /**
+     * The number of shapes of this drill item: one per layer of its padstack
+     * (Java DrillItem.tileShapeCount). A drill item without padstack keeps a
+     * single shape, so legacy items built without a library stay in the tree.
+     */
+    int tile_shape_count() const override;
+
+    /** Java DrillItem.shapeLayer: the layer of the shape with index p_index. */
+    int shape_layer(int p_index) const override;
+
+    /**
+     * The shape of this item on layer first_layer() + p_index in board
+     * coordinates, or nullptr (Java DrillItem.getShape). Cached until
+     * clear_derived_data().
+     */
+    virtual const geometry::planar::Shape* get_shape(int p_index) const;
+
+    /** Java Item.getTileShape: the bounding octagon of the default-tree shape. */
+    geometry::planar::IntOctagon get_tile_shape(int p_index) const override;
+
+    void clear_derived_data() override;
 
     Padstack* get_padstack() const { return padstack_; }
+    /**
+     * Sets the padstack and the layer range. Java DrillItem.firstLayer/lastLayer: an item placed on
+     * the back side (a back-side pin) of a not absolutely placed padstack gets the mirrored range.
+     */
     void set_padstack(Padstack* p_padstack);
+
+    /** Java DrillItem.isPlacedOnFront: true for vias; a pin answers for its component. */
+    virtual bool is_placed_on_front() const { return true; }
 
     /**
      * Returns the minimum width over all padstack shapes.
      * Mirrors Java DrillItem.min_width().
      */
     double min_width() const;
+
+    /**
+     * Returns the tree shape of this drill item on p_layer, or nullptr, if
+     * p_layer is outside of its layer range. Mirrors Java
+     * DrillItem.getTreeShapeOnLayer(ShapeSearchTree, int).
+     */
+    const geometry::planar::TileShape* get_tree_shape_on_layer(
+        const ShapeSearchTree* p_search_tree, int p_layer) const;
 
     /**
      * Returns all items of a net, which are connected to this drill item via
@@ -60,7 +118,21 @@ protected:
               FixedState p_fixed_state,
               BasicBoard* p_board);
 
-    geometry::planar::IntPoint center_;
+    std::vector<std::shared_ptr<geometry::planar::TileShape>> calculate_tree_shapes(
+        const ShapeSearchTree& p_search_tree) const override;
+
+    /** Calculates the shapes for get_shape(); one entry per tile shape (may be nullptr). */
+    virtual std::vector<std::unique_ptr<geometry::planar::Shape>> calculate_shapes() const;
+
+    mutable std::vector<std::unique_ptr<geometry::planar::Shape>> precalculated_shapes_;
+    mutable bool shapes_precalculated_ = false;
+    mutable geometry::planar::IntPoint center_;
+    /**
+     * Mirrors the nullability of the Java DrillItem.center field: it is only
+     * set for a drill item, whose center is known from the construction
+     * (a via) or from the first get_center() call (a pin).
+     */
+    mutable bool center_is_set_ = true;
     int from_layer_;
     int to_layer_;
     Padstack* padstack_;
@@ -80,7 +152,19 @@ public:
         BasicBoard* p_board);
 
     bool is_via() const override { return true; }
+
+protected:
+    /** Java Via.getShape: the padstack shapes translated to the via center. */
+    std::vector<std::unique_ptr<geometry::planar::Shape>> calculate_shapes() const override;
+
+public:
     bool is_attach_allowed() const { return attach_allowed_; }
+
+    /**
+     * Returns true, if the Via has contacts on at most 1 layer.
+     * Mirrors Java Via.isTail().
+     */
+    bool is_tail() const override;
 
     Item* copy(int p_id_no) const;
 
@@ -97,3 +181,5 @@ private:
 };
 
 } // namespace freerouting::board
+} // namespace freerouting
+

@@ -1,4 +1,5 @@
-#include <cstdio>\n#include <memory>
+#include <cstdio>
+#include <memory>
 #include <vector>
 
 #include "board/BasicBoard.h"

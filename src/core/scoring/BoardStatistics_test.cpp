@@ -10,7 +10,8 @@
 #include "board/PolylineTrace.h"
 #include "board/Layer.h"
 #include "board/SearchTreeManager.h"
-#include "settings/RouterScoringSettings.h"
+#include "settings/RoutingCostSettings.h"
+#include "settings/sources/DefaultSettings.h"
 #include "board/Unit.h"
 #include "rules/BoardRules.h"
 #include "core/FileFormat.h"
@@ -129,7 +130,7 @@ TEST(BoardStatisticsTest, ScoreCalculation) {
     );
 
     BoardStatistics stats(&board);
-    RouterScoringSettings settings;
+    RoutingCostSettings settings = sources::DefaultSettings::create_settings().scoring;
     float score = stats.calculateScore(settings);
     EXPECT_GE(score, 0.0f);
 }
@@ -243,10 +244,10 @@ TEST(BoardStatisticsTest, NormalizedScoreUsesMmLength) {
     insert_trace_on_layer0(board.get(), {IntPoint(200, 200), IntPoint(4000, 200)}, {1});
 
     BoardStatistics stats(board.get());
-    RouterScoringSettings settings;
+    RoutingCostSettings settings = sources::DefaultSettings::create_settings().scoring;
 
     // 3 items (2 pins + 1 trace) on 1 net -> max_connections = 2.
-    EXPECT_FLOAT_EQ(stats.getMaximumScore(settings), 2.0f * settings.unroutedNetPenalty);
+    EXPECT_FLOAT_EQ(stats.getMaximumScore(settings), 2.0f * *settings.unrouted_net_penalty);
     float score = stats.calculateScore(settings);
     EXPECT_GT(score, 0.0f);
     float normalized = stats.getNormalizedScore(settings);
@@ -257,7 +258,7 @@ TEST(BoardStatisticsTest, NormalizedScoreUsesMmLength) {
 TEST(BoardStatisticsTest, NormalizedScoreZeroForNoConnections) {
     auto board = make_test_board();
     BoardStatistics stats(board.get());
-    RouterScoringSettings settings;
+    RoutingCostSettings settings = sources::DefaultSettings::create_settings().scoring;
 
     // Empty board -> total items (0) - registered nets (3) is negative, the
     // same degenerate value the Java RatsNest computes. The normalisation

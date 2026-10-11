@@ -130,6 +130,13 @@ private:
 
     void ensure_corners() const;
 
+    /**
+     * Returns an owned copy of the corner at p_index (-1 = last corner), like
+     * the Java code, which copies the result of firstCorner()/lastCorner()
+     * instead of keeping a reference to the cached corner.
+     */
+    geometry::planar::IntPoint own_corner(int p_index) const;
+
     std::shared_ptr<geometry::planar::Polyline> polyline_;
     mutable std::vector<std::shared_ptr<geometry::planar::Point>> corner_points_;
 };

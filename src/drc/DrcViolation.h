@@ -50,6 +50,11 @@ public:
         , type(p_type)
     {
     }
+
+    /**
+     * Serializes this violation to JSON (description, items, severity, type).
+     */
+    std::string to_json() const;
 };
 
 } // namespace drc

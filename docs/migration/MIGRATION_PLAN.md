@@ -219,6 +219,15 @@ Each: port Java → C++, add to module CMake, register gtests, update `docs/migr
   `get_ratsnest_corners()`; `ResultEdge.start_object/end_object` are `shared_ptr<Storable>`.
 - **JSON**: hand-rolled; match Java `@SerializedName` exactly so output is diffable.
 - **`CTest` subset run**: `ctest --test-dir build -R <regex> --output-on-failure`.
+- **Class map (T006)**: `JavaToCppClassMap.csv` has 7 columns (`java_package,java_class,java_file,cpp_class,cpp_header,status,reason`);
+  `status` ∈ `ported / header_only / partial / pending / out_of_scope`. `out_of_scope` is defined by the explicit
+  `OUT_OF_SCOPE` table in `tools/class_map_check.py` (dir prefixes `gui/`, `api/mcp/`, `api/`, `analytics/`, `io/kicad/`,
+  `util/gson/` plus exact files including `io/specctra/parser/SessionToFusion.java`, `io/KiCadNetClassNames.java`,
+  `util/VersionChecker.java`, `util/SafeObjectInputStream.java` and 11 GUI/API-only settings classes), each with a one-word
+  `reason`. Everything headless but not yet ported is `pending` (goal: `pending = 0`). Run `python3 tools/class_map_check.py`
+  (checks CSV↔disk coverage, header/class existence, reasons; exits non-zero only on structural errors) and
+  `python3 tools/test_class_map_check.py`. The legacy `specctra/Library|Network|Wiring|Placement` files are NOT Java ports —
+  the real parser classes live in `src/designforms/specctra/parser/`.
 
 ## 4. Definition of Done (per WP)
 

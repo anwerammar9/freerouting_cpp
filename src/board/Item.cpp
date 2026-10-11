@@ -4,12 +4,15 @@
 #include "board/ItemSelectionFilter.h"
 #include "board/Pin.h"
 #include "board/PolylineTrace.h"
+#include "board/RoutingBoard.h"
 #include "board/ShapeSearchTree.h"
 #include "board/Trace.h"
 #include "board/Via.h"
 #include "autoroute/ItemAutorouteInfo.h"
 #include "board/BasicBoard.h"
 #include "geometry/planar/IntOctagon.h"
+#include "logger/FRLogger.h"
+#include "rules/BoardRules.h"
 #include "rules/Net.h"
 #include <algorithm>
 
@@ -58,9 +61,88 @@ std::vector<Item*> Item::get_normal_contacts() const
     return {};
 }
 
-std::set<Item*> Item::get_connected_set(int p_net_no, bool p_stop_at_plane) const
+namespace {
+
+/**
+ * Returns true, if p_item implements the Java Connectable interface. In Java
+ * the interface is implemented by Trace (and therefore PolylineTrace),
+ * DrillItem (and therefore Pin and Via) and ConductionArea; the C++
+ * Connectable class is a dead draft which no real item derives from, so the
+ * check is reproduced with dynamic_casts.
+ */
+bool is_connectable(const Item* p_item)
 {
-    std::set<Item*> result;
+    return p_item != nullptr &&
+           (dynamic_cast<const Trace*>(p_item) != nullptr ||
+            dynamic_cast<const DrillItem*>(p_item) != nullptr ||
+            dynamic_cast<const ConductionArea*>(p_item) != nullptr);
+}
+
+} // namespace
+
+ItemSet Item::get_all_contacts() const
+{
+    // Port of Java Item.getAllContacts().
+    ItemSet result;
+    if (board_ == nullptr || !is_connectable(this))
+    {
+        return result;
+    }
+    for (int i = 0; i < tile_shape_count(); i++)
+    {
+        std::set<SearchTreeObject*, TreeStorableLess> overlapping_objects =
+            board_->overlapping_objects(get_tile_shape(i), shape_layer(i));
+        for (SearchTreeObject* curr_object : overlapping_objects)
+        {
+            auto* curr_item = dynamic_cast<Item*>(curr_object);
+            if (curr_item == nullptr)
+            {
+                continue;
+            }
+            if (curr_item != this && is_connectable(curr_item) && curr_item->shares_net(this))
+            {
+                result.insert(curr_item);
+            }
+        }
+    }
+    return result;
+}
+
+ItemSet Item::get_all_contacts(int p_layer) const
+{
+    // Port of Java Item.getAllContacts(int).
+    ItemSet result;
+    if (board_ == nullptr || !is_connectable(this))
+    {
+        return result;
+    }
+    for (int i = 0; i < tile_shape_count(); i++)
+    {
+        if (shape_layer(i) != p_layer)
+        {
+            continue;
+        }
+        std::set<SearchTreeObject*, TreeStorableLess> overlapping_objects =
+            board_->overlapping_objects(get_tile_shape(i), p_layer);
+        for (SearchTreeObject* curr_object : overlapping_objects)
+        {
+            auto* curr_item = dynamic_cast<Item*>(curr_object);
+            if (curr_item == nullptr)
+            {
+                continue;
+            }
+            if (curr_item != this && is_connectable(curr_item) && curr_item->shares_net(this))
+            {
+                result.insert(curr_item);
+            }
+        }
+    }
+    return result;
+}
+
+ItemSet Item::get_connected_set(int p_net_no, bool p_stop_at_plane) const
+{
+    ItemSet result;
     if (p_net_no > 0 && !contains_net(p_net_no))
     {
         return result;
@@ -70,7 +152,43 @@ std::set<Item*> Item::get_connected_set(int p_net_no, bool p_stop_at_plane) cons
     return result;
 }
 
-void Item::get_connected_set_recu(std::set<Item*>& p_result, int p_net_no, bool p_stop_at_plane) const
+ItemSet Item::get_unconnected_set(int p_net_no) const
+{
+    // Port of Java Item.get_unconnected_set(int): an ItemSet, ordered like Java's
+    // TreeSet<Item> (descending item id).
+    ItemSet result;
+    if (p_net_no > 0 && !contains_net(p_net_no))
+    {
+        return result;
+    }
+    // Java BasicBoard.get_connectable_items() is a RoutingBoard method in C++.
+    const auto* routing_board = dynamic_cast<const RoutingBoard*>(board_);
+    if (routing_board == nullptr)
+    {
+        return result;
+    }
+    if (p_net_no > 0)
+    {
+        const std::vector<Item*> connectable_items = routing_board->get_connectable_items(p_net_no);
+        result.insert(connectable_items.begin(), connectable_items.end());
+    }
+    else
+    {
+        for (int curr_net_no : net_nos_)
+        {
+            const std::vector<Item*> connectable_items = routing_board->get_connectable_items(curr_net_no);
+            result.insert(connectable_items.begin(), connectable_items.end());
+        }
+    }
+    const ItemSet connected_items = get_connected_set(p_net_no);
+    for (Item* curr_item : connected_items)
+    {
+        result.erase(curr_item);
+    }
+    return result;
+}
+
+void Item::get_connected_set_recu(ItemSet& p_result, int p_net_no, bool p_stop_at_plane) const
 {
     const std::vector<Item*> contact_list = get_normal_contacts();
     for (Item* curr_contact : contact_list)
@@ -217,6 +335,31 @@ bool Item::is_user_fixed() const
     return static_cast<int>(fixed_state_) >= static_cast<int>(FixedState::USER_FIXED);
 }
 
+bool Item::is_deletion_forbidden() const
+{
+    // Items belonging to a component are delete_fixed.
+    if (component_no_ > 0 || is_user_fixed())
+    {
+        return true;
+    }
+    // Also power planes are delete_fixed.
+    if (const ConductionArea* area = dynamic_cast<const ConductionArea*>(this))
+    {
+        BasicBoard* board = get_board();
+        if (board == nullptr)
+        {
+            return false;
+        }
+        const int layer_no = area->get_layer();
+        if (layer_no < 0 || layer_no >= board->get_layer_structure().layer_count())
+        {
+            return false;
+        }
+        return !board->get_layer_structure().get_layer(layer_no)->is_signal;
+    }
+    return false;
+}
+
 bool Item::is_selected_by_filter(const ItemSelectionFilter& p_filter) const
 {
     (void)p_filter;
@@ -250,14 +393,15 @@ bool Item::validate()
     return result;
 }
 
-bool Item::is_cycle_recu(std::set<Item*>& p_visited_items,
+bool Item::is_cycle_recu(ItemSet& p_visited_items,
                          const Item* p_search_item,
                          const Item* p_come_from_item,
                          bool p_ignore_areas) const
 {
-    // Java skips conduction areas here when p_ignore_areas is true; the
-    // ConductionArea class is not ported yet.
-    (void)p_ignore_areas;
+    if (p_ignore_areas && dynamic_cast<const ConductionArea*>(this) != nullptr)
+    {
+        return false;
+    }
     const std::vector<Item*> contact_list = get_normal_contacts();
     for (Item* curr_contact : contact_list)
     {
@@ -332,6 +476,27 @@ std::vector<std::unique_ptr<datastructures::ShapeTree::Leaf>> Item::take_search_
     return search_trees_info_->take_tree_entries(p_tree);
 }
 
+const std::vector<std::shared_ptr<geometry::planar::TileShape>>* Item::get_precalculated_tree_shapes(
+    const datastructures::ShapeTree& p_tree) const
+{
+    if (!search_trees_info_)
+    {
+        search_trees_info_ = std::make_unique<ItemSearchTreesInfo>();
+    }
+    return search_trees_info_->get_precalculated_tree_shapes(p_tree);
+}
+
+void Item::set_precalculated_tree_shapes(
+    std::vector<std::shared_ptr<geometry::planar::TileShape>> p_shapes,
+    const datastructures::ShapeTree& p_tree)
+{
+    if (!search_trees_info_)
+    {
+        search_trees_info_ = std::make_unique<ItemSearchTreesInfo>();
+    }
+    search_trees_info_->set_precalculated_tree_shapes(std::move(p_shapes), p_tree);
+}
+
 std::vector<std::shared_ptr<geometry::planar::TileShape>> Item::calculate_tree_shapes(const ShapeSearchTree& p_search_tree) const
 {
     (void)p_search_tree;
@@ -364,7 +529,7 @@ const std::vector<std::shared_ptr<geometry::planar::TileShape>>& Item::ensure_tr
 std::vector<Item*> Item::get_connection_items(StopConnectionOption p_stop_option) const
 {
     const std::vector<Item*> contacts = get_normal_contacts();
-    std::set<Item*> result;
+    ItemSet result;
     if (is_routable())
     {
         result.insert(const_cast<Item*>(this));
@@ -383,7 +548,7 @@ std::vector<Item*> Item::get_connection_items(StopConnectionOption p_stop_option
             // Check, that there is only 1 contact at this location.
             // Only for pins and vias items of more than 1 connection
             // are collected.
-            const std::set<Item*> check_contacts = start_trace->get_normal_contacts(*prev_contact_point, false);
+            const ItemSet check_contacts = start_trace->get_normal_contacts(*prev_contact_point, false);
             if (check_contacts.size() != 1)
             {
                 continue;
@@ -458,7 +623,7 @@ std::vector<Item*> Item::get_connection_items(StopConnectionOption p_stop_option
     return std::vector<Item*>(result.begin(), result.end());
 }
 
-bool Item::is_fanout_via(const std::set<Item*>* p_ignore_items) const
+bool Item::is_fanout_via(const ItemSet* p_ignore_items) const
 {
     const std::vector<Item*> contact_list = get_normal_contacts();
     for (Item* current_contact : contact_list)
@@ -502,6 +667,29 @@ bool Item::is_fanout_via(const std::set<Item*>* p_ignore_items) const
         }
     }
     return false;
+}
+
+void Item::assign_net_no(int p_net_no)
+{
+    if (!rules::Nets::is_normal_net_no(p_net_no))
+    {
+        return;
+    }
+    if (board_ == nullptr || p_net_no > board_->get_rules().get_nets().max_net_no())
+    {
+        logger::FRLogger::instance().warn("Item.assign_net_no: netNumber to big");
+        return;
+    }
+    // Java: board.itemList.saveForUndo(this) - no undo in the C++ port.
+    if (net_nos_.empty())
+    {
+        net_nos_.resize(1);
+    }
+    else if (net_nos_.size() > 1)
+    {
+        logger::FRLogger::instance().warn("Item.assign_net_no: unexpected netCount > 1");
+    }
+    net_nos_[0] = p_net_no;
 }
 
 } // namespace freerouting::board

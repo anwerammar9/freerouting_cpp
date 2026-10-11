@@ -1,6 +1,7 @@
 # Geometry package CMakeLists
 
 add_library(freerouting_geometry STATIC
+    planar/CircleArea.cpp
     planar/Direction.cpp
     planar/Ellipse.cpp
     planar/FortyfiveDegreeBoundingDirections.cpp
@@ -20,6 +21,7 @@ add_library(freerouting_geometry STATIC
     planar/Side.cpp
     planar/Simplex.cpp
     planar/TileShape.cpp
+    planar/ConvexTileShape.cpp
     planar/Polyline.cpp
     planar/PolylineShape.cpp
     planar/FloatLine.cpp

@@ -1,14 +1,25 @@
 #include "board/ShapeSearchTree.h"
 #include "board/BasicBoard.h"
+#include "board/BoardOutline.h"
+#include "board/ObstacleArea.h"
+#include "board/RoutingBoard.h"
 #include "board/Item.h"
+#include "board/Padstack.h"
+#include "board/Pin.h"
+#include "board/Via.h"
+#include "board/PolylineTrace.h"
 #include "board/SearchTreeObject.h"
 #include "geometry/planar/FortyfiveDegreeBoundingDirections.h"
 #include "geometry/planar/IntBox.h"
 #include "geometry/planar/IntOctagon.h"
+#include "geometry/planar/LineSegment.h"
 #include "geometry/planar/OrthogonalBoundingDirections.h"
 #include "geometry/planar/Point.h"
+#include "geometry/planar/Polyline.h"
+#include "geometry/planar/RegularTileShape.h"
 #include "geometry/planar/Simplex.h"
 #include "logger/FRLogger.h"
+#include "rules/BoardRules.h"
 #include "rules/ClearanceMatrix.h"
 
 #include <algorithm>
@@ -106,7 +117,15 @@ void ShapeSearchTree::remove(Item* p_item)
     {
         return;
     }
-    std::vector<ShapeTree::Leaf*> entries = p_item->get_search_tree_entries(*this);
+    // The entries are taken from the item (Java SearchTreeManager.remove calls
+    // item.clearSearchTreeEntries()), and stay alive until they are unlinked.
+    std::vector<std::unique_ptr<ShapeTree::Leaf>> owned_entries = p_item->take_search_tree_entries(*this);
+    std::vector<ShapeTree::Leaf*> entries;
+    entries.reserve(owned_entries.size());
+    for (const auto& entry : owned_entries)
+    {
+        entries.push_back(entry.get());
+    }
     ::freerouting::datastructures::ShapeTree::remove(entries);
 }
 
@@ -395,6 +414,298 @@ std::unique_ptr<fp::TileShape> ShapeSearchTree::enlarge_tile(const fp::TileShape
     return nullptr;
 }
 
+std::unique_ptr<fp::TileShape> ShapeSearchTree::intersection_of_two_shapes(
+    const fp::TileShape& p_first, const fp::TileShape& p_second)
+{
+    return fp::TileShape::intersection_of(p_first, p_second);
+}
+
+bool ShapeSearchTree::shape_contains(const fp::TileShape& p_outer, const fp::TileShape& p_inner)
+{
+    const auto* outer_regular = dynamic_cast<const fp::RegularTileShape*>(&p_outer);
+    const auto* inner_regular = dynamic_cast<const fp::RegularTileShape*>(&p_inner);
+    if (outer_regular == nullptr || inner_regular == nullptr)
+    {
+        // Conservative: expansion rooms are only ignored when the containment
+        // is exact. For arbitrary shapes (e.g. Simplex) containment is not
+        // verified here.
+        return false;
+    }
+    return outer_regular->contains(*inner_regular);
+}
+
+void ShapeSearchTree::restrain_shape(const CompleteShapePiece& p_room,
+    const fp::TileShape& p_obstacle_shape, std::vector<CompleteShapePiece>& p_result)
+{
+    // Port of Java ShapeSearchTree.restrainShape(...). The obstacle is always
+    // converted to a Simplex to match the Java semantics: "otherwise border_lines
+    // of length 0 for octagons may not be handled correctly".
+    fp::Simplex obstacle_simplex = p_obstacle_shape.to_Simplex();
+
+    const fp::TileShape* shape_to_be_contained = p_room.contained_shape.get();
+    if (shape_to_be_contained == nullptr || shape_to_be_contained->is_empty())
+    {
+        return;
+    }
+    const fp::TileShape* room_shape = p_room.shape.get();
+    if (room_shape == nullptr)
+    {
+        return;
+    }
+
+    // Search the edge line of obstacle_simplex, so that shape_to_be_contained
+    // are on the right side of this line, and that the line segment intersects
+    // with the interior of the room shape. If there are more than 1 such lines
+    // take the line which is furthest away from shape_to_be_contained. Then
+    // intersect the room shape with the halfplane defined by the opposite of
+    // this line.
+    std::optional<fp::Line> cut_line;
+    double cut_line_distance = -1;
+    for (int i = 0; i < obstacle_simplex.border_line_count(); ++i)
+    {
+        fp::LineSegment current_line_segment(obstacle_simplex, i);
+        if (room_shape->is_intersected_interior_by(current_line_segment))
+        {
+            fp::Line current_line = obstacle_simplex.border_line(i);
+            double current_min_distance = shape_to_be_contained->distance_to_the_left(current_line);
+            if (current_min_distance > cut_line_distance)
+            {
+                cut_line_distance = current_min_distance;
+                cut_line = current_line.opposite();
+            }
+        }
+    }
+
+    if (cut_line.has_value())
+    {
+        std::unique_ptr<fp::TileShape> result_piece = fp::TileShape::get_instance(*cut_line);
+        result_piece = intersection_of_two_shapes(*result_piece, *room_shape);
+        if (result_piece->dimension() >= 2)
+        {
+            CompleteShapePiece new_piece;
+            new_piece.shape = std::move(result_piece);
+            new_piece.contained_shape = shape_to_be_contained->clone();
+            p_result.push_back(std::move(new_piece));
+        }
+    }
+    else
+    {
+        // There is no cut line, so that all of shape_to_be_contained is
+        // completely on the right side of that line. Search a cut line, so
+        // that at least part of shape_to_be_contained is on the right side.
+        if (shape_to_be_contained->dimension() < 1)
+        {
+            // There is already a completed expansion room around shape_to_be_contained.
+            return;
+        }
+        for (int i = 0; i < obstacle_simplex.border_line_count(); ++i)
+        {
+            fp::LineSegment current_line_segment(obstacle_simplex, i);
+            if (room_shape->is_intersected_interior_by(current_line_segment))
+            {
+                fp::Line current_line = obstacle_simplex.border_line(i);
+                if (shape_to_be_contained->side_of(current_line) == fp::Side::COLLINEAR)
+                {
+                    // current_line intersects with the interior of shape_to_be_contained
+                    cut_line = current_line.opposite();
+                    break;
+                }
+            }
+        }
+        if (!cut_line.has_value())
+        {
+            // cut line not found, parts or the whole of the shape may be
+            // already occupied from somewhere else.
+            return;
+        }
+        // Calculate the new shape to be contained in the result shape.
+        std::unique_ptr<fp::TileShape> cut_half_plane = fp::TileShape::get_instance(*cut_line);
+        std::unique_ptr<fp::TileShape> new_shape_to_be_contained =
+            intersection_of_two_shapes(*shape_to_be_contained, *cut_half_plane);
+
+        std::unique_ptr<fp::TileShape> result_piece = intersection_of_two_shapes(*room_shape, *cut_half_plane);
+        if (result_piece->dimension() >= 2)
+        {
+            CompleteShapePiece new_piece;
+            new_piece.shape = std::move(result_piece);
+            new_piece.contained_shape = std::move(new_shape_to_be_contained);
+            p_result.push_back(std::move(new_piece));
+        }
+        std::unique_ptr<fp::TileShape> opposite_half_plane = fp::TileShape::get_instance(cut_line->opposite());
+        std::unique_ptr<fp::TileShape> rest_piece = intersection_of_two_shapes(*room_shape, *opposite_half_plane);
+        if (rest_piece->dimension() >= 2)
+        {
+            std::unique_ptr<fp::TileShape> rest_shape_to_be_contained =
+                intersection_of_two_shapes(*shape_to_be_contained, *opposite_half_plane);
+            CompleteShapePiece rest_piece_struct;
+            rest_piece_struct.shape = std::move(rest_piece);
+            rest_piece_struct.contained_shape = std::move(rest_shape_to_be_contained);
+            restrain_shape(rest_piece_struct, p_obstacle_shape, p_result);
+        }
+    }
+}
+
+void ShapeSearchTree::divide_large_room(const fp::IntBox& p_board_box, std::vector<CompleteShapePiece>& p_rooms)
+{
+    // Port of Java ShapeSearchTree.divideLargeRoom(...). Makes sure that on
+    // each layer there will be more than 1 free space room, even if there are
+    // no objects on the layer.
+    if (p_rooms.size() != 1)
+    {
+        return;
+    }
+    CompleteShapePiece& current_room = p_rooms[0];
+    fp::IntBox room_bounding_box = current_room.shape->bounding_box();
+    if (2 * room_bounding_box.height() <= p_board_box.height()
+        || 2 * room_bounding_box.width() <= p_board_box.width())
+    {
+        return;
+    }
+    double max_section_width = 0.5 * std::max(p_board_box.height(), p_board_box.width());
+    std::vector<fp::IntBox> section_boxes = room_bounding_box.divide_into_sections(max_section_width);
+    std::vector<CompleteShapePiece> result;
+    result.reserve(section_boxes.size());
+    for (const fp::IntBox& current_section_box : section_boxes)
+    {
+        CompleteShapePiece current_section;
+        current_section.shape =
+            intersection_of_two_shapes(*current_room.shape, current_section_box);
+        if (current_section.shape->dimension() != 2)
+        {
+            continue;
+        }
+        current_section.contained_shape =
+            intersection_of_two_shapes(*current_room.contained_shape, current_section_box);
+        result.push_back(std::move(current_section));
+    }
+    p_rooms = std::move(result);
+}
+
+std::vector<ShapeSearchTree::CompleteShapePiece> ShapeSearchTree::complete_shape(
+    const CompleteShapeInput& p_input)
+{
+    // Port of Java ShapeSearchTree.completeShapeUnlocked(...).
+    std::vector<CompleteShapePiece> result;
+    if (p_input.contained_shape == nullptr)
+    {
+        logger::FRLogger::instance().warn("ShapeSearchTree.complete_shape: contained shape expected");
+        return result;
+    }
+    // The room to be completed starts as the whole board box (Java
+    // shapeToBeContained = board.getBoundingBox()), intersected with the input
+    // room shape if present.
+    const fp::IntBox board_box = board_ != nullptr ? board_->get_bounding_box() : fp::IntBox::EMPTY;
+    std::unique_ptr<fp::TileShape> start_shape = std::make_unique<fp::IntBox>(board_box);
+    if (p_input.shape != nullptr)
+    {
+        start_shape = intersection_of_two_shapes(*start_shape, *p_input.shape);
+    }
+    fp::IntOctagon bounding_shape = start_shape->bounding_shape(bounding_directions);
+    if (start_shape->dimension() == 2)
+    {
+        CompleteShapePiece new_piece;
+        new_piece.shape = start_shape->clone();
+        new_piece.contained_shape = p_input.contained_shape->clone();
+        result.push_back(std::move(new_piece));
+    }
+
+    // Deviation from Java: Java returns an empty result when the root is null.
+    // Here the whole board is used instead, so that a room is always completed
+    // on an empty tree. This matches the expected drill behaviour for boards
+    // without obstacles.
+    std::vector<Leaf*> overlapping_leaves;
+    if (root != nullptr)
+    {
+        std::vector<TreeNode*> stack;
+        stack.reserve(64);
+        stack.push_back(root);
+        while (!stack.empty())
+        {
+            TreeNode* current_node = stack.back();
+            stack.pop_back();
+            if (current_node->bounding_shape != nullptr
+                && current_node->bounding_shape->intersects(bounding_shape))
+            {
+                if (auto* leaf = dynamic_cast<Leaf*>(current_node))
+                {
+                    overlapping_leaves.push_back(leaf);
+                }
+                else if (auto* inner = dynamic_cast<InnerNode*>(current_node))
+                {
+                    stack.push_back(inner->first_child);
+                    stack.push_back(inner->second_child);
+                }
+            }
+        }
+        // Sort the obstacles by the tree order of their leaves to get a
+        // deterministic room partitioning (mirrors the Java Collections.sort).
+        std::sort(overlapping_leaves.begin(), overlapping_leaves.end(),
+            [](const Leaf* p_a, const Leaf* p_b)
+            {
+                return p_a->compare_to(*p_b) < 0;
+            });
+    }
+
+    for (Leaf* current_leaf : overlapping_leaves)
+    {
+        if (current_leaf == nullptr || current_leaf->object == nullptr)
+        {
+            continue;
+        }
+        SearchTreeObject* current_object = static_cast<SearchTreeObject*>(current_leaf->object);
+        int shape_index = current_leaf->shape_index_in_object;
+        if (current_object->is_trace_obstacle(p_input.net_no)
+            && current_object->shape_layer(shape_index) == p_input.layer
+            && current_object != p_input.ignore_object)
+        {
+            const fp::TileShape* current_object_shape =
+                current_object->get_tree_shape(*this, shape_index);
+            if (current_object_shape == nullptr)
+            {
+                continue;
+            }
+            std::vector<CompleteShapePiece> new_result;
+            fp::IntOctagon new_bounding_shape = fp::IntOctagon::EMPTY;
+            for (const CompleteShapePiece& current_piece : result)
+            {
+                bool something_changed = false;
+                std::unique_ptr<fp::TileShape> intersection =
+                    intersection_of_two_shapes(*current_piece.shape, *current_object_shape);
+                if (intersection->dimension() == 2)
+                {
+                    bool ignore_expansion_room =
+                        current_object->is_free_space_room() && p_input.ignore_shape != nullptr
+                        && shape_contains(*p_input.ignore_shape, *intersection);
+                    if (!ignore_expansion_room)
+                    {
+                        something_changed = true;
+                        restrain_shape(current_piece, *current_object_shape, new_result);
+                        // The bounding shape must include all accumulated rooms.
+                        for (const CompleteShapePiece& tmp_piece : new_result)
+                        {
+                            new_bounding_shape = new_bounding_shape.union_with(
+                                tmp_piece.shape->bounding_shape(bounding_directions));
+                        }
+                    }
+                }
+                if (!something_changed)
+                {
+                    CompleteShapePiece clone_piece;
+                    clone_piece.shape = current_piece.shape->clone();
+                    clone_piece.contained_shape = current_piece.contained_shape->clone();
+                    new_result.push_back(std::move(clone_piece));
+                    new_bounding_shape = new_bounding_shape.union_with(
+                        current_piece.shape->bounding_shape(bounding_directions));
+                }
+            }
+            result = std::move(new_result);
+            bounding_shape = new_bounding_shape;
+        }
+    }
+    divide_large_room(board_box, result);
+    return result;
+}
+
 std::vector<Item*> ShapeSearchTree::find_nearby(const fp::IntBox& p_box, int p_layer, int p_from_x, int p_from_y)
 {
     (void)p_box;
@@ -429,6 +740,208 @@ std::vector<Item*> ShapeSearchTree::find_nearby(const fp::IntBox& p_box, int p_l
     return result;
 }
 
+namespace {
+
+// Java ShapeSearchTree.DRILL_HOLE_CLEARANCE_MARGIN
+constexpr int kDrillHoleClearanceMargin = 10;
+
+// Port of Java ShapeSearchTree.drillHoleObstacle: the drill hole as a circle,
+// or nullptr if the hole clearance rule is disabled.
+std::unique_ptr<fp::Shape> drill_hole_obstacle(const BasicBoard* p_board, const DrillItem& p_drill_item)
+{
+    if (p_board == nullptr || p_board->get_rules().get_hole_clearance() <= 0 || p_drill_item.get_padstack() == nullptr)
+    {
+        return nullptr;
+    }
+    const double drill_radius = p_drill_item.get_padstack()->get_drill_radius();
+    if (drill_radius <= 0)
+    {
+        return nullptr;
+    }
+    return std::make_unique<fp::Circle>(p_drill_item.get_center(), static_cast<int64_t>(std::ceil(drill_radius)));
+}
+
+} // namespace
+
+// Port of Java ShapeSearchTree.drillHoleClearanceDelta: extra obstacle
+// inflation, so that copper of other nets stays hole_clearance away from the
+// drill hole of the item and not just from its copper pad.
+static int drill_hole_clearance_delta(const BasicBoard* p_board, int p_compensated_clearance_class_no,
+    const DrillItem& p_drill_item, const fp::Shape* p_shape, int p_layer)
+{
+    if (p_board == nullptr)
+    {
+        return 0;
+    }
+    const int hole_clearance = p_board->get_rules().get_hole_clearance();
+    if (hole_clearance <= 0 || p_shape == nullptr || p_drill_item.get_padstack() == nullptr)
+    {
+        return 0;
+    }
+    const Padstack* padstack = p_drill_item.get_padstack();
+    const double drill_radius = padstack->get_drill_radius();
+    if (drill_radius <= 0)
+    {
+        return 0;
+    }
+    double copper_radius;
+    if (padstack->is_hole_only())
+    {
+        copper_radius = drill_radius;
+    }
+    else
+    {
+        copper_radius = p_shape->border_distance(p_drill_item.get_center().to_float());
+        if (copper_radius <= 0)
+        {
+            const fp::Shape* pad_shape = padstack->get_shape(p_layer);
+            copper_radius = pad_shape == nullptr ? drill_radius : pad_shape->border_distance(fp::FloatPoint(0, 0));
+        }
+    }
+    const int clearance_class = p_compensated_clearance_class_no > 0 ? p_compensated_clearance_class_no
+                                                                     : rules::BoardRules::default_clearance_class();
+    const int copper_clearance = p_board->get_rules().get_clearance_matrix().get_value(
+        p_drill_item.get_clearance_class(), clearance_class, p_layer, false);
+    return std::max(0, static_cast<int>(std::ceil(drill_radius + hole_clearance + kDrillHoleClearanceMargin
+                                                 - copper_radius - copper_clearance)));
+}
+
+std::vector<std::shared_ptr<fp::TileShape>> ShapeSearchTree::calculate_tree_shapes(const DrillItem& p_drill_item) const
+{
+    // Port of Java ShapeSearchTree.calculateTreeShapes(DrillItem).
+    std::vector<std::shared_ptr<fp::TileShape>> result;
+    if (board_ == nullptr)
+    {
+        return result;
+    }
+    const int shape_count = p_drill_item.tile_shape_count();
+    result.resize(static_cast<size_t>(shape_count));
+    const rules::AngleRestriction angle_restriction = board_->get_rules().get_trace_angle_restriction();
+    for (int i = 0; i < shape_count; ++i)
+    {
+        const fp::Shape* curr_shape = p_drill_item.get_shape(i);
+        std::unique_ptr<fp::Shape> hole_shape;
+        if (curr_shape == nullptr)
+        {
+            hole_shape = drill_hole_obstacle(board_, p_drill_item);
+            curr_shape = hole_shape.get();
+        }
+        if (curr_shape == nullptr)
+        {
+            continue;
+        }
+        std::unique_ptr<fp::TileShape> curr_tile_shape;
+        if (angle_restriction == rules::AngleRestriction::RIGHT)
+        {
+            curr_tile_shape = std::make_unique<fp::IntBox>(curr_shape->bounding_box());
+        }
+        else if (angle_restriction == rules::AngleRestriction::FORTY_FIVE)
+        {
+            curr_tile_shape = std::make_unique<fp::IntOctagon>(
+                curr_shape->bounding_shape(fp::FortyfiveDegreeBoundingDirections::INSTANCE));
+        }
+        else
+        {
+            curr_tile_shape = curr_shape->bounding_tile();
+        }
+        int offset_width =
+            clearance_compensation_value(p_drill_item.get_clearance_class(), p_drill_item.shape_layer(i));
+        offset_width += drill_hole_clearance_delta(
+            board_, compensated_clearance_class_no_, p_drill_item, curr_shape, p_drill_item.shape_layer(i));
+        if (curr_tile_shape == nullptr)
+        {
+            logger::FRLogger::instance().warn("ShapeSearchTree.calculate_tree_shapes: shape is null");
+        }
+        else
+        {
+            curr_tile_shape = curr_tile_shape->enlarge(offset_width);
+        }
+        result[i] = std::move(curr_tile_shape);
+    }
+    return result;
+}
+
+std::vector<std::shared_ptr<fp::TileShape>> ShapeSearchTree::calculate_tree_shapes(
+    const BoardOutline& p_board_outline) const
+{
+    std::vector<std::shared_ptr<fp::TileShape>> result;
+    if (board_ == nullptr)
+    {
+        return result;
+    }
+    const int layer_count = board_->get_layer_count();
+    if (p_board_outline.keepout_outside_outline_generated())
+    {
+        const fp::Area* keepout = p_board_outline.get_keepout_area();
+        if (keepout == nullptr)
+        {
+            return result;
+        }
+        const std::vector<std::unique_ptr<fp::TileShape>>& convex_shapes = keepout->split_to_convex();
+        for (int layer = 0; layer < layer_count; ++layer)
+        {
+            for (const auto& curr_convex_shape : convex_shapes)
+            {
+                const int offset_width = clearance_compensation_value(p_board_outline.get_clearance_class(), layer);
+                result.push_back(curr_convex_shape->enlarge(offset_width));
+            }
+        }
+        return result;
+    }
+    // Only the line shapes of the outline are inserted as obstacles into the tree.
+    const int half_width = p_board_outline.get_half_width();
+    for (int layer = 0; layer < layer_count; ++layer)
+    {
+        for (int shape_index = 0; shape_index < p_board_outline.shape_count(); ++shape_index)
+        {
+            const fp::PolylineShape* curr_outline_shape = p_board_outline.get_shape(shape_index);
+            const int border_line_count = curr_outline_shape->border_line_count();
+            std::vector<fp::Line> curr_line_arr{ curr_outline_shape->border_line(border_line_count - 1),
+                curr_outline_shape->border_line(0), curr_outline_shape->border_line(0) };
+            for (int i = 0; i < border_line_count; ++i)
+            {
+                curr_line_arr[1] = curr_outline_shape->border_line(i);
+                curr_line_arr[2] = curr_outline_shape->border_line((i + 1) % border_line_count);
+                const fp::Polyline tmp_polyline(curr_line_arr);
+                const int cmp_value = clearance_compensation_value(p_board_outline.get_clearance_class(), layer);
+                result.push_back(tmp_polyline.offset_shape(half_width + cmp_value, 0));
+                curr_line_arr[0] = curr_line_arr[1];
+            }
+        }
+    }
+    return result;
+}
+
+std::vector<std::shared_ptr<fp::TileShape>> ShapeSearchTree::calculate_tree_shapes(
+    const ObstacleArea& p_obstacle_area) const
+{
+    std::vector<std::shared_ptr<fp::TileShape>> result;
+    if (board_ == nullptr)
+    {
+        return result;
+    }
+    const std::vector<std::unique_ptr<fp::TileShape>>& convex_shapes = p_obstacle_area.split_to_convex();
+    double max_tree_shape_width = 50000;
+    const auto* routing_board = dynamic_cast<const RoutingBoard*>(board_);
+    if (routing_board != nullptr && routing_board->communication() != nullptr
+        && routing_board->communication()->host_cad_exists())
+    {
+        max_tree_shape_width =
+            std::min(500 * routing_board->communication()->get_resolution(Unit::MIL), max_tree_shape_width);
+    }
+    for (const auto& curr_convex_shape : convex_shapes)
+    {
+        const int offset_width =
+            clearance_compensation_value(p_obstacle_area.get_clearance_class(), p_obstacle_area.get_layer());
+        std::unique_ptr<fp::TileShape> enlarged = curr_convex_shape->enlarge(offset_width);
+        for (auto& section : enlarged->divide_into_sections(max_tree_shape_width))
+        {
+            result.push_back(std::move(section));
+        }
+    }
+    return result;
+}
+
 int ShapeSearchTree::clearance_compensation_value(int p_clearance_class_no, int p_layer) const
 {
     if (p_clearance_class_no <= 0 || !is_clearance_compensation_used() || board_ == nullptr)
@@ -441,6 +954,120 @@ int ShapeSearchTree::clearance_compensation_value(int p_clearance_class_no, int 
     int compensation = rules.get_clearance_matrix().get_clearance_compensation_value(compensated_clearance_class_no_, p_layer);
 
     return std::max(0, value - compensation);
+}
+
+void ShapeSearchTree::change_item_shape(Item* p_item, int p_shape_index,
+    std::shared_ptr<fp::TileShape> p_new_shape)
+{
+    if (p_item == nullptr)
+    {
+        return;
+    }
+    // Java: Leaf[] oldEntries = item.getSearchTreeEntries(this). The entries
+    // are moved out first, so the old leaf can be released after it is removed
+    // from the tree.
+    std::vector<std::unique_ptr<ShapeTree::Leaf>> old_entries = p_item->take_search_tree_entries(*this);
+    if (p_shape_index < 0 || static_cast<size_t>(p_shape_index) >= old_entries.size())
+    {
+        logger::FRLogger::instance().warn("ShapeSearchTree.change_item_shape: shape index out of range");
+        p_item->set_search_tree_entries(std::move(old_entries), *this);
+        return;
+    }
+
+    // Java: removeLeaf(oldEntries[shapeIndex]). The leaf object itself stays
+    // alive until old_entries goes out of scope.
+    if (old_entries[p_shape_index] != nullptr)
+    {
+        ::freerouting::datastructures::ShapeTree::remove({old_entries[p_shape_index].get()});
+    }
+
+    // Java: newPrecalculatedTreeShapes[i] = (i == shapeIndex) ? newShape :
+    // item.getTreeShape(this, i). item.getTreeShape lazily calculates the
+    // shapes; the untouched shapes are shared with the stored array.
+    p_item->tree_shape_count(*this);
+    std::vector<std::shared_ptr<fp::TileShape>> new_shapes;
+    if (const std::vector<std::shared_ptr<fp::TileShape>>* precalculated =
+            p_item->get_precalculated_tree_shapes(*this))
+    {
+        new_shapes = *precalculated;
+    }
+    new_shapes.resize(old_entries.size());
+    new_shapes[p_shape_index] = p_new_shape;
+    p_item->set_precalculated_tree_shapes(std::move(new_shapes), *this);
+
+    // Java: newLeafArr[shapeIndex] = insert(item, shapeIndex), then
+    // item.setSearchTreeEntries(newLeafArr, this).
+    std::vector<std::unique_ptr<ShapeTree::Leaf>> new_entries(old_entries.size());
+    for (size_t i = 0; i < old_entries.size(); ++i)
+    {
+        if (i != static_cast<size_t>(p_shape_index))
+        {
+            new_entries[i] = std::move(old_entries[i]);
+        }
+    }
+    new_entries[p_shape_index] = ::freerouting::datastructures::ShapeTree::insert(*p_item, p_shape_index);
+    p_item->set_search_tree_entries(std::move(new_entries), *this);
+}
+
+void ShapeSearchTree::reduce_trace_shape_at_tie_pin(Pin* p_tie_pin, PolylineTrace* p_trace)
+{
+    if (p_tie_pin == nullptr || p_trace == nullptr)
+    {
+        return;
+    }
+    const fp::TileShape* pin_shape = p_tie_pin->get_tree_shape_on_layer(this, p_trace->get_layer());
+    if (pin_shape == nullptr)
+    {
+        // Java would fail with a NullPointerException in the intersection
+        // below; the C++ port skips the reduction instead (the pin has no
+        // shape on the layer of the trace).
+        return;
+    }
+    fp::FloatPoint compare_corner;
+    int trace_shape_no;
+    if (p_trace->first_corner().equals(&p_tie_pin->get_center()))
+    {
+        trace_shape_no = 0;
+        compare_corner = p_trace->polyline().corner_approx(1);
+    }
+    else if (p_trace->last_corner().equals(&p_tie_pin->get_center()))
+    {
+        trace_shape_no = p_trace->corner_count() - 2;
+        compare_corner = p_trace->polyline().corner_approx(p_trace->corner_count() - 2);
+    }
+    else
+    {
+        return;
+    }
+    const fp::TileShape* trace_shape = p_trace->get_tree_shape(*this, trace_shape_no);
+    if (trace_shape == nullptr)
+    {
+        return;
+    }
+    std::unique_ptr<fp::TileShape> intersection = fp::TileShape::intersection_of(*trace_shape, *pin_shape);
+    if (intersection == nullptr || intersection->dimension() < 2)
+    {
+        return;
+    }
+    std::vector<std::unique_ptr<fp::TileShape>> shape_pieces = trace_shape->cutout(*pin_shape);
+    std::shared_ptr<fp::TileShape> new_trace_shape = std::make_shared<fp::Simplex>(fp::Simplex::EMPTY);
+    bool shape_selected = false;
+    for (std::unique_ptr<fp::TileShape>& current_piece : shape_pieces)
+    {
+        if (current_piece == nullptr || current_piece->dimension() != 2)
+        {
+            continue;
+        }
+        // Java keeps the identity check against Simplex.EMPTY on every
+        // iteration: the first 2-dimensional piece is always taken, later
+        // pieces only replace it when they contain the compare corner.
+        if (!shape_selected || current_piece->contains(compare_corner))
+        {
+            new_trace_shape = std::shared_ptr<fp::TileShape>(std::move(current_piece));
+            shape_selected = true;
+        }
+    }
+    change_item_shape(p_trace, trace_shape_no, new_trace_shape);
 }
 
 void ShapeSearchTree::clear()
@@ -485,4 +1112,511 @@ ShapeSearchTree45Degree::ShapeSearchTree45Degree(BasicBoard* p_board, int p_comp
 {
 }
 
+// ---------------------------------------------------------------------------------------------
+// ShapeSearchTree45Degree (Java board/searchtree/ShapeSearchTree45Degree.java)
+// ---------------------------------------------------------------------------------------------
+
+namespace {
+
+/** Java IntOctagon.dimension(): identity with EMPTY gives -1 (01_MEMORY gotcha 15). */
+int java_octagon_dimension(const fp::IntOctagon& p_oct)
+{
+    if (p_oct == fp::IntOctagon::EMPTY)
+    {
+        return -1;
+    }
+    if (p_oct.right > p_oct.left && p_oct.top > p_oct.bottom && p_oct.right_bottom > p_oct.left_top
+        && p_oct.right_top > p_oct.left_bottom)
+    {
+        return 2;
+    }
+    if (p_oct.right == p_oct.left && p_oct.top == p_oct.bottom)
+    {
+        return 0;
+    }
+    return 1;
+}
+
+/**
+ * Java TileShape.isEmpty: an IntOctagon is empty only if it is IntOctagon.EMPTY (the C++
+ * IntOctagon::is_empty also treats degenerate octagons as empty, 01_MEMORY gotcha 15).
+ */
+bool java_tile_is_empty(const fp::TileShape& p_shape)
+{
+    if (const auto* octagon = dynamic_cast<const fp::IntOctagon*>(&p_shape))
+    {
+        return *octagon == fp::IntOctagon::EMPTY;
+    }
+    return p_shape.is_empty();
+}
+
+/** Java TileShape.contains(TileShape): every corner of p_inner lies in p_outer. */
+bool java_tile_contains(const fp::TileShape& p_outer, const fp::TileShape& p_inner)
+{
+    for (int i = 0; i < p_inner.border_line_count(); ++i)
+    {
+        if (!p_outer.contains(p_inner.corner(i)))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * Java obstacleSegmentTouchesInside: the border line segment p_obstacle_border_line_no of the
+ * obstacle intersects the inside of p_room_shape.
+ */
+bool obstacle_segment_touches_inside(
+    const fp::IntOctagon& p_obstacle_shape, int p_obstacle_border_line_no, const fp::IntOctagon& p_room_shape)
+{
+    int curr_border_line_no = p_obstacle_border_line_no;
+    const int curr_obstacle_corner_x = static_cast<int>(p_obstacle_shape.corner_x(p_obstacle_border_line_no));
+    const int curr_obstacle_corner_y = static_cast<int>(p_obstacle_shape.corner_y(p_obstacle_border_line_no));
+    for (int j = 0; j < 5; ++j)
+    {
+        if (p_room_shape.side_of_border_line(curr_obstacle_corner_x, curr_obstacle_corner_y, curr_border_line_no)
+            != fp::Side::ON_THE_LEFT)
+        {
+            return false;
+        }
+        curr_border_line_no = (curr_border_line_no + 1) % 8;
+    }
+    const int next_obstacle_border_line_no = (p_obstacle_border_line_no + 1) % 8;
+    const int next_obstacle_corner_x = static_cast<int>(p_obstacle_shape.corner_x(next_obstacle_border_line_no));
+    const int next_obstacle_corner_y = static_cast<int>(p_obstacle_shape.corner_y(next_obstacle_border_line_no));
+    curr_border_line_no = (p_obstacle_border_line_no + 5) % 8;
+    for (int j = 0; j < 3; ++j)
+    {
+        if (p_room_shape.side_of_border_line(next_obstacle_corner_x, next_obstacle_corner_y, curr_border_line_no)
+            != fp::Side::ON_THE_LEFT)
+        {
+            return false;
+        }
+        curr_border_line_no = (curr_border_line_no + 1) % 8;
+    }
+    return true;
+}
+
+/** Java signedLineDistance. */
+double signed_line_distance(
+    const fp::IntOctagon& p_obstacle_shape, int p_obstacle_line_no, const fp::IntOctagon& p_contained_shape)
+{
+    switch (p_obstacle_line_no)
+    {
+    case 0:
+        return static_cast<double>(p_obstacle_shape.bottom - p_contained_shape.top);
+    case 2:
+        return static_cast<double>(p_contained_shape.left - p_obstacle_shape.right);
+    case 4:
+        return static_cast<double>(p_contained_shape.bottom - p_obstacle_shape.top);
+    case 6:
+        return static_cast<double>(p_obstacle_shape.left - p_contained_shape.right);
+    // factor 0.5 used instead to 1 / sqrt(2) to prefer orthogonal lines slightly to diagonal
+    // restraining lines.
+    case 1:
+        return 0.5 * static_cast<double>(p_contained_shape.left_top - p_obstacle_shape.right_bottom);
+    case 3:
+        return 0.5 * static_cast<double>(p_contained_shape.left_bottom - p_obstacle_shape.right_top);
+    case 5:
+        return 0.5 * static_cast<double>(p_obstacle_shape.left_top - p_contained_shape.right_bottom);
+    case 7:
+        return 0.5 * static_cast<double>(p_obstacle_shape.left_bottom - p_contained_shape.right_top);
+    default:
+        logger::FRLogger::instance().warn(
+            "ShapeSearchTree45Degree.signed_line_distance: obstacleLineNo out of range");
+        return 0;
+    }
+}
+
+} // namespace
+
+fp::IntOctagon ShapeSearchTree45Degree::calc_outside_restrained_shape(
+    const fp::IntOctagon& p_obstacle_shape, int p_obstacle_line_no, const fp::IntOctagon& p_room_shape)
+{
+    int64_t lx = p_room_shape.left;
+    int64_t ly = p_room_shape.bottom;
+    int64_t rx = p_room_shape.right;
+    int64_t uy = p_room_shape.top;
+    int64_t ulx = p_room_shape.left_top;
+    int64_t lrx = p_room_shape.right_bottom;
+    int64_t llx = p_room_shape.left_bottom;
+    int64_t urx = p_room_shape.right_top;
+    switch (p_obstacle_line_no)
+    {
+    case 0: uy = p_obstacle_shape.bottom; break;
+    case 2: lx = p_obstacle_shape.right; break;
+    case 4: ly = p_obstacle_shape.top; break;
+    case 6: rx = p_obstacle_shape.left; break;
+    case 1: ulx = p_obstacle_shape.right_bottom; break;
+    case 3: llx = p_obstacle_shape.right_top; break;
+    case 5: lrx = p_obstacle_shape.left_top; break;
+    case 7: urx = p_obstacle_shape.left_bottom; break;
+    default:
+        logger::FRLogger::instance().warn(
+            "ShapeSearchTree45Degree.calc_outside_restrained_shape: obstacleLineNo out of range");
+    }
+    return fp::IntOctagon(lx, ly, rx, uy, ulx, lrx, llx, urx).normalize();
+}
+
+fp::IntOctagon ShapeSearchTree45Degree::calc_inside_restrained_shape(
+    const fp::IntOctagon& p_obstacle_shape, int p_obstacle_line_no, const fp::IntOctagon& p_room_shape)
+{
+    int64_t lx = p_room_shape.left;
+    int64_t ly = p_room_shape.bottom;
+    int64_t rx = p_room_shape.right;
+    int64_t uy = p_room_shape.top;
+    int64_t ulx = p_room_shape.left_top;
+    int64_t lrx = p_room_shape.right_bottom;
+    int64_t llx = p_room_shape.left_bottom;
+    int64_t urx = p_room_shape.right_top;
+    switch (p_obstacle_line_no)
+    {
+    case 0: ly = p_obstacle_shape.bottom; break;
+    case 2: rx = p_obstacle_shape.right; break;
+    case 4: uy = p_obstacle_shape.top; break;
+    case 6: lx = p_obstacle_shape.left; break;
+    case 1: lrx = p_obstacle_shape.right_bottom; break;
+    case 3: urx = p_obstacle_shape.right_top; break;
+    case 5: ulx = p_obstacle_shape.left_top; break;
+    case 7: llx = p_obstacle_shape.left_bottom; break;
+    default:
+        logger::FRLogger::instance().warn(
+            "ShapeSearchTree45Degree.calc_inside_restrained_shape: obstacleLineNo out of range");
+    }
+    return fp::IntOctagon(lx, ly, rx, uy, ulx, lrx, llx, urx).normalize();
+}
+
+void ShapeSearchTree45Degree::restrain_shape_45(
+    const CompleteShapePiece& p_room, const fp::IntOctagon& p_obstacle_shape, std::vector<CompleteShapePiece>& p_result)
+{
+    // Search the edge line of p_obstacle_shape, so that the shape to be contained is on the right
+    // side of this line and the line segment intersects the inside of the room shape. If there are
+    // more than 1 such lines take the line which is furthest away from the shape to be contained,
+    // then intersect the room shape with the half plane defined by the opposite of this line.
+    const fp::TileShape* contained_shape = p_room.contained_shape.get();
+    if (contained_shape == nullptr || java_tile_is_empty(*contained_shape))
+    {
+        logger::FRLogger::instance().debug("ShapeSearchTree45Degree.restrain_shape: shapeToBeContained is empty");
+        return;
+    }
+    if (!contained_shape->is_IntOctagon() && dynamic_cast<const fp::Simplex*>(contained_shape) == nullptr)
+    {
+        logger::FRLogger::instance().warn("restrain_shape: incompatible shape type");
+        return;
+    }
+    const fp::IntOctagon shape_to_be_contained = contained_shape->bounding_octagon();
+    if (p_room.shape == nullptr
+        || (dynamic_cast<const fp::IntOctagon*>(p_room.shape.get()) == nullptr
+            && dynamic_cast<const fp::IntBox*>(p_room.shape.get()) == nullptr // C++: see complete_shape
+            && dynamic_cast<const fp::Simplex*>(p_room.shape.get()) == nullptr))
+    {
+        logger::FRLogger::instance().warn("restrain_shape: unsupported room shape type");
+        return;
+    }
+    const fp::IntOctagon room_shape = p_room.shape->bounding_octagon();
+
+    double cut_line_distance = -1;
+    int restraining_line_no = -1;
+    for (int obstacle_line_no = 0; obstacle_line_no < 8; ++obstacle_line_no)
+    {
+        const double curr_distance = signed_line_distance(p_obstacle_shape, obstacle_line_no, shape_to_be_contained);
+        if (curr_distance > cut_line_distance
+            && obstacle_segment_touches_inside(p_obstacle_shape, obstacle_line_no, room_shape))
+        {
+            cut_line_distance = curr_distance;
+            restraining_line_no = obstacle_line_no;
+        }
+    }
+    if (cut_line_distance >= 0)
+    {
+        CompleteShapePiece piece;
+        piece.shape = std::make_unique<fp::IntOctagon>(
+            calc_outside_restrained_shape(p_obstacle_shape, restraining_line_no, room_shape));
+        piece.contained_shape = std::make_unique<fp::IntOctagon>(shape_to_be_contained);
+        p_result.push_back(std::move(piece));
+        return;
+    }
+
+    // There is no cut line, so that all of the shape to be contained is completely on the right
+    // side of that line. Search a cut line, so that at least part of it is on the right side.
+    if (java_octagon_dimension(shape_to_be_contained) < 1)
+    {
+        // There is already a completed expansion room around the shape to be contained.
+        return;
+    }
+    restraining_line_no = -1;
+    for (int obstacle_line_no = 0; obstacle_line_no < 8; ++obstacle_line_no)
+    {
+        if (obstacle_segment_touches_inside(p_obstacle_shape, obstacle_line_no, room_shape))
+        {
+            const fp::Line curr_line = p_obstacle_shape.border_line(obstacle_line_no);
+            if (shape_to_be_contained.side_of(curr_line) == fp::Side::COLLINEAR)
+            {
+                // curr_line intersects with the interior of the shape to be contained
+                restraining_line_no = obstacle_line_no;
+                break;
+            }
+        }
+    }
+    if (restraining_line_no < 0)
+    {
+        // cut line not found, parts or the whole of shape may be already occupied from somewhere else.
+        return;
+    }
+    const fp::IntOctagon restrained_shape =
+        calc_outside_restrained_shape(p_obstacle_shape, restraining_line_no, room_shape);
+    if (java_octagon_dimension(restrained_shape) == 2)
+    {
+        const fp::IntOctagon new_shape_to_be_contained = shape_to_be_contained.intersection(restrained_shape);
+        if (java_octagon_dimension(new_shape_to_be_contained) > 0)
+        {
+            CompleteShapePiece piece;
+            piece.shape = std::make_unique<fp::IntOctagon>(restrained_shape);
+            piece.contained_shape = std::make_unique<fp::IntOctagon>(new_shape_to_be_contained);
+            p_result.push_back(std::move(piece));
+        }
+    }
+    const fp::IntOctagon rest_piece = calc_inside_restrained_shape(p_obstacle_shape, restraining_line_no, room_shape);
+    if (java_octagon_dimension(rest_piece) >= 2)
+    {
+        const fp::IntOctagon rest_shape_to_be_contained = shape_to_be_contained.intersection(rest_piece);
+        if (java_octagon_dimension(rest_shape_to_be_contained) >= 0)
+        {
+            CompleteShapePiece rest_room;
+            rest_room.shape = std::make_unique<fp::IntOctagon>(rest_piece);
+            rest_room.contained_shape = std::make_unique<fp::IntOctagon>(rest_shape_to_be_contained);
+            restrain_shape_45(rest_room, p_obstacle_shape, p_result);
+        }
+    }
+}
+
+void ShapeSearchTree45Degree::divide_large_room_45(
+    const fp::IntBox& p_board_box, std::vector<CompleteShapePiece>& p_rooms) const
+{
+    // Java ShapeSearchTree.divideLargeRoom (the base class) followed by the bounding octagons of
+    // the 45 degree override. The base is ported here on octagons: the C++ base
+    // divide_large_room divides the bounding box and intersects through Simplices, which loses
+    // point-sized contained shapes.
+    if (p_rooms.size() != 1)
+    {
+        return;
+    }
+    const CompleteShapePiece& curr_room = p_rooms[0];
+    const fp::IntBox room_bounding_box = curr_room.shape->bounding_box();
+    if (2 * room_bounding_box.height() <= p_board_box.height()
+        || 2 * room_bounding_box.width() <= p_board_box.width())
+    {
+        return;
+    }
+    const double max_section_width = 0.5 * std::max(p_board_box.height(), p_board_box.width());
+    const fp::IntOctagon contained_octagon = curr_room.contained_shape->bounding_octagon();
+    std::vector<CompleteShapePiece> result;
+    for (const std::unique_ptr<fp::TileShape>& curr_section : curr_room.shape->divide_into_sections(max_section_width))
+    {
+        const fp::IntOctagon section_octagon = curr_section->bounding_octagon();
+        CompleteShapePiece section_room;
+        section_room.shape = std::make_unique<fp::IntOctagon>(section_octagon);
+        section_room.contained_shape = std::make_unique<fp::IntOctagon>(section_octagon.intersection(contained_octagon));
+        result.push_back(std::move(section_room));
+    }
+    p_rooms = std::move(result);
+}
+
+std::vector<ShapeSearchTree::CompleteShapePiece> ShapeSearchTree45Degree::complete_shape(const CompleteShapeInput& p_input)
+{
+    // Port of Java ShapeSearchTree45Degree.completeShapeUnlocked.
+    std::vector<CompleteShapePiece> result;
+    if (p_input.contained_shape == nullptr)
+    {
+        logger::FRLogger::instance().warn(
+            "ShapeSearchTree45Degree.completeShape: contained shape is null, skipping expansion room");
+        return result;
+    }
+    // A non-IntOctagon contained shape (e.g. a Simplex of a non-45 degree trace) is approximated by
+    // its bounding octagon.
+    const fp::IntOctagon shape_to_be_contained = p_input.contained_shape->bounding_octagon();
+    // Deviation: Java returns no room for an empty tree (root == null). On a real board the tree
+    // always holds the board outline, so this only matters for synthetic fixtures; like the generic
+    // C++ complete_shape, an empty tree yields the (divided) start room.
+    BasicBoard* board = get_board();
+    const fp::IntBox board_box = board != nullptr ? board->get_bounding_box() : fp::IntBox::EMPTY;
+    fp::IntOctagon start_shape = board_box.bounding_octagon();
+    if (p_input.shape != nullptr)
+    {
+        // Java requires the room shape to be an IntOctagon object. The C++ AutorouteEngine stores
+        // every room shape as a Simplex (or an IntBox), so the check is whether the shape is an
+        // octagon, not its class.
+        if (!p_input.shape->is_IntOctagon())
+        {
+            logger::FRLogger::instance().warn(
+                "ShapeSearchTree45Degree.complete_shape: startShape of type IntOctagon expected");
+            return result;
+        }
+        start_shape = p_input.shape->bounding_octagon().intersection(start_shape);
+    }
+    fp::IntOctagon bounding_shape = start_shape;
+    const int room_layer = p_input.layer;
+    {
+        CompleteShapePiece start_room;
+        start_room.shape = std::make_unique<fp::IntOctagon>(start_shape);
+        start_room.contained_shape = std::make_unique<fp::IntOctagon>(shape_to_be_contained);
+        result.push_back(std::move(start_room));
+    }
+
+    std::vector<TreeNode*> stack;
+    stack.push_back(root);
+    while (!stack.empty())
+    {
+        TreeNode* curr_node = stack.back();
+        stack.pop_back();
+        if (curr_node == nullptr || curr_node->bounding_shape == nullptr
+            || !curr_node->bounding_shape->intersects(bounding_shape))
+        {
+            continue;
+        }
+        auto* curr_leaf = dynamic_cast<Leaf*>(curr_node);
+        if (curr_leaf == nullptr)
+        {
+            auto* inner = static_cast<InnerNode*>(curr_node);
+            stack.push_back(inner->first_child);
+            stack.push_back(inner->second_child);
+            continue;
+        }
+        auto* curr_object = static_cast<SearchTreeObject*>(curr_leaf->object);
+        if (curr_object == nullptr)
+        {
+            continue;
+        }
+        const int shape_index = curr_leaf->shape_index_in_object;
+        if (!curr_object->is_trace_obstacle(p_input.net_no) || curr_object->shape_layer(shape_index) != room_layer
+            || curr_object == p_input.ignore_object)
+        {
+            continue;
+        }
+        const fp::TileShape* curr_tree_shape = curr_object->get_tree_shape(*this, shape_index);
+        if (curr_tree_shape == nullptr)
+        {
+            continue;
+        }
+        const fp::IntOctagon curr_object_shape = curr_tree_shape->bounding_octagon();
+        std::vector<CompleteShapePiece> new_result;
+        fp::IntOctagon new_bounding_shape = fp::IntOctagon::EMPTY;
+        for (CompleteShapePiece& curr_room : result)
+        {
+            const auto& curr_shape = static_cast<const fp::IntOctagon&>(*curr_room.shape);
+            if (curr_shape.overlaps(curr_object_shape))
+            {
+                if (curr_object->is_free_space_room() && p_input.ignore_shape != nullptr)
+                {
+                    const fp::IntOctagon intersection = curr_shape.intersection(curr_object_shape);
+                    if (java_tile_contains(*p_input.ignore_shape, intersection))
+                    {
+                        // ignore also all objects, whose intersection is contained in the
+                        // 2-dim overlap-door with the from room.
+                        if (!java_tile_contains(*p_input.ignore_shape, curr_shape))
+                        {
+                            new_bounding_shape = new_bounding_shape.union_with(curr_shape);
+                            new_result.push_back(std::move(curr_room));
+                        }
+                        continue;
+                    }
+                }
+                restrain_shape_45(curr_room, curr_object_shape, new_result);
+                for (const CompleteShapePiece& tmp_room : new_result)
+                {
+                    new_bounding_shape =
+                        new_bounding_shape.union_with(static_cast<const fp::IntOctagon&>(*tmp_room.shape));
+                }
+            }
+            else
+            {
+                new_bounding_shape = new_bounding_shape.union_with(curr_shape);
+                new_result.push_back(std::move(curr_room));
+            }
+        }
+        result = std::move(new_result);
+        bounding_shape = new_bounding_shape;
+    }
+
+    divide_large_room_45(board_box, result);
+    // remove rooms with shapes equal to the contained shape to prevent endless loop.
+    result.erase(std::remove_if(result.begin(), result.end(),
+                     [](const CompleteShapePiece& p_room)
+                     { return java_tile_contains(*p_room.contained_shape, *p_room.shape); }),
+        result.end());
+    return result;
+}
+
+std::vector<std::shared_ptr<fp::TileShape>> ShapeSearchTree45Degree::calculate_tree_shapes(
+    const DrillItem& p_drill_item) const
+{
+    // Port of Java ShapeSearchTree45Degree.calculateTreeShapes(DrillItem).
+    std::vector<std::shared_ptr<fp::TileShape>> result;
+    BasicBoard* board = get_board();
+    if (board == nullptr)
+    {
+        return result;
+    }
+    result.resize(static_cast<size_t>(p_drill_item.tile_shape_count()));
+    for (int i = 0; i < static_cast<int>(result.size()); ++i)
+    {
+        const fp::Shape* curr_shape = p_drill_item.get_shape(i);
+        std::unique_ptr<fp::Shape> hole_shape;
+        if (curr_shape == nullptr)
+        {
+            hole_shape = drill_hole_obstacle(board, p_drill_item);
+            curr_shape = hole_shape.get();
+        }
+        if (curr_shape == nullptr)
+        {
+            continue;
+        }
+        std::unique_ptr<fp::TileShape> curr_tile_shape =
+            std::make_unique<fp::IntOctagon>(curr_shape->bounding_shape(fp::FortyfiveDegreeBoundingDirections::INSTANCE));
+        if (curr_tile_shape->is_IntBox())
+        {
+            // To avoid small corner cutoffs when taking the offset as an octagon.
+            curr_tile_shape = std::make_unique<fp::IntBox>(curr_shape->bounding_box());
+        }
+        int offset_width =
+            clearance_compensation_value(p_drill_item.get_clearance_class(), p_drill_item.shape_layer(i));
+        offset_width += drill_hole_clearance_delta(
+            board, get_compensated_clearance_class_no(), p_drill_item, curr_shape, p_drill_item.shape_layer(i));
+        // Java TileShape.offset (an IntBox stays a box; enlarge would cut its corners).
+        curr_tile_shape = curr_tile_shape->offset(offset_width);
+        result[i] = std::make_shared<fp::IntOctagon>(curr_tile_shape->bounding_octagon());
+    }
+    return result;
+}
+
+std::vector<std::shared_ptr<fp::TileShape>> ShapeSearchTree45Degree::calculate_tree_shapes(
+    const ObstacleArea& p_obstacle_area) const
+{
+    std::vector<std::shared_ptr<fp::TileShape>> result = ShapeSearchTree::calculate_tree_shapes(p_obstacle_area);
+    for (auto& shape : result)
+    {
+        if (shape != nullptr)
+        {
+            shape = std::make_shared<fp::IntOctagon>(shape->bounding_octagon());
+        }
+    }
+    return result;
+}
+
+std::vector<std::shared_ptr<fp::TileShape>> ShapeSearchTree45Degree::calculate_tree_shapes(
+    const BoardOutline& p_board_outline) const
+{
+    std::vector<std::shared_ptr<fp::TileShape>> result = ShapeSearchTree::calculate_tree_shapes(p_board_outline);
+    for (auto& shape : result)
+    {
+        if (shape != nullptr)
+        {
+            shape = std::make_shared<fp::IntOctagon>(shape->bounding_octagon());
+        }
+    }
+    return result;
+}
+
 } // namespace freerouting::board
+

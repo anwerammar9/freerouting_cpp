@@ -7,9 +7,11 @@
 #include "autoroute/DrillPage.h"
 #include "autoroute/DrillPageArray.h"
 #include "autoroute/ExpansionDrill.h"
+#include "autoroute/ExpansionRoom.h"
 #include "board/Layer.h"
 #include "board/PolylineTrace.h"
 #include "board/RoutingBoard.h"
+#include "board/SearchTreeObject.h"
 #include "board/ShapeSearchTree.h"
 #include "geometry/planar/IntBox.h"
 #include "geometry/planar/Polyline.h"
@@ -26,6 +28,9 @@ std::shared_ptr<fr::board::RoutingBoard> make_routing_board()
     layers.push_back(std::make_shared<fr::board::Layer>("Bottom", true));
     fr::board::LayerStructure layer_structure(layers);
     auto board_rules = std::make_unique<fr::rules::BoardRules>(layer_structure, 10);
+    // These fixtures exercise the engine bookkeeping on the generic search tree; the Java
+    // 45 degree tree (ShapeSearchTree45Degree, T506a) has its own tests.
+    board_rules->set_trace_angle_restriction(fr::rules::AngleRestriction::NONE);
     return std::make_shared<fr::board::RoutingBoard>(
         fr::geometry::planar::IntBox(0, 0, 10000, 10000), layer_structure,
         std::move(board_rules), nullptr);
@@ -41,6 +46,54 @@ fr::board::PolylineTrace* insert_trace(
     return p_board->insert_trace_without_cleaning(polyline, 0, 50, p_nets, 1,
                                                   fr::board::FixedState::NOT_FIXED);
 }
+
+/**
+ * Net-2 obstacle restraining the free space in the autoroute search tree.
+ * Whole-plane drill rooms complete to exactly one room per layer (the
+ * condition of ExpansionDrill.calculateExpansionRooms) only when the free
+ * space around the drill location is restrained by obstacles.
+ */
+class FakeObstacle : public fr::board::SearchTreeObject
+{
+public:
+    FakeObstacle(int p_layer, fr::geometry::planar::IntBox p_shape, int p_id)
+        : layer_(p_layer), shape_(p_shape), id_(p_id)
+    {
+    }
+
+    int tree_shape_count(const fr::datastructures::ShapeTree&) const override { return 1; }
+    const fr::geometry::planar::TileShape* get_tree_shape(const fr::datastructures::ShapeTree&, int) const override { return &shape_; }
+    void set_search_tree_entries(std::vector<std::unique_ptr<fr::datastructures::ShapeTree::Leaf>> p_entries,
+        fr::datastructures::ShapeTree&) override
+    {
+        // Own the leaves like board::Item does so the search tree keeps
+        // referencing live nodes until the object is destroyed.
+        search_tree_entries_ = std::move(p_entries);
+    }
+    int compare_to(const fr::datastructures::ShapeTree::Storable& p_other) const override
+    {
+        const auto* other_obstacle = dynamic_cast<const FakeObstacle*>(&p_other);
+        if (other_obstacle == nullptr)
+        {
+            return -1;
+        }
+        if (id_ == other_obstacle->id_)
+        {
+            return 0;
+        }
+        return id_ < other_obstacle->id_ ? -1 : 1;
+    }
+    bool is_obstacle(int) const override { return true; }
+    bool is_trace_obstacle(int p_net_no) const override { return p_net_no != 2; }
+    int shape_layer(int) const override { return layer_; }
+    int get_id() const override { return id_; }
+
+private:
+    int layer_;
+    fr::geometry::planar::IntBox shape_;
+    int id_;
+    std::vector<std::unique_ptr<fr::datastructures::ShapeTree::Leaf>> search_tree_entries_;
+};
 
 } // namespace
 
@@ -113,8 +166,24 @@ TEST(DrillPageArrayTest, InvalidateRecomputesAffectedPages)
 
     fr::autoroute::DrillPage* affected = array.get_page(1, 1);
     ASSERT_NE(affected, nullptr);
+
+    // Net-2 walls restrain the free space so the drill at the page centre
+    // (7500, 7500) completes to exactly one room per layer (the free space
+    // right of the walls) instead of being dropped for never yielding a single
+    // room on the obstacle-free garden.
+    fr::board::ShapeSearchTree* tree = engine.get_autoroute_search_tree();
+    ASSERT_NE(tree, nullptr);
+    FakeObstacle wall_layer_0(0, fr::geometry::planar::IntBox(4000, 0, 6000, 10000), /*p_id=*/1);
+    FakeObstacle wall_layer_1(1, fr::geometry::planar::IntBox(4000, 0, 6000, 10000), /*p_id=*/2);
+    tree->insert(wall_layer_0);
+    tree->insert(wall_layer_1);
+
     auto drills = affected->get_drills(&engine, false);
     EXPECT_EQ(drills.size(), 1u);
+    // The completed room is the free space right of the walls.
+    ASSERT_EQ(drills[0]->room_arr.size(), 2u);
+    EXPECT_EQ(drills[0]->room_arr[0]->get_shape(), fr::geometry::planar::IntBox(6000, 0, 10000, 10000));
+    EXPECT_EQ(drills[0]->room_arr[1]->get_shape(), fr::geometry::planar::IntBox(6000, 0, 10000, 10000));
 
     // The obstacle crosses the affected page (5000..10000 in both axes) before
     // the engine search tree is built, so it becomes a drill cutout.
@@ -122,7 +191,8 @@ TEST(DrillPageArrayTest, InvalidateRecomputesAffectedPages)
         insert_trace(board.get(),
                      {fr::geometry::planar::IntPoint(6000, 7500), fr::geometry::planar::IntPoint(9000, 7500)},
                      {2});
-    engine.get_autoroute_search_tree()->insert(trace);
+    (void)trace;
+    // The board inserted the trace into its autoroute tree already (Java SearchTreeManager.insert).
 
     // The cached value is still served until the page is invalidated.
     EXPECT_EQ(affected->get_drills(&engine, false).size(), 1u);
@@ -139,4 +209,8 @@ TEST(DrillPageArrayTest, InvalidateRecomputesAffectedPages)
         // inside the obstacle band, so check containment instead of the y band.
         EXPECT_FALSE(drill->get_shape().contains(fr::geometry::planar::IntPoint(7500, 7500)));
     }
+
+    // The engine rooms live in the board search tree; remove them while the
+    // fixture objects linked into the tree still exist (Java calls clear() too).
+    engine.clear();
 }

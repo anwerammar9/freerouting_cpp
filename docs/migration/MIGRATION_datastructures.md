@@ -45,3 +45,16 @@
 - Ownership model: the tree transfers ownership of its `Leaf` objects to the `Storable` via `set_search_tree_entries(std::vector<std::unique_ptr<Leaf>>, ...)` (mirroring Java, where the storable stores the `Leaf[]` array), while `ShapeTree` owns its `InnerNode`s in a registry (`all_nodes_`) and frees them on `remove_leaf`. Removed leaves are unlinked from the tree but stay alive under the storable (Java parity).
 - Geometry gap filled to make the tree work: added polymorphic `intersects(const RegularTileShape&)` to `RegularTileShape`/`IntBox`/`IntOctagon`, and `TileShape::bounding_shape(const ShapeBoundingDirections&)` implemented on `IntBox`/`IntOctagon`/`Simplex` via `ShapeBoundingDirections::bounds`. (`ConvexShape::bounding_shape` already existed but the C++ tile hierarchy does not inherit `ConvexShape`.)
 - C++ module cycle note: the Java packages datastructures and geometry reference each other (geometry uses `datastructures/Signum`; datastructures' trees use geometry tiles). Because includes are global and static-library symbols are resolved at the final executable link (where both libraries are linked explicitly), no declared CMake dependency edge exists between the two targets.
+- **2026-10-10 (T010a/b)**: `PlanarDelaunayTriangulation` re-ported from Java (was a 191-line different algorithm
+  without the seeded shuffle). Now: input corners shuffled with `JavaRandom(99)`, bounding triangle at `CRIT_INT`,
+  search DAG with `first_parent` traversal, edge flips with Java's `insideCircle` (`< r² - 1`), border splits,
+  degenerate edges for equal corners of different objects (listed first), result edges ordered by edge id like Java's
+  `TreeSet<Edge>`. Java quirk kept: `splitAtInnerPoint` creates 3 unused edges that consume ids (ids order the result).
+  Golden tests from the jar; NetIncompletes airlines therefore follow Java's edge order.
+
+- **2026-10-11 (T122)**: `JavaFormat` (`java_double_to_string`, `java_float_to_string`) reimplements Java
+  `Double.toString`/`Float.toString` — shortest round-tripping decimal via `std::to_chars`, plain notation for
+  magnitudes in `[1e-3, 1e7)` and `E`-scientific outside, always a fraction part for integral values, plus
+  NaN/Inf/`-0.0` handling. This is required for DSN/SES output to be token-equal to the Java writers (which use
+  `String.valueOf(double)`); `std::to_chars` alone differs. Tests in `JavaFormat_test.cpp` verify golden strings from
+  Java (JDK 25).

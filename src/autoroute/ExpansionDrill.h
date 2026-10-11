@@ -25,10 +25,17 @@ public:
 
     geometry::planar::IntBox get_shape() const override;
     int get_dimension() const override { return 2; }
-    CompleteExpansionRoom* other_room(CompleteExpansionRoom* p_room) override { return nullptr; }
+    CompleteExpansionRoom* other_room(CompleteExpansionRoom* p_room) override { (void)p_room; return nullptr; }
     int maze_search_element_count() const override;
     MazeSearchElement* get_maze_search_element(int p_no) override;
     void reset() override;
+
+    /**
+     * Returns a unique identification number for this drill: a stable hash of
+     * the drill location and the drill layer range. Port of Java
+     * ExpansionDrill.getId().
+     */
+    int64_t get_id() const override;
 
     bool calculate_expansion_rooms(AutorouteEngine* p_autoroute_engine);
 

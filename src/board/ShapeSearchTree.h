@@ -24,8 +24,13 @@ class TileShape;
 namespace freerouting::board {
 
 class Item;
+class DrillItem;
+class BoardOutline;
+class ObstacleArea;
 class BasicBoard;
 class SearchTreeObject;
+class Pin;
+class PolylineTrace;
 
 /**
  * Total order on tree objects mirroring the Java TreeSet ordering, which uses
@@ -58,6 +63,10 @@ public:
     using Leaf = freerouting::datastructures::ShapeTree::Leaf;
     using LeafLess = freerouting::datastructures::MinAreaTree::LeafLess;
     using TreeEntry = freerouting::datastructures::ShapeTree::TreeEntry;
+
+    // Keep the base MinAreaTree/ShapeTree insert() overloads visible next to
+    // the Item/Storable insert overloads declared below.
+    using MinAreaTree::insert;
 
     /**
      * Creates a new ShapeSearchTree with forty-five degree bounding
@@ -93,6 +102,32 @@ public:
      * Returns 0, if no clearance compensation is used for this tree.
      */
     int clearance_compensation_value(int p_clearance_class_no, int p_layer) const;
+
+    /**
+     * The tree shapes of a drill item: the bounding box / octagon / tile (by
+     * the board's angle restriction) of each layer shape, enlarged by the
+     * clearance compensation and the drill hole clearance delta. Port of Java
+     * ShapeSearchTree.calculateTreeShapes(DrillItem).
+     */
+    virtual std::vector<std::shared_ptr<::freerouting::geometry::planar::TileShape>> calculate_tree_shapes(
+        const DrillItem& p_drill_item) const;
+
+    /**
+     * The tree shapes of the board outline: the convex pieces of the keepout
+     * outside the outline, or thin shapes along every outline line, on every
+     * layer. Port of Java ShapeSearchTree.calculateTreeShapes(BoardOutline).
+     */
+    virtual std::vector<std::shared_ptr<::freerouting::geometry::planar::TileShape>> calculate_tree_shapes(
+        const BoardOutline& p_board_outline) const;
+
+    /**
+     * The tree shapes of an obstacle/conduction area: the convex pieces of the
+     * area, enlarged by the clearance compensation and divided into sections
+     * of at most 50000 (or 500 mil with a host CAD). Port of Java
+     * ShapeSearchTree.calculateTreeShapes(ObstacleArea).
+     */
+    virtual std::vector<std::shared_ptr<::freerouting::geometry::planar::TileShape>> calculate_tree_shapes(
+        const ObstacleArea& p_obstacle_area) const;
 
     int get_compensated_clearance_class_no() const { return compensated_clearance_class_no_; }
 
@@ -158,6 +193,60 @@ public:
         int p_layer, const std::vector<int>& p_ignore_net_nos, int p_clearance_class);
 
     /**
+     * Parameters of a room to be completed by the search tree. Mirrors the
+     * arguments of the Java ShapeSearchTree.completeShape(IncompleteFreeSpaceExpansionRoom,
+     * int, SearchTreeObject, TileShape). p_shape may be null, in which case
+     * the room covers the whole board box.
+     */
+    struct CompleteShapeInput
+    {
+        const ::freerouting::geometry::planar::TileShape* shape = nullptr;
+        const ::freerouting::geometry::planar::TileShape* contained_shape = nullptr;
+        int layer = -1;
+        int net_no = 0;
+        SearchTreeObject* ignore_object = nullptr;
+        const ::freerouting::geometry::planar::TileShape* ignore_shape = nullptr;
+    };
+
+    /**
+     * One free space section of a completed room. shape is a maximal TileShape
+     * not intersecting the interior of a net dependent obstacle; contained_shape
+     * is the part of the input contained shape inside shape.
+     */
+    struct CompleteShapePiece
+    {
+        std::unique_ptr<::freerouting::geometry::planar::TileShape> shape;
+        std::unique_ptr<::freerouting::geometry::planar::TileShape> contained_shape;
+    };
+
+    /**
+     * Calculates free space rooms contained in the shape of p_input, which may
+     * overlap only with objects of the p_input.net_no on p_input.layer.
+     * p_input.contained_shape will be contained in the shape of the result.
+     * If that is not possible, several rooms are returned whose shapes intersect
+     * with p_input.contained_shape. If p_input.ignore_shape != null, objects of
+     * type CompleteFreeSpaceExpansionRoom whose intersection with the room shape
+     * is contained in p_input.ignore_shape are ignored. Port of Java
+     * ShapeSearchTree.completeShape.
+     */
+    virtual std::vector<CompleteShapePiece> complete_shape(const CompleteShapeInput& p_input);
+
+    /**
+     * Changes the shape with index p_shape_index of p_item to p_new_shape and
+     * updates the entry in the tree. Port of Java
+     * ShapeSearchTree.changeItemShape(Item, int, TileShape).
+     */
+    void change_item_shape(Item* p_item, int p_shape_index,
+        std::shared_ptr<::freerouting::geometry::planar::TileShape> p_new_shape);
+
+    /**
+     * Reduces the first or last shape of p_trace at p_tie_pin, so that the
+     * autorouter algorithm can find a connection for a different net. Port of
+     * Java ShapeSearchTree.reduceTraceShapeAtTiePin(Pin, PolylineTrace).
+     */
+    void reduce_trace_shape_at_tie_pin(Pin* p_tie_pin, PolylineTrace* p_trace);
+
+    /**
      * Removes all entries from this tree.
      */
     void clear();
@@ -191,6 +280,47 @@ private:
     static std::unique_ptr<::freerouting::geometry::planar::TileShape> enlarge_tile(
         const ::freerouting::geometry::planar::TileShape& p_shape, int p_offset);
 
+    /**
+     * Exact intersection of two tile shapes. Both shapes are converted to
+     * Simplices, intersected and simplified to the tightest representation.
+     */
+    static std::unique_ptr<::freerouting::geometry::planar::TileShape> intersection_of_two_shapes(
+        const ::freerouting::geometry::planar::TileShape& p_first,
+        const ::freerouting::geometry::planar::TileShape& p_second);
+
+    /**
+     * Restrains the shape of p_room to a TileShape which does not intersect
+     * with the interior of p_obstacle_shape. p_room.contained_shape will be
+     * contained in the shape of the result. If that is not possible, several
+     * pieces are appended to p_result whose shapes intersect with
+     * p_room.contained_shape. Port of Java
+     * ShapeSearchTree.restrainShape(IncompleteFreeSpaceExpansionRoom, TileShape).
+     */
+    static void restrain_shape(const CompleteShapePiece& p_room,
+        const ::freerouting::geometry::planar::TileShape& p_obstacle_shape,
+        std::vector<CompleteShapePiece>& p_result);
+
+    /**
+     * Makes sure that on each layer there are more than 1 free space rooms, even
+     * if there are no objects on the layer. Port of Java
+     * ShapeSearchTree.divideLargeRoom(...).
+     */
+protected:
+    static void divide_large_room(const ::freerouting::geometry::planar::IntBox& p_board_box,
+        std::vector<CompleteShapePiece>& p_rooms);
+    BasicBoard* get_board() const { return board_; }
+
+private:
+
+    /**
+     * Conservatively checks whether p_outer contains p_inner. Exact for regular
+     * tile shapes; returns false for arbitrary shapes so that expansion rooms
+     * are only ignored if containment is guaranteed. Used to decide whether an
+     * already completed free space room may be reused as ignore shape.
+     */
+    static bool shape_contains(const ::freerouting::geometry::planar::TileShape& p_outer,
+        const ::freerouting::geometry::planar::TileShape& p_inner);
+
     BasicBoard* board_;
     int compensated_clearance_class_no_;
 };
@@ -202,11 +332,48 @@ public:
     ~ShapeSearchTree90Degree() override = default;
 };
 
+/**
+ * A ShapeSearchTree whose shapes are IntOctagons, used by the 45-degree autorouter algorithm.
+ * Port of Java board.searchtree.ShapeSearchTree45Degree; SearchTreeManager creates it as the
+ * autoroute tree on boards with FORTYFIVE_DEGREE trace angle restriction.
+ */
 class ShapeSearchTree45Degree : public ShapeSearchTree
 {
 public:
     explicit ShapeSearchTree45Degree(BasicBoard* p_board, int p_compensated_clearance_class_no);
     ~ShapeSearchTree45Degree() override = default;
+
+    /**
+     * Java completeShape: free space rooms (IntOctagons) inside the room shape, which may overlap
+     * only with items of p_input.net_no on p_input.layer and contain p_input.contained_shape (or,
+     * if that is impossible, several rooms intersecting it).
+     */
+    std::vector<CompleteShapePiece> complete_shape(const CompleteShapeInput& p_input) override;
+
+    std::vector<std::shared_ptr<::freerouting::geometry::planar::TileShape>> calculate_tree_shapes(
+        const DrillItem& p_drill_item) const override;
+    std::vector<std::shared_ptr<::freerouting::geometry::planar::TileShape>> calculate_tree_shapes(
+        const ObstacleArea& p_obstacle_area) const override;
+    std::vector<std::shared_ptr<::freerouting::geometry::planar::TileShape>> calculate_tree_shapes(
+        const BoardOutline& p_board_outline) const override;
+
+    /** Java calcOutsideRestrainedShape: p_room_shape cut by the outside of an obstacle border line. */
+    static ::freerouting::geometry::planar::IntOctagon calc_outside_restrained_shape(
+        const ::freerouting::geometry::planar::IntOctagon& p_obstacle_shape, int p_obstacle_line_no,
+        const ::freerouting::geometry::planar::IntOctagon& p_room_shape);
+    /** Java calcInsideRestrainedShape: p_room_shape cut by the inside of an obstacle border line. */
+    static ::freerouting::geometry::planar::IntOctagon calc_inside_restrained_shape(
+        const ::freerouting::geometry::planar::IntOctagon& p_obstacle_shape, int p_obstacle_line_no,
+        const ::freerouting::geometry::planar::IntOctagon& p_room_shape);
+
+private:
+    /** Java restrainShape(IncompleteFreeSpaceExpansionRoom, IntOctagon). */
+    static void restrain_shape_45(const CompleteShapePiece& p_room,
+        const ::freerouting::geometry::planar::IntOctagon& p_obstacle_shape,
+        std::vector<CompleteShapePiece>& p_result);
+    /** Java divideLargeRoom override: the base division, then bounding octagons. */
+    void divide_large_room_45(const ::freerouting::geometry::planar::IntBox& p_board_box,
+        std::vector<CompleteShapePiece>& p_rooms) const;
 };
 
 } // namespace freerouting::board

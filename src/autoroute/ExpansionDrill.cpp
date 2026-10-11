@@ -12,10 +12,10 @@ ExpansionDrill::ExpansionDrill(const geometry::planar::IntBox& p_shape,
                                const geometry::planar::IntPoint& p_location,
                                int p_first_layer,
                                int p_last_layer)
-    : shape_(p_shape),
-      location(p_location),
+    : location(p_location),
       first_layer(p_first_layer),
-      last_layer(p_last_layer)
+      last_layer(p_last_layer),
+      shape_(p_shape)
 {
     int layer_count = p_last_layer - p_first_layer + 1;
     room_arr.resize(layer_count, nullptr);
@@ -47,6 +47,12 @@ void ExpansionDrill::reset()
     {
         elem.reset();
     }
+}
+
+int64_t ExpansionDrill::get_id() const
+{
+    // Port of Java ExpansionDrill.getId(): stable hash of location and layers.
+    return 31 * (31 * location.get_id() + first_layer) + last_layer;
 }
 
 bool ExpansionDrill::calculate_expansion_rooms(AutorouteEngine* p_autoroute_engine)
@@ -84,24 +90,22 @@ bool ExpansionDrill::calculate_expansion_rooms(AutorouteEngine* p_autoroute_engi
             }
             if (current_room->get_layer() == i)
             {
-                // A stored room is reused only if the drill location lies
-                // inside it. Java relies on complete rooms being maximal free
-                // spaces (the location is always contained). The C++ interim
-                // rooms are tiny boxes around the drill location (complete_shape
-                // is not ported yet), so an explicit containment check prevents
-                // reusing a foreign room for a neighbouring drill location.
-                if (current_room->get_shape().contains(location))
-                {
-                    found_room = current_room;
-                    break;
-                }
+                // Java reuses the first complete room of the layer overlapping
+                // the drill location; complete rooms are maximal free spaces,
+                // so the location is always inside the reused room.
+                found_room = current_room;
+                break;
             }
         }
 
         if (found_room == nullptr)
         {
-            // create a new expansion room on this layer
-            IncompleteFreeSpaceExpansionRoom new_incomplete_room(nullptr, i, search_shape);
+            // Create a new expansion room on this layer. Java
+            // ExpansionDrill.calculateExpansionRooms(): the room shape is null,
+            // i.e. the whole plane, and the unit search shape of the location
+            // is the contained shape.
+            IncompleteFreeSpaceExpansionRoom new_incomplete_room(
+                nullptr, i, kWholePlaneShape, search_shape.to_Simplex());
             std::vector<CompleteFreeSpaceExpansionRoom*> new_rooms =
                 p_autoroute_engine->complete_expansion_room(&new_incomplete_room);
             if (new_rooms.size() != 1)

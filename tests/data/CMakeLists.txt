@@ -1,15 +1,11 @@
 # Create test executable with simple assert-based tests
-add_executable(run_tests EXCLUDE_FROM_ALL all_tests.cpp)
+add_executable(run_tests all_tests.cpp)
 target_include_directories(run_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/src
 )
 target_link_libraries(run_tests PRIVATE
-    freerouting_core
-    freerouting_geometry
-    freerouting_rules
-    freerouting_board
-    freerouting_designforms
+    $<LINK_GROUP:RESCAN,freerouting_designforms,freerouting_settings,freerouting_board,freerouting_autoroute,freerouting_core,freerouting_datastructures,freerouting_geometry,freerouting_rules,freerouting_logger,freerouting_constants>
     freerouting_drc
     Threads::Threads
 )

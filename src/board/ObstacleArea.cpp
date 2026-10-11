@@ -1,4 +1,5 @@
 #include "board/ObstacleArea.h"
+#include "board/ShapeSearchTree.h"
 
 #include "board/ItemSelectionFilter.h"
 #include "geometry/planar/Point.h"
@@ -271,6 +272,12 @@ std::string ObstacleArea::to_string() const
     std::string result = name_.empty() ? "ObstacleArea" : name_;
     result += "[layer=" + std::to_string(layer_) + ", rotation=" + std::to_string(rotation_in_degree_) + "]";
     return result;
+}
+
+std::vector<std::shared_ptr<geometry::planar::TileShape>> ObstacleArea::calculate_tree_shapes(
+    const ShapeSearchTree& p_search_tree) const
+{
+    return p_search_tree.calculate_tree_shapes(*this);
 }
 
 } // namespace freerouting::board

@@ -6,6 +6,7 @@
 #include <string>
 
 #include "board/FixedState.h"
+#include "board/ItemSet.h"
 #include "board/Layer.h"
 #include "board/BasicBoard.h"
 #include "board/SearchTreeObject.h"
@@ -71,7 +72,26 @@ public:
     virtual int shape_layer(int p_index) const override { (void)p_index; return get_layer(); }
 
     virtual std::shared_ptr<autoroute::ItemAutorouteInfo> get_autoroute_info();
+    /** Returns the autoroute info without creating it (may be null). Mirrors Java Item.getAutorouteInfoPur(). */
+    std::shared_ptr<autoroute::ItemAutorouteInfo> get_autoroute_info_pur() const { return autoroute_info_; }
+    /** Clears the data allocated for the autoroute algorithm. Mirrors Java Item.clearAutorouteInfo(). */
+    void clear_autoroute_info() { autoroute_info_.reset(); }
     virtual std::vector<Item*> get_normal_contacts() const;
+
+    /**
+     * Returns all connectable items with a direct contact to this item. The
+     * result is empty if this item is not connectable. Mirrors Java
+     * Item.getAllContacts().
+     */
+    ItemSet get_all_contacts() const;
+
+    /**
+     * Returns all connectable items with a direct contact to this item on
+     * p_layer. The result is empty if this item is not connectable. Mirrors
+     * Java Item.getAllContacts(int).
+     */
+    ItemSet get_all_contacts(int p_layer) const;
+
     virtual int first_common_layer(const Item* p_other) const;
     virtual bool shares_net(const Item* p_other) const;
     virtual bool shares_net_no(const std::vector<int>& p_net_no_arr) const;
@@ -90,7 +110,7 @@ public:
     virtual bool is_obstacle(const Item* p_other) const;
 
     /** Returns the unique contact point between this item and p_other, or nullptr. */
-    virtual const ::freerouting::geometry::planar::Point* normal_contact_point(const Item* p_other) const { return nullptr; }
+    virtual const ::freerouting::geometry::planar::Point* normal_contact_point(const Item* p_other) const { (void)p_other; return nullptr; }
 
     /** Returns true if this item is not contacted at either endpoint (Trace/Via override). */
     virtual bool is_tail() const { return false; }
@@ -103,10 +123,38 @@ public:
      * not belong to a component.
      * Mirrors Java Item.get_connected_set(int, boolean).
      */
-    std::set<Item*> get_connected_set(int p_net_no, bool p_stop_at_plane) const;
+    ItemSet get_connected_set(int p_net_no, bool p_stop_at_plane) const;
+
+    /**
+     * Returns the connected set without stopping at planes. Mirrors Java
+     * Item.get_connected_set(int).
+     */
+    ItemSet get_connected_set(int p_net_no) const { return get_connected_set(p_net_no, false); }
+
+    /**
+     * Returns all connectable items of the net with number p_net_no, which are
+     * not electrically connected to this item. Mirrors Java
+     * Item.get_unconnected_set(int).
+     */
+    ItemSet get_unconnected_set(int p_net_no) const;
+
+    /** Returns the count of nets this item belongs to. Mirrors Java Item.net_count(). */
+    int net_count() const { return static_cast<int>(net_nos_.size()); }
+
+    /**
+     * Returns the p_no-th net number of this item for
+     * 0 <= p_no < net_count(). Mirrors Java Item.get_net_number(int).
+     */
+    int get_net_no(int p_no) const { return net_nos_[p_no]; }
+
+    /**
+     * Makes p_net_no the (first) net of this item; ignored for net numbers that are not normal or
+     * exceed the board's nets. Mirrors Java Item.assignNetNo (the undo snapshot is not ported).
+     */
+    void assign_net_no(int p_net_no);
 
     /** Recursive part of get_connected_set. */
-    void get_connected_set_recu(std::set<Item*>& p_result, int p_net_no, bool p_stop_at_plane) const;
+    void get_connected_set_recu(ItemSet& p_result, int p_net_no, bool p_stop_at_plane) const;
 
     /** Returns true if this item has overlapping contacts at the same endpoint. */
     virtual bool is_overlap() const { return false; }
@@ -115,13 +163,21 @@ public:
     virtual bool is_shove_fixed() const;
 
     /** Returns true if this item can be drilled through at the given net number. */
-    virtual bool is_drillable(int p_net_no) const { return false; }
+    virtual bool is_drillable(int p_net_no) const { (void)p_net_no; return false; }
 
     /** Returns uncontacted endpoints used for ratsnest display. */
     virtual std::vector<std::shared_ptr<::freerouting::geometry::planar::Point>> get_ratsnest_corners() const { return {}; }
 
     /** Returns true if this item is fixed by the user (fixed_state >= USER_FIXED). */
     virtual bool is_user_fixed() const;
+
+    /**
+     * Returns true if it is not allowed to delete this item. Items belonging
+     * to a component are delete-fixed and so are conduction areas on
+     * non-signal layers (power planes). Port of Java
+     * Item.isDeletionForbidden().
+     */
+    bool is_deletion_forbidden() const;
 
     /** Returns true if this item contains exactly the same nets as p_other. */
     bool nets_equal(const Item* p_other) const;
@@ -156,13 +212,13 @@ public:
      * nearby SMD-pin. If p_ignore_items is not nullptr, contact traces in it
      * are ignored. Mirrors Java Item.is_fanout_via().
      */
-    bool is_fanout_via(const std::set<Item*>* p_ignore_items) const;
+    bool is_fanout_via(const ItemSet* p_ignore_items) const;
 
     /** Test function checking the item for inconsistencies. */
     virtual bool validate();
 
     /** Recursive part of Trace.is_cycle. Returns true if p_search_item is reachable. */
-    bool is_cycle_recu(std::set<Item*>& p_visited_items,
+    bool is_cycle_recu(ItemSet& p_visited_items,
                        const Item* p_search_item,
                        const Item* p_come_from_item,
                        bool p_ignore_areas) const;
@@ -182,6 +238,23 @@ public:
      * Moves the tree entries of this item in p_tree out of this item.
      */
     std::vector<std::unique_ptr<datastructures::ShapeTree::Leaf>> take_search_tree_entries(ShapeSearchTree& p_tree);
+
+    /**
+     * Returns the precalculated tree shapes of this item in p_tree, or
+     * nullptr, if they are not calculated for that tree yet. Mirrors the
+     * Java Item.getPrecalculatedTreeShapes(ShapeTree), which is read by
+     * ShapeSearchTree.changeItemShape.
+     */
+    const std::vector<std::shared_ptr<::freerouting::geometry::planar::TileShape>>* get_precalculated_tree_shapes(
+        const datastructures::ShapeTree& p_tree) const;
+
+    /**
+     * Stores p_shapes as the new precalculated tree shapes of this item in
+     * p_tree. Mirrors Java Item.setPrecalculatedTreeShapes(TileShape[], ShapeTree).
+     */
+    void set_precalculated_tree_shapes(
+        std::vector<std::shared_ptr<::freerouting::geometry::planar::TileShape>> p_shapes,
+        const datastructures::ShapeTree& p_tree);
 
     virtual ::freerouting::geometry::planar::IntBox surrounding_octagon() const;
     virtual std::string to_string() const;
@@ -218,5 +291,15 @@ private:
 
     mutable std::unique_ptr<ItemSearchTreesInfo> search_trees_info_;
 };
+
+inline bool ItemIdDescending::operator()(const Item* p_a, const Item* p_b) const
+{
+    // Null-safe like TreeStorableLess (Java sets never hold null; C++ callers sometimes do).
+    if (p_a == nullptr || p_b == nullptr)
+    {
+        return p_a == nullptr && p_b != nullptr;
+    }
+    return p_a->get_id() > p_b->get_id();
+}
 
 } // namespace freerouting::board

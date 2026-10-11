@@ -6,6 +6,7 @@
 #include <optional>
 #include <string>
 #include <memory>
+#include <vector>
 
 namespace freerouting {
 namespace geometry {
@@ -97,6 +98,12 @@ public:
 
     IntPoint round() const { return *this; }
     IntDirection perpendicular_direction(const Line& p_line) const;
+
+    /**
+     * Returns a unique identification number for this point to allow
+     * deterministic sorting. Port of Java IntPoint.getId().
+     */
+    int64_t get_id() const { return 31 * x + y; }
 };
 
 class FloatPoint : public Point
@@ -142,6 +149,32 @@ public:
     Side side_of(const FloatPoint& p_1, const FloatPoint& p_2) const;
     FloatPoint turn_90_degree(int p_factor) const;
     FloatPoint turn_90_degree(int p_factor, const FloatPoint& p_from_point) const;
+
+    /**
+     * Calculates the touching points of the tangents from this point to a
+     * circle around p_to_point with radius p_distance. Solves the quadratic
+     * equation which results by substituting x by the term in y from the
+     * equation of the polar line of the circle and putting it into the circle
+     * equation. Returns an empty vector, if this point is inside the circle.
+     * Port of Java FloatPoint.tangentialPoints().
+     */
+    std::vector<FloatPoint> tangential_points(const FloatPoint& p_to_point, double p_distance) const;
+
+    /**
+     * Calculates the left tangential point of the line from this point to a
+     * circle around p_to_point with radius p_distance. Returns nothing, if
+     * this point is inside the circle. Port of Java
+     * FloatPoint.leftTangentialPoint().
+     */
+    std::optional<FloatPoint> left_tangential_point(const FloatPoint& p_to_point, double p_distance) const;
+
+    /**
+     * Calculates the right tangential point of the line from this point to a
+     * circle around p_to_point with radius p_distance. Returns nothing, if
+     * this point is inside the circle. Port of Java
+     * FloatPoint.rightTangentialPoint().
+     */
+    std::optional<FloatPoint> right_tangential_point(const FloatPoint& p_to_point, double p_distance) const;
 
     IntPoint round() const;
 };

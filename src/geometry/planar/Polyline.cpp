@@ -30,7 +30,29 @@ Polyline::Polyline(const std::vector<IntPoint>& p_points)
 
 Polyline::Polyline(const IntPoint& p_from_corner, const IntPoint& p_to_corner)
 {
+    // Mirrors Java Polyline(Point fromCorner, Point toCorner): the result is a
+    // polyline of three lines, whose corner at index 1 is the line from
+    // p_from_corner to p_to_corner, closed off by two 45 degree stub lines.
+    // Java: lines.length < 3 marks the polyline as empty, so the closing lines
+    // are mandatory here.
+    if (p_from_corner == p_to_corner)
+    {
+        return;
+    }
+    const std::unique_ptr<Direction> from_direction = Direction::get_instance(p_from_corner, p_to_corner);
+    const std::unique_ptr<Direction> to_direction = Direction::get_instance(p_from_corner, p_to_corner);
+    const std::unique_ptr<Direction> start_stub = from_direction->turn_45_degree(2);
+    const std::unique_ptr<Direction> end_stub = to_direction->turn_45_degree(2);
+    const auto* start_direction = dynamic_cast<const IntDirection*>(start_stub.get());
+    const auto* end_direction = dynamic_cast<const IntDirection*>(end_stub.get());
+    if (start_direction == nullptr || end_direction == nullptr)
+    {
+        arr.emplace_back(p_from_corner, p_to_corner);
+        return;
+    }
+    arr.push_back(Line::get_instance(p_from_corner, *start_direction));
     arr.emplace_back(p_from_corner, p_to_corner);
+    arr.push_back(Line::get_instance(p_to_corner, *end_direction));
 }
 
 Polyline::Polyline(const Polyline& p_other)
@@ -547,17 +569,21 @@ std::vector<std::unique_ptr<Polyline>> Polyline::split(int p_line_no, const Line
     std::vector<std::unique_ptr<Polyline>> result;
     if (p_line_no < 1 || p_line_no > static_cast<int>(arr.size()) - 2) return result;
     if (arr[p_line_no].is_parallel(p_end_line)) return result;
-    std::unique_ptr<Point> new_end_corner_ptr = arr[p_line_no].intersection(p_end_line);
-    if (!new_end_corner_ptr) return result;
-    const IntPoint new_end_corner = static_cast<const IntPoint&>(*new_end_corner_ptr);
-    if ((p_line_no == 1 && new_end_corner == first_corner())
-        || (p_line_no >= static_cast<int>(arr.size()) - 2 && new_end_corner == last_corner()))
+    // Java compares exact corners (IntPoint or RationalPoint), not the rounded corner(i).
+    const std::unique_ptr<Point> new_end_corner = arr[p_line_no].intersection(p_end_line);
+    if (!new_end_corner) return result;
+    auto exact_corner = [this](int p_no) { return arr[p_no].intersection(arr[p_no + 1]); };
+    const int arr_size = static_cast<int>(arr.size());
+    if ((p_line_no == 1 && new_end_corner->equals(exact_corner(0).get()))
+        || (p_line_no >= arr_size - 2 && new_end_corner->equals(exact_corner(arr_size - 2).get())))
     {
+        // No split, if p_end_line does not intersect, but touches this polyline only at an end point.
         return result;
     }
 
     std::vector<Line> first_piece;
-    if (corner(p_line_no - 1) == new_end_corner) {
+    if (new_end_corner->equals(exact_corner(p_line_no - 1).get())) {
+        // skip line segment of length 0 at the end of the first piece
         first_piece.reserve(p_line_no + 1);
         for (int i = 0; i < p_line_no + 1; ++i) {
             first_piece.push_back(arr[i]);
@@ -571,8 +597,8 @@ std::vector<std::unique_ptr<Polyline>> Polyline::split(int p_line_no, const Line
     }
 
     std::vector<Line> second_piece;
-    const int arr_size = static_cast<int>(arr.size());
-    if (corner(p_line_no) == new_end_corner) {
+    if (new_end_corner->equals(exact_corner(p_line_no).get())) {
+        // skip line segment of length 0 at the beginning of the second piece
         second_piece.reserve(arr_size - p_line_no);
         for (int i = p_line_no; i < arr_size; ++i) {
             second_piece.push_back(arr[i]);

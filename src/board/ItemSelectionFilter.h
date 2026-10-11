@@ -1,5 +1,6 @@
 #pragma once
 
+#include "board/ItemSet.h"
 #include <array>
 #include <cstddef>
 #include <set>
@@ -86,7 +87,7 @@ public:
      * @note Ordering deviation: Java returns a TreeSet ordered by
      * Item.compareTo; here items are ordered by pointer value.
      */
-    std::set<Item*> filter(const std::set<Item*>& p_items) const;
+    ItemSet filter(const ItemSet& p_items) const;
 
 private:
     static constexpr std::size_t to_index(SelectableChoices p_choice)

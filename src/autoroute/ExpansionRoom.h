@@ -3,7 +3,9 @@
 #include "autoroute/MazeSearchElement.h"
 #include "autoroute/ExpandableObject.h"
 #include "board/SearchTreeObject.h"
+#include "datastructures/ShapeTree.h"
 #include "geometry/planar/IntBox.h"
+#include "geometry/planar/Simplex.h"
 #include <memory>
 #include <vector>
 #include <set>
@@ -37,6 +39,14 @@ public:
     virtual geometry::planar::IntBox get_shape() const = 0;
     virtual int get_layer() const = 0;
     virtual int get_room_id() const = 0;
+
+    /**
+     * Returns the shape of this room as a Simplex. The default converts the
+     * bounding-box shape; room implementations carrying an exact Simplex (or
+     * contained shape) override it. Port of Java getShape() on the room
+     * hierarchy, which returns a TileShape.
+     */
+    virtual geometry::planar::Simplex get_shape_tile() const { return get_shape().to_Simplex(); }
 };
 
 class CompleteExpansionRoom : public ExpansionRoom
@@ -56,6 +66,7 @@ public:
     int get_room_id() const override { return room_id_; }
 
     std::vector<ExpansionDoor*>& target_doors() { return target_doors_; }
+    const std::vector<ExpansionDoor*>& target_doors() const { return target_doors_; }
 
     void add_target_door(ExpansionDoor* p_door);
     bool all_doors_calculated() const { return doors_calculated_; }
@@ -73,9 +84,18 @@ class CompleteFreeSpaceExpansionRoom : public CompleteExpansionRoom, public boar
 {
 public:
     CompleteFreeSpaceExpansionRoom(int p_layer, int p_room_id, const geometry::planar::IntBox& p_shape);
+    CompleteFreeSpaceExpansionRoom(int p_layer, int p_room_id, const geometry::planar::Simplex& p_shape);
     virtual ~CompleteFreeSpaceExpansionRoom() = default;
 
     geometry::planar::IntBox get_shape() const override;
+    geometry::planar::Simplex get_shape_tile() const override { return shape_tile_; }
+
+    /**
+     * Replaces the exact shape of this room. Used when a room is enlarged while
+     * an edge is removed on an empty region (tryRemoveEdge). Mirrors the Java
+     * setShapeOnTile() on CompleteFreeSpaceExpansionRoom.
+     */
+    void set_shape_tile(const geometry::planar::Simplex& p_shape) { shape_tile_ = p_shape; }
 
     // ================= ShapeTree::Storable =================
     int tree_shape_count(const datastructures::ShapeTree& p_tree) const override;
@@ -85,9 +105,11 @@ public:
     int compare_to(const datastructures::ShapeTree::Storable& p_other) const override;
 
     // ================= board::SearchTreeObject =================
-    bool is_obstacle(int p_net_no) const override { return true; }
-    bool is_trace_obstacle(int p_net_no) const override { return true; }
-    int shape_layer(int p_index) const override { return get_layer(); }
+    bool is_obstacle(int p_net_no) const override { (void)p_net_no; return true; }
+    bool is_trace_obstacle(int p_net_no) const override { (void)p_net_no; return true; }
+    int shape_layer(int p_index) const override { (void)p_index; return get_layer(); }
+    bool is_free_space_room() const override { return true; }
+    int get_id() const override { return room_id_; }
 
     /**
      * Removes the tree entries of this room from p_tree. Mirrors
@@ -103,8 +125,24 @@ public:
     void set_net_dependent() { room_is_net_dependent_ = true; }
     bool is_net_dependent() const { return room_is_net_dependent_; }
 
+    /**
+     * Creates the doors from this room to the connectable items of p_net_no
+     * overlapping this room which are represented in the autoroute search
+     * tree by p_own_net_object. The created doors are stored as target doors.
+     * Port of Java CompleteFreeSpaceExpansionRoom.calculateTargetDoors().
+     *
+     * The C++ rooms carry IntBox shapes only, so the door candidates are the
+     * net items stored under the given tree entry whose tree shape intersects
+     * the room shape. Divergence: Java tests the exact trace connection shape
+     * of the (dead) C++ `Connectable` interface; here a connectable object is
+     * any routeable item (trace, drill or conduction area) and its connection
+     * shape is approximated by its tree shape.
+     */
+    void calculate_target_doors(const datastructures::ShapeTree::TreeEntry& p_own_net_object,
+        int p_net_no, board::ShapeSearchTree* p_autoroute_tree);
+
 private:
-    geometry::planar::IntBox shape_;
+    geometry::planar::Simplex shape_tile_;
     std::vector<std::unique_ptr<datastructures::ShapeTree::Leaf>> tree_entries_;
     bool room_is_net_dependent_ = false;
 };
@@ -113,16 +151,35 @@ class ObstacleExpansionRoom : public CompleteExpansionRoom
 {
 public:
     ObstacleExpansionRoom(board::Item* p_item, int p_index_in_item, int p_layer, const geometry::planar::IntBox& p_shape);
+
+    /**
+     * Constructs the expansion room of the p_index_in_item-th tree shape of
+     * p_item. The layer and the shape are taken from the tree shape, the room
+     * id is set to (item id << 10) | index. Port of the Java
+     * ObstacleExpansionRoom(Item, int, ShapeSearchTree) constructor.
+     */
+    ObstacleExpansionRoom(board::Item* p_item, int p_index_in_item, board::ShapeSearchTree* p_shape_tree);
     virtual ~ObstacleExpansionRoom() = default;
 
     geometry::planar::IntBox get_shape() const override;
+    geometry::planar::Simplex get_shape_tile() const override { return shape_tile_; }
     board::Item* get_item() const { return item_; }
     int get_index_in_item() const { return index_in_item_; }
+
+    /**
+     * Tries to create a 2-dimensional door between this room and p_other.
+     * A door is only created for routable items sharing a net; two rooms of
+     * the same item are only connected if their shapes are neighbouring along
+     * a trace polyline. Returns true if a door was created. Port of Java
+     * ObstacleExpansionRoom.createOverlapDoor().
+     */
+    bool create_overlap_door(ObstacleExpansionRoom* p_other);
 
 private:
     board::Item* item_;
     int index_in_item_;
     geometry::planar::IntBox shape_;
+    geometry::planar::Simplex shape_tile_;
 };
 
 class IncompleteExpansionRoom : public ExpansionRoom
@@ -148,17 +205,83 @@ private:
     std::vector<ExpansionDoor*> doors_;
 };
 
+/**
+ * Tag for IncompleteFreeSpaceExpansionRoom constructors whose room shape is
+ * the whole plane. Java represents the whole plane as a null shape
+ * ("If shape == null, it means shape is the whole plane"), which C++ cannot
+ * express with a value type.
+ */
+struct WholePlaneShapeTag
+{
+};
+inline constexpr WholePlaneShapeTag kWholePlaneShape{};
+
 class IncompleteFreeSpaceExpansionRoom : public IncompleteExpansionRoom
 {
 public:
     IncompleteFreeSpaceExpansionRoom(ExpansionRoom* p_source_room, int p_layer, const geometry::planar::IntBox& p_shape);
+
+    /**
+     * Creates an incomplete free space expansion room with an exact Simplex
+     * shape and a contained shape. Mirrors the Java constructor
+     * IncompleteFreeSpaceExpansionRoom(TileShape, int, TileShape) with a
+     * non-null shape.
+     */
+    IncompleteFreeSpaceExpansionRoom(ExpansionRoom* p_source_room, int p_layer,
+        const geometry::planar::Simplex& p_shape, const geometry::planar::Simplex& p_contained_shape);
+
+    /**
+     * Creates an incomplete free space expansion room whose shape is the whole
+     * plane, with p_contained_shape as the shape that must be contained in the
+     * completed room. Mirrors the Java constructor
+     * IncompleteFreeSpaceExpansionRoom(null, layer, containedShape).
+     *
+     * Deviation: Java getShape() returns null for such a room (used only as
+     * the completeShape start-shape signal and NPEs everywhere else); the C++
+     * get_shape() reports the empty box and is_whole_plane() distinguishes the
+     * whole-plane case. Whole-plane rooms never acquire doors before they are
+     * completed, so no other code observes the shape.
+     */
+    IncompleteFreeSpaceExpansionRoom(ExpansionRoom* p_source_room, int p_layer, WholePlaneShapeTag,
+        const geometry::planar::Simplex& p_contained_shape);
     virtual ~IncompleteFreeSpaceExpansionRoom() = default;
+
+    geometry::planar::IntBox get_shape() const override;
+    geometry::planar::Simplex get_shape_tile() const override { return shape_tile_; }
+    geometry::planar::Simplex get_contained_shape_tile() const { return contained_shape_tile_; }
+    void set_shape_tile(const geometry::planar::Simplex& p_shape) { shape_tile_ = p_shape; }
+    void set_contained_shape_tile(const geometry::planar::Simplex& p_shape) { contained_shape_tile_ = p_shape; }
+
+    /** True if this room's shape is the whole plane (Java null shape). */
+    bool is_whole_plane() const { return whole_plane_; }
+
+    /**
+     * Returns a unique identification number for this room: a stable hash of
+     * the room shape and the room layer. Port of Java
+     * IncompleteFreeSpaceExpansionRoom.getId().
+     */
+    int get_room_id() const override
+    {
+        return static_cast<int>(31 * get_shape().get_id() + get_layer());
+    }
+
+private:
+    geometry::planar::Simplex shape_tile_;
+    geometry::planar::Simplex contained_shape_tile_;
+    bool whole_plane_ = false;
 };
 
 class ExpansionDoor : public ExpandableObject
 {
 public:
     ExpansionDoor(ExpansionRoom* p_first_room, ExpansionRoom* p_second_room, int p_dimension);
+
+    /**
+     * Creates a door between p_first_room and p_second_room with the dimension
+     * of the intersection of the room shapes. Port of the Java
+     * ExpansionDoor(ExpansionRoom, ExpansionRoom) constructor.
+     */
+    ExpansionDoor(ExpansionRoom* p_first_room, ExpansionRoom* p_second_room);
 
     ExpansionRoom* other_room(ExpansionRoom* p_room);
     CompleteExpansionRoom* other_room(CompleteExpansionRoom* p_room) override;
@@ -169,6 +292,13 @@ public:
     int maze_search_element_count() const override;
     MazeSearchElement* get_maze_search_element(int p_no) override;
     void reset() override;
+
+    /**
+     * Returns a unique identification number for this door: a stable,
+     * order-independent combination of the room ids of both sides. Port of
+     * Java ExpansionDoor.getId().
+     */
+    int64_t get_id() const override;
 
     std::vector<geometry::planar::FloatLine> get_section_segments(double p_offset);
 
@@ -185,17 +315,61 @@ private:
 class TargetItemExpansionDoor : public ExpansionDoor
 {
 public:
-    TargetItemExpansionDoor(CompleteExpansionRoom* p_room, board::Item* p_item, int p_tree_entry_no);
+    /**
+     * Creates the target door of p_room to p_item. The door shape is the
+     * intersection of the bounding box of the p_tree_entry_no-th tree shape
+     * of p_item with the shape of p_room. Mirrors the shape computation of
+     * the Java TargetItemExpansionDoor constructor (the C++ IntBox rooms
+     * cannot represent the exact Simplex intersection).
+     */
+    TargetItemExpansionDoor(CompleteExpansionRoom* p_room, board::Item* p_item, int p_tree_entry_no,
+        board::ShapeSearchTree* p_tree);
     virtual ~TargetItemExpansionDoor() = default;
+
+geometry::planar::IntBox get_shape() const override;
+
+    /**
+     * A target door has exactly one maze search element, which the Java
+     * TargetItemExpansionDoor creates in its constructor. Port of Java
+     * TargetItemExpansionDoor.mazeSearchElementCount(),
+     * getMazeSearchElement() and reset().
+     */
+    int maze_search_element_count() const override { return 1; }
+    MazeSearchElement* get_maze_search_element(int p_no) override;
+    void reset() override;
+
+    /**
+     * Returns a unique identification number for this target door: a hash of
+     * the target item id and the room id. Port of Java
+     * TargetItemExpansionDoor.getId().
+     */
+    int64_t get_id() const override;
 
     board::Item* item = nullptr;
     int tree_entry_no = 0;
     bool is_target_door() const { return true; }
 
+    /**
+     * Returns true if the target item of this door is a destination item of
+     * the current autoroute connection. Port of Java
+     * TargetItemExpansionDoor.isDestinationDoor(): the C++
+     * ItemAutorouteInfo has no isDestination(), so the inverse of
+     * is_start_info() is used, exactly as in Java.
+     */
+    bool is_destination_door() const;
+
     ExpansionRoom* get_room() const { return room_; }
 
+    /**
+     * The complete room of this target door. Port of the Java
+     * TargetItemExpansionDoor.room field, which is a CompleteExpansionRoom.
+     */
+    CompleteExpansionRoom* get_complete_room() const { return room_; }
+
 private:
-    ExpansionRoom* room_;
+    CompleteExpansionRoom* room_;
+    geometry::planar::IntBox shape_;
+    MazeSearchElement maze_search_info_;
 };
 
 } // namespace freerouting::autoroute

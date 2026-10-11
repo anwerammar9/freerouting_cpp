@@ -147,6 +147,115 @@ TEST_F(PolygonShapeTest, Intersects)
     EXPECT_FALSE(shape.intersects(far_circle));
 }
 
+// Golden pieces printed by Java PolygonShape.splitToConvex (freerouting 2.1.0 jar). The start
+// corner of the split comes from java.util.Random(99); the old C++ LCG used multiplier
+// 0x5DEECE66 instead of 0x5DEECE66D and split these shapes differently.
+std::vector<std::vector<IntPoint>> split_corners(const PolygonShape& p_shape)
+{
+    std::vector<std::vector<IntPoint>> result;
+    for (const auto& piece : p_shape.split_to_convex())
+    {
+        std::vector<IntPoint> corners;
+        for (int i = 0; i < piece->border_line_count(); ++i)
+        {
+            corners.push_back(piece->corner(i));
+        }
+        result.push_back(corners);
+    }
+    return result;
+}
+
+TEST(PolygonShapeSplitTest, MatchesJavaForComb)
+{
+    const PolygonShape comb({IntPoint(0, 0), IntPoint(70, 0), IntPoint(70, 40), IntPoint(60, 40), IntPoint(60, 10),
+        IntPoint(40, 10), IntPoint(40, 40), IntPoint(30, 40), IntPoint(30, 10), IntPoint(10, 10), IntPoint(10, 40),
+        IntPoint(0, 40)});
+    const std::vector<std::vector<IntPoint>> expected = {
+        {IntPoint(0, 10), IntPoint(10, 10), IntPoint(10, 40), IntPoint(0, 40)},
+        {IntPoint(0, 0), IntPoint(30, 0), IntPoint(30, 10), IntPoint(0, 10)},
+        {IntPoint(30, 10), IntPoint(40, 10), IntPoint(40, 40), IntPoint(30, 40)},
+        {IntPoint(30, 0), IntPoint(60, 0), IntPoint(60, 10), IntPoint(30, 10)},
+        {IntPoint(60, 0), IntPoint(70, 0), IntPoint(70, 40), IntPoint(60, 40)},
+    };
+    EXPECT_EQ(expected, split_corners(comb));
+}
+
+TEST(PolygonShapeSplitTest, MatchesJavaForLShape)
+{
+    const PolygonShape l_shape({IntPoint(0, 0), IntPoint(40, 0), IntPoint(40, 10), IntPoint(10, 10), IntPoint(10, 30),
+        IntPoint(0, 30)});
+    const std::vector<std::vector<IntPoint>> expected = {
+        {IntPoint(0, 10), IntPoint(10, 10), IntPoint(10, 30), IntPoint(0, 30)},
+        {IntPoint(0, 0), IntPoint(40, 0), IntPoint(40, 10), IntPoint(0, 10)},
+    };
+    EXPECT_EQ(expected, split_corners(l_shape));
+}
+
+TEST(PolygonShapeSplitTest, MatchesJavaForArrow)
+{
+    const PolygonShape arrow({IntPoint(0, 0), IntPoint(50, 20), IntPoint(0, 40), IntPoint(15, 20)});
+    const std::vector<std::vector<IntPoint>> expected = {
+        {IntPoint(0, 0), IntPoint(15, 6), IntPoint(15, 20)},
+        {IntPoint(15, 6), IntPoint(50, 20), IntPoint(15, 34)},
+        {IntPoint(15, 20), IntPoint(15, 34), IntPoint(0, 40)},
+    };
+    EXPECT_EQ(expected, split_corners(arrow));
+}
+
+// Golden corner lists printed by Java Polygon / PolygonShape (2.1.0 jar). Java Polygon removes only
+// interior collinear points (no wrap-around), one per pass; PolygonShape then handles the ends.
+std::vector<IntPoint> pts(std::initializer_list<int> p_coor)
+{
+    std::vector<int> c(p_coor);
+    std::vector<IntPoint> result;
+    for (size_t i = 0; i + 1 < c.size(); i += 2)
+    {
+        result.emplace_back(c[i], c[i + 1]);
+    }
+    return result;
+}
+
+std::vector<IntPoint> shape_corners(const PolygonShape& p_shape)
+{
+    std::vector<IntPoint> result;
+    for (int i = 0; i < p_shape.border_line_count(); ++i)
+    {
+        result.push_back(p_shape.corner(i));
+    }
+    return result;
+}
+
+TEST(PolygonJavaParityTest, ClosedCornerListKeepsBothEnds)
+{
+    const auto input = pts({0, 0, 1000000, 0, 1000000, 800000, 0, 800000, 0, 0});
+    EXPECT_EQ(pts({0, 0, 1000000, 0, 1000000, 800000, 0, 800000, 0, 0}), Polygon(input).corner_array());
+    EXPECT_EQ(pts({0, 0, 1000000, 0, 1000000, 800000, 0, 800000}), shape_corners(PolygonShape(input)));
+}
+
+TEST(PolygonJavaParityTest, InteriorCollinearAndDuplicatePointsAreRemoved)
+{
+    const auto input = pts({0, 0, 5, 0, 10, 0, 10, 10, 10, 10, 0, 10});
+    EXPECT_EQ(pts({0, 0, 10, 0, 10, 10, 0, 10}), Polygon(input).corner_array());
+    EXPECT_EQ(pts({0, 0, 10, 0, 10, 10, 0, 10}), shape_corners(PolygonShape(input)));
+}
+
+TEST(PolygonJavaParityTest, CollinearPointAtTheEndIsOnlyRemovedByPolygonShape)
+{
+    const auto input = pts({0, 0, 10, 0, 10, 10, 0, 10, 0, 5});
+    EXPECT_EQ(pts({0, 0, 10, 0, 10, 10, 0, 10, 0, 5}), Polygon(input).corner_array());
+    EXPECT_EQ(pts({0, 0, 10, 0, 10, 10, 0, 10}), shape_corners(PolygonShape(input)));
+    const auto start_mid = pts({5, 0, 10, 0, 10, 10, 0, 10, 0, 0});
+    EXPECT_EQ(pts({5, 0, 10, 0, 10, 10, 0, 10, 0, 0}), Polygon(start_mid).corner_array());
+    EXPECT_EQ(pts({0, 0, 10, 0, 10, 10, 0, 10}), shape_corners(PolygonShape(start_mid)));
+}
+
+TEST(PolygonJavaParityTest, SeveralInteriorCollinearPoints)
+{
+    const auto input = pts({0, 0, 2, 0, 4, 0, 6, 0, 6, 6});
+    EXPECT_EQ(pts({0, 0, 6, 0, 6, 6}), Polygon(input).corner_array());
+    EXPECT_EQ(pts({0, 0, 6, 0, 6, 6}), shape_corners(PolygonShape(input)));
+}
+
 } // namespace
 } // namespace planar
 } // namespace geometry

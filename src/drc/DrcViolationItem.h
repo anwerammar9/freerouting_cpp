@@ -37,6 +37,11 @@ public:
         , uuid(p_uuid)
     {
     }
+
+    /**
+     * Serializes this item to JSON (description, pos {x, y}, uuid).
+     */
+    std::string to_json() const;
 };
 
 } // namespace drc

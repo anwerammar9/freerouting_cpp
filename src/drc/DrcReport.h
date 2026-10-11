@@ -5,6 +5,7 @@
 #include <memory>
 #include <chrono>
 #include <iomanip>
+#include <optional>
 #include <sstream>
 
 #include "drc/DrcViolation.h"
@@ -64,6 +65,16 @@ public:
      */
     std::vector<std::shared_ptr<void>> schematic_parity;
 
+    /**
+     * Quality score of the board (optional, omitted when unset).
+     */
+    std::optional<double> quality_score;
+
+    /**
+     * Optimizer score of the board (optional, omitted when unset).
+     */
+    std::optional<double> optimizer_score;
+
     DrcReport(const std::string& p_coordinate_units,
              const std::string& p_source,
              const std::string& p_version);
@@ -77,6 +88,12 @@ public:
      * Add an unconnected item to the report
      */
     void add_unconnected_item(const std::shared_ptr<DrcViolation>& p_item);
+
+    /**
+     * Serializes this report to a JSON object following KiCad's drc.v1 schema.
+     * Mirrors Java GsonProvider.GSON.toJson(report) on KiCadDrcReport.
+     */
+    std::string to_json() const;
 
 private:
     /**

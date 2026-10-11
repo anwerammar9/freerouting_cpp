@@ -184,6 +184,12 @@ void DrillPage::reset()
     }
 }
 
+int64_t DrillPage::get_id() const
+{
+    // Port of Java DrillPage.getId(): stable hash of shape and net number.
+    return 31 * shape.get_id() + net_no_;
+}
+
 std::vector<ExpansionDrill*> DrillPage::get_drills(AutorouteEngine* p_autoroute_engine,
                                                    bool p_attach_smd)
 {

@@ -104,7 +104,7 @@ int BatchAutorouter::count_incomplete_connections() const
     int incomplete = 0;
     auto items = board_->get_autoroute_items();
 
-    std::map<int, std::set<board::Item*>> net_connections;
+    std::map<int, board::ItemSet> net_connections;
 
     for (auto* item : items)
     {
@@ -183,7 +183,7 @@ RouteResult BatchAutorouter::route_all(int p_max_passes, datastructures::Stoppab
     logger.info("  Max passes: " + std::to_string(p_max_passes));
     logger.info("  Layer count: " + std::to_string(board_->get_layer_count()));
 
-    int pin_count = board_->get_pin_count();
+    const int pin_count = static_cast<int>(board_->get_pins().size());
     logger.info("  Pins: " + std::to_string(pin_count));
 
     int item_count = board_->get_item_count();
@@ -209,12 +209,7 @@ RouteResult BatchAutorouter::route_all(int p_max_passes, datastructures::Stoppab
     int no_progress_passes = 0;
     int debug_failures = 0;
 
-    std::set<std::pair<const board::Item*, const board::Item*>> routed_pairs;
-
-    // Reuse a single engine across all connections so the search tree is built only once.
-    auto engine = std::make_unique<AutorouteEngine>(board_, control_->trace_clearance_class_no, false);
-    engine->set_stoppable(p_stoppable);
-    engine->set_time_limit(0);  // No time limit
+    const int via_costs = settings_ ? settings_->get_via_costs() : 1;
 
     for (; pass <= p_max_passes && !stopped_; ++pass)
     {
@@ -231,68 +226,38 @@ RouteResult BatchAutorouter::route_all(int p_max_passes, datastructures::Stoppab
 
         int pass_routed = 0;
 
-        std::map<int, std::vector<board::Item*>> nets_to_route;
+        // Interim pass body until the Java pipeline (AutoroutePassRunner /
+        // AutorouteConnectionRouter, TASKS T401-T409) is ported: every item
+        // with unconnected net members is routed through the Java-faithful
+        // RoutingBoard::autoroute facade, which builds a per-net
+        // AutorouteControl and routes the item's connected set to its
+        // unconnected set.
         for (auto* item : autoroute_items)
         {
-            if (!item) continue;
-            const auto& net_nos = item->get_net_nos();
-            for (int net_no : net_nos)
+            if (p_stoppable && p_stoppable->is_stop_requested())
             {
-                nets_to_route[net_no].push_back(item);
+                break;
             }
-        }
-
-        for (const auto& [net_no, items_on_net] : nets_to_route)
-        {
-            if (items_on_net.size() < 2) continue;
-
-            control_->net_no = net_no;
-            control_->active_layer = 0;
-
-            // Star routing: connect the first item of the net to every other
-            // item. This yields n-1 connections per net (a spanning tree).
-            auto* start_item = items_on_net.front();
-            if (!start_item) continue;
-
-            for (size_t k = 1; k < items_on_net.size(); ++k)
+            if (item == nullptr || item->net_count() == 0)
             {
-                auto* dest_item = items_on_net[k];
-                if (!dest_item) continue;
-
-                if (p_stoppable && p_stoppable->is_stop_requested())
-                {
-                    break;
-                }
-
-                auto pair_key = std::make_pair(static_cast<const board::Item*>(start_item),
-                                               static_cast<const board::Item*>(dest_item));
-                if (routed_pairs.count(pair_key) > 0)
-                {
-                    continue;
-                }
-
-                std::set<board::Item*> start_set;
-                std::set<board::Item*> dest_set;
-                start_set.insert(start_item);
-                dest_set.insert(dest_item);
-
-                auto route_result = engine->autoroute_connection(start_set, dest_set, *control_);
-
-                if (route_result.state == AutorouteAttemptState::ROUTED)
-                {
-                    pass_routed++;
-                    routed_count++;
-                    routed_pairs.insert(pair_key);
-                    routed_nets_.insert(net_no);  // Track this net as routed
-                }
-                else
-                {
-                    if (debug_failures < 12)
-                    {
-                        logger.info("  FAIL net " + std::to_string(net_no) + ": " + route_result.details);
-                        ++debug_failures;
-                    }
-                }
+                continue;
+            }
+            const int net_no = item->get_net_no(0);
+            if (item->get_unconnected_set(net_no).empty())
+            {
+                continue;
+            }
+            auto route_result = board_->autoroute(item, settings_.get(), via_costs, p_stoppable, nullptr);
+            if (route_result.state == AutorouteAttemptState::ROUTED)
+            {
+                pass_routed++;
+                routed_count++;
+                routed_nets_.insert(net_no);
+            }
+            else if (debug_failures < 12)
+            {
+                logger.info("  FAIL net " + std::to_string(net_no) + ": " + route_result.details);
+                ++debug_failures;
             }
         }
 

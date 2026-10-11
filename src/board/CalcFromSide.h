@@ -1,5 +1,7 @@
 #pragma once
 
+#include <optional>
+
 #include "geometry/planar/Point.h"
 
 namespace freerouting::geometry::planar
@@ -22,13 +24,29 @@ class CalcFromSide
 public:
     static const CalcFromSide NOT_CALCULATED;
 
+    /**
+     * Creates an instance from already calculated values. Mirrors Java
+     * new ShapeEntrySide(int no, FloatPoint borderIntersection), where
+     * p_border_intersection may be null.
+     */
+    static std::optional<CalcFromSide> values(
+        int p_no, const std::optional<geometry::planar::FloatPoint>& p_border_intersection);
+
     /** Number of the shape edge line, or -1 if no side could be determined. */
     int no;
 
-    /** Approximate point where the border of the shape is crossed. */
-    geometry::planar::FloatPoint border_intersection;
+    /**
+     * Approximate point where the border of the shape is crossed, empty if
+     * it is unknown. Java ShapeEntrySide.borderIntersection is a nullable
+     * FloatPoint and ShapeTraceEntries::resort branches on null, so the
+     * optional models that exactly (the (0,0) point is a legal intersection).
+     */
+    std::optional<geometry::planar::FloatPoint> border_intersection;
 
     CalcFromSide(int p_no, const geometry::planar::FloatPoint& p_border_intersection);
+
+    /** Values already calculated, without a border intersection. */
+    explicit CalcFromSide(int p_no);
 
     /**
      * Calculates the number of the edge line of p_shape where p_polyline enters.

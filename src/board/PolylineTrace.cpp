@@ -62,6 +62,21 @@ const geometry::planar::Point& PolylineTrace::first_corner() const
     return *corner_points_.front();
 }
 
+geometry::planar::IntPoint PolylineTrace::own_corner(int p_index) const
+{
+    ensure_corners();
+    if (corner_points_.empty())
+    {
+        return geometry::planar::IntPoint(0, 0);
+    }
+    const geometry::planar::Point& corner = (p_index < 0)
+                                               ? *corner_points_.back()
+                                               : *corner_points_[static_cast<size_t>(p_index)];
+    // corner_points_ caches IntPoint instances, see ensure_corners().
+    const auto* int_corner = dynamic_cast<const geometry::planar::IntPoint*>(&corner);
+    return (int_corner != nullptr) ? *int_corner : geometry::planar::IntPoint(0, 0);
+}
+
 const geometry::planar::Point& PolylineTrace::last_corner() const
 {
     static const geometry::planar::IntPoint origin(0, 0);
@@ -297,6 +312,13 @@ std::optional<std::array<PolylineTrace*, 2>> PolylineTrace::split_at_line(
     {
         return std::nullopt;
     }
+    // Java guard: if this trace cannot be deleted (e.g. USER_FIXED / protect), splitting would leave
+    // the original on the board AND insert duplicate pieces, and the normalize loops would never
+    // converge.
+    if (is_deletion_forbidden())
+    {
+        return std::nullopt;
+    }
     std::vector<std::unique_ptr<geometry::planar::Polyline>> split_polylines =
         polyline_->split(p_line_no, p_new_end_line);
     if (split_polylines.size() != 2)
@@ -313,10 +335,6 @@ std::optional<std::array<PolylineTrace*, 2>> PolylineTrace::split_at_line(
         return std::nullopt;
     }
     routing_board->remove_item(this);
-    // remove_item only unlinks the item list; evict the stale tree entries too
-    // so re-queries don't re-split the removed trace (infinite loop). TODO:
-    // unify list/tree bookkeeping in remove_item/add_item directly.
-    get_board()->get_search_tree_manager()->remove(this);
     std::array<PolylineTrace*, 2> result{nullptr, nullptr};
     for (int k = 0; k < 2; ++k)
     {
@@ -530,8 +548,8 @@ std::vector<PolylineTrace*> PolylineTrace::split(
                                                ->is_ignore_cycles_with_areas();
                         }
                     }
-                    std::set<Item*> start_contacts = get_start_contacts();
-                    std::set<Item*> end_contacts = get_end_contacts();
+                    ItemSet start_contacts = get_start_contacts();
+                    ItemSet end_contacts = get_end_contacts();
                     if (!ignore_areas && start_contacts.count(found_item) > 0
                         && end_contacts.count(found_item) > 0)
                     {
@@ -539,7 +557,6 @@ std::vector<PolylineTrace*> PolylineTrace::split(
                         if (routing_board != nullptr)
                         {
                             routing_board->remove_item(this);
-                            get_board()->get_search_tree_manager()->remove(this);
                         }
                         return result;
                     }
@@ -563,24 +580,15 @@ std::vector<PolylineTrace*> PolylineTrace::split(
 
 bool PolylineTrace::combine()
 {
-    if (!is_on_board() || polyline_ == nullptr)
-    {
-        return false;
-    }
+    // Port of Java PolylineTrace.combine(). Java iterates instead of
+    // recursing, because a long chain of combinable traces grew the call stack
+    // by one frame per combined trace and crashed with a StackOverflowError.
     bool something_changed = false;
-    if (combine_at_start(true))
+    while (is_on_board() && polyline_ != nullptr
+           && (combine_at_start(true) || combine_at_end(true)))
     {
         something_changed = true;
-        combine();
-    }
-    else if (combine_at_end(true))
-    {
-        something_changed = true;
-        combine();
-    }
-    if (something_changed)
-    {
-        // Java notifies board observers here; the C++ headless port has no
+        // Java notifies the board observers here; the C++ headless port has no
         // observer bus yet.
         if (auto* routing_board = dynamic_cast<RoutingBoard*>(get_board()))
         {
@@ -596,8 +604,11 @@ bool PolylineTrace::combine_at_start(bool p_ignore_areas)
     {
         return false;
     }
-    const geometry::planar::Point& start_corner = first_corner();
-    std::set<Item*> contacts = get_normal_contacts(start_corner, false);
+    // Java copies the corner (Point startCorner = firstCorner()). first_corner()
+    // returns a reference into corner_points_, which clear_derived_data() below
+    // empties, so keep the corner alive with a copy of the cache entry.
+    const geometry::planar::IntPoint start_corner = own_corner(0);
+    ItemSet contacts = get_normal_contacts(start_corner, false);
     if (p_ignore_areas)
     {
         for (auto it = contacts.begin(); it != contacts.end();)
@@ -628,7 +639,8 @@ bool PolylineTrace::combine_at_start(bool p_ignore_areas)
         }
         if (trace->get_layer() == get_layer() && trace->nets_equal(this)
             && trace->get_half_width() == get_half_width()
-            && trace->get_fixed_state() == get_fixed_state())
+            && trace->get_fixed_state() == get_fixed_state() && !trace->is_deletion_forbidden()
+            && !is_deletion_forbidden())
         {
             if (start_corner.to_float() == trace->last_corner().to_float())
             {
@@ -739,8 +751,9 @@ bool PolylineTrace::combine_at_end(bool p_ignore_areas)
     {
         return false;
     }
-    const geometry::planar::Point& end_corner = last_corner();
-    std::set<Item*> contacts = get_normal_contacts(end_corner, false);
+    // Java copies the corner (Point endCorner = lastCorner()), see combine_at_start().
+    const geometry::planar::IntPoint end_corner = own_corner(-1);
+    ItemSet contacts = get_normal_contacts(end_corner, false);
     if (p_ignore_areas)
     {
         for (auto it = contacts.begin(); it != contacts.end();)
@@ -771,7 +784,8 @@ bool PolylineTrace::combine_at_end(bool p_ignore_areas)
         }
         if (trace->get_layer() == get_layer() && trace->nets_equal(this)
             && trace->get_half_width() == get_half_width()
-            && trace->get_fixed_state() == get_fixed_state())
+            && trace->get_fixed_state() == get_fixed_state() && !trace->is_deletion_forbidden()
+            && !is_deletion_forbidden())
         {
             if (end_corner.to_float() == trace->first_corner().to_float())
             {
@@ -891,12 +905,6 @@ bool PolylineTrace::normalize_impl(const geometry::planar::IntOctagon* p_clip_sh
         return false;
     }
 
-    // Early exit if trace is very simple (only 2 points)
-    if (corner_count() <= 2)
-    {
-        return false;
-    }
-
     // Java notifies observers here; skipped in the C++ headless port.
     std::vector<PolylineTrace*> split_pieces = split(p_clip_shape);
     bool result = split_pieces.size() != 1;
@@ -909,15 +917,24 @@ bool PolylineTrace::normalize_impl(const geometry::planar::IntOctagon* p_clip_sh
                 && curr_split_trace->first_corner().to_float()
                     == curr_split_trace->last_corner().to_float())
             {
-                // remove trace with only 1 corner
-                if (auto* routing_board =
-                        dynamic_cast<RoutingBoard*>(curr_split_trace->get_board()))
+                // remove trace with only 1 corner - only if deletion is allowed. USER_FIXED traces
+                // cannot be removed; skipping them prevents an endless normalize_traces loop.
+                if (!curr_split_trace->is_deletion_forbidden())
                 {
-                    routing_board->remove_item(curr_split_trace);
-                    curr_split_trace->get_board()->get_search_tree_manager()->remove(
-                        curr_split_trace);
+                    if (auto* routing_board = dynamic_cast<RoutingBoard*>(curr_split_trace->get_board()))
+                    {
+                        routing_board->remove_item(curr_split_trace);
+                        result = true;
+                    }
                 }
-                result = true;
+                else
+                {
+                    logger::FRLogger::instance().debug(
+                        "PolylineTrace.normalize: skipping removal of degenerate user-fixed trace #"
+                        + std::to_string(curr_split_trace->get_id()) + " on net "
+                        + std::to_string(curr_split_trace->net_count() > 0 ? curr_split_trace->get_net_no(0) : -1)
+                        + " (first==last corner)");
+                }
             }
             else if (trace_combined)
             {
@@ -942,7 +959,7 @@ bool PolylineTrace::split_inside_drill_pad_prohibited(
     {
         return false;
     }
-    std::set<Item*> overlap_items = board_->pick_items(*intersection, get_layer(), nullptr);
+    ItemSet overlap_items = board_->pick_items(*intersection, get_layer(), nullptr);
     bool pad_found = false;
     for (Item* curr_item : overlap_items)
     {

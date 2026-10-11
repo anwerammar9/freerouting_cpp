@@ -25,10 +25,26 @@ public:
     LineSegment(const Polyline& p_polyline, int p_no);
     LineSegment(const PolylineShape& p_shape, int p_no);
 
+    /**
+     * Creates the p_no-th border line segment of p_shape for p_no between 0
+     * and p_shape.border_line_count() - 1. Port of the Java
+     * LineSegment(PolylineShape, int) constructor, used e.g. by
+     * ShapeSearchTree.restrain_shape() to cut rooms along obstacle edge
+     * segments.
+     */
+    LineSegment(const TileShape& p_shape, int p_no);
+
     static LineSegment from_endpoints(const IntPoint& p_start, const IntPoint& p_end);
 
+    /** The start point rounded to an IntPoint (exact if the intersection is integral). */
     IntPoint start_point() const;
     IntPoint end_point() const;
+    /**
+     * The exact start / end point (IntPoint or RationalPoint), Java LineSegment.startPoint() /
+     * endPoint(). Use these wherever Java compares or classifies the end points.
+     */
+    const Point& start_point_exact() const;
+    const Point& end_point_exact() const;
     FloatPoint start_point_approx() const;
     FloatPoint end_point_approx() const;
 
@@ -63,6 +79,8 @@ private:
     Line end_;
     mutable std::optional<IntPoint> precalculated_start_point_;
     mutable std::optional<IntPoint> precalculated_end_point_;
+    mutable std::shared_ptr<Point> exact_start_point_;
+    mutable std::shared_ptr<Point> exact_end_point_;
 
     static IntDirection normalized_direction(const IntPoint& p_from, const IntPoint& p_to);
 };

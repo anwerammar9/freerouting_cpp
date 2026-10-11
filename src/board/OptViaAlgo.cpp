@@ -205,7 +205,7 @@ bool OptViaAlgo::opt_via_location(RoutingBoard* p_board,
         return false;
     }
     ItemSelectionFilter trace_filter(ItemSelectionFilter::SelectableChoices::TRACES);
-    std::set<Item*> picked_items = p_board->pick_items(*new_location, first_trace->get_layer(),
+    ItemSet picked_items = p_board->pick_items(*new_location, first_trace->get_layer(),
                                                        &trace_filter);
     for (Item* curr_item : picked_items)
     {
@@ -372,7 +372,7 @@ bool OptViaAlgo::opt_plane_or_fanout_via(RoutingBoard* p_board,
         // check, that the new location is inside the contact plane
         ItemSelectionFilter conduction_filter(
             ItemSelectionFilter::SelectableChoices::CONDUCTION);
-        std::set<Item*> picked_items =
+        ItemSet picked_items =
             p_board->pick_items(*new_via_location, contact_plane->get_layer(), &conduction_filter);
         bool contact_ok = false;
         for (Item* curr_item : picked_items)
@@ -396,7 +396,7 @@ bool OptViaAlgo::opt_plane_or_fanout_via(RoutingBoard* p_board,
         return false;
     }
     ItemSelectionFilter trace_filter(ItemSelectionFilter::SelectableChoices::TRACES);
-    std::set<Item*> picked_items =
+    ItemSet picked_items =
         p_board->pick_items(*new_via_location, contact_trace->get_layer(), &trace_filter);
     for (Item* curr_item : picked_items)
     {

@@ -9,28 +9,108 @@
 #include "board/Padstack.h"
 #include "board/Trace.h"
 #include "geometry/planar/IntBox.h"
+#include "geometry/planar/Vector.h"
 #include "geometry/planar/Shape.h"
+#include "board/SearchTreeManager.h"
+#include "board/ShapeSearchTree.h"
+#include "board/BasicBoard.h"
+#include "logger/FRLogger.h"
 
 namespace freerouting::board {
 
-namespace {
-
-/**
- * Checks, whether the Manhattan distance between p_p1 and p_p2 is not larger
- * than p_tolerance. Mirrors Java DrillItem.isWithinTolerance.
- */
-bool is_within_tolerance(const geometry::planar::Point& p_p1,
-                         const geometry::planar::Point& p_p2,
-                         int p_tolerance)
+int DrillItem::tile_shape_count() const
 {
-    const geometry::planar::FloatPoint fp1 = p_p1.to_float();
-    const geometry::planar::FloatPoint fp2 = p_p2.to_float();
-    const double dx = std::abs(fp1.x - fp2.x);
-    const double dy = std::abs(fp1.y - fp2.y);
-    return (dx + dy) <= static_cast<double>(p_tolerance);
+    if (padstack_ == nullptr)
+    {
+        return 1;
+    }
+    return padstack_->get_to_layer() - padstack_->get_from_layer() + 1;
 }
 
-} // namespace
+int DrillItem::shape_layer(int p_index) const
+{
+    // Java DrillItem.shapeLayer
+    const int index = std::min(std::max(p_index, 0), last_layer() - first_layer());
+    return first_layer() + index;
+}
+
+const geometry::planar::Shape* DrillItem::get_shape(int p_index) const
+{
+    if (!shapes_precalculated_)
+    {
+        // All shapes are calculated at once, like in Java.
+        precalculated_shapes_ = calculate_shapes();
+        shapes_precalculated_ = true;
+    }
+    if (p_index < 0 || p_index >= static_cast<int>(precalculated_shapes_.size()))
+    {
+        return nullptr;
+    }
+    return precalculated_shapes_[p_index].get();
+}
+
+std::vector<std::unique_ptr<geometry::planar::Shape>> DrillItem::calculate_shapes() const
+{
+    return {};
+}
+
+geometry::planar::IntOctagon DrillItem::get_tile_shape(int p_index) const
+{
+    // Java Item.getTileShape returns the tree shape in the default search tree.
+    if (padstack_ != nullptr && board_ != nullptr && board_->get_search_tree_manager() != nullptr)
+    {
+        const ShapeSearchTree* default_tree = board_->get_search_tree_manager()->get_default_tree();
+        if (default_tree != nullptr)
+        {
+            if (const geometry::planar::TileShape* tree_shape = get_tree_shape(*default_tree, p_index))
+            {
+                return tree_shape->bounding_octagon();
+            }
+        }
+    }
+    return Item::get_tile_shape(p_index);
+}
+
+void DrillItem::clear_derived_data()
+{
+    Item::clear_derived_data();
+    precalculated_shapes_.clear();
+    shapes_precalculated_ = false;
+    // Java resets precalculatedFirstLayer/LastLayer; recompute the (side dependent) layer range.
+    set_padstack(padstack_);
+}
+
+std::vector<std::shared_ptr<geometry::planar::TileShape>> DrillItem::calculate_tree_shapes(
+    const ShapeSearchTree& p_search_tree) const
+{
+    if (padstack_ == nullptr)
+    {
+        // C++ only: drill items created without a library padstack keep the
+        // bounding-box tree shape of the Item base class.
+        return Item::calculate_tree_shapes(p_search_tree);
+    }
+    return p_search_tree.calculate_tree_shapes(*this);
+}
+
+std::vector<std::unique_ptr<geometry::planar::Shape>> Via::calculate_shapes() const
+{
+    // Port of Java Via.getShape.
+    std::vector<std::unique_ptr<geometry::planar::Shape>> result;
+    if (padstack_ == nullptr)
+    {
+        logger::FRLogger::instance().warn("Via.get_shape: padstack is null");
+        return result;
+    }
+    const int shape_count = padstack_->get_to_layer() - padstack_->get_from_layer() + 1;
+    const geometry::planar::IntPoint& center = get_center();
+    const geometry::planar::IntVector translate_vector(center.x, center.y);
+    for (int i = 0; i < shape_count; ++i)
+    {
+        const geometry::planar::Shape* curr_shape = padstack_->get_shape(i + first_layer());
+        result.push_back(curr_shape != nullptr ? translate_pad_shape(*curr_shape, translate_vector) : nullptr);
+    }
+    return result;
+}
 
 double DrillItem::min_width() const
 {
@@ -51,6 +131,22 @@ double DrillItem::min_width() const
     return result;
 }
 
+const geometry::planar::TileShape* DrillItem::get_tree_shape_on_layer(
+    const ShapeSearchTree* p_search_tree, int p_layer) const
+{
+    // Mirrors Java DrillItem.getTreeShapeOnLayer(ShapeSearchTree, int).
+    if (p_layer < from_layer_ || p_layer > to_layer_)
+    {
+        logger::FRLogger::instance().warn("DrillItem.get_tree_shape_on_layer: layer out of range");
+        return nullptr;
+    }
+    if (p_search_tree == nullptr)
+    {
+        return nullptr;
+    }
+    return get_tree_shape(*p_search_tree, p_layer - from_layer_);
+}
+
 std::vector<Item*> DrillItem::get_normal_contacts() const
 {
     std::vector<Item*> result;
@@ -58,23 +154,22 @@ std::vector<Item*> DrillItem::get_normal_contacts() const
     {
         return result;
     }
-    // Use tolerance for connectivity detection: min_width/2 + 1.
-    // This matches the tolerance used in Trace (half_width + 1).
-    const int tolerance = static_cast<int>(min_width() / 2.0) + 1;
-    // Java queries with the degenerate point box TileShape.get_instance(center);
-    // the C++ MinAreaTree needs non-degenerate bounding shapes, so we use a
-    // tolerance-sized box and filter the candidates afterwards.
+    // Java queries with the degenerate point box TileShape.getInstance(center); the C++
+    // MinAreaTree needs non-degenerate bounding shapes, so the box grows by 1 and the candidates
+    // are filtered by Java's exact center / corner equality (tolerance-based matching causes false
+    // cycle detection during trace normalization).
     const geometry::planar::FloatPoint center_fp = get_center().to_float();
     const geometry::planar::IntBox search_shape(
-        static_cast<int64_t>(center_fp.x) - tolerance,
-        static_cast<int64_t>(center_fp.y) - tolerance,
-        static_cast<int64_t>(center_fp.x) + tolerance,
-        static_cast<int64_t>(center_fp.y) + tolerance);
+        static_cast<int64_t>(std::floor(center_fp.x)) - 1,
+        static_cast<int64_t>(std::floor(center_fp.y)) - 1,
+        static_cast<int64_t>(std::ceil(center_fp.x)) + 1,
+        static_cast<int64_t>(std::ceil(center_fp.y)) + 1);
     // Java ignores the layer in the tree query (overlapping_objects(shape, -1));
     // the layer constraint is checked below via shares_layer.
     const std::set<SearchTreeObject*, TreeStorableLess> overlaps =
         board_->overlapping_objects(search_shape, -1);
-    std::set<Item*> result_set;
+    const geometry::planar::IntPoint& drill_center = get_center();
+    ItemSet result_set;
     for (SearchTreeObject* curr_ob : overlaps)
     {
         Item* curr_item = dynamic_cast<Item*>(curr_ob);
@@ -88,15 +183,14 @@ std::vector<Item*> DrillItem::get_normal_contacts() const
         }
         if (const auto* curr_trace = dynamic_cast<const Trace*>(curr_item))
         {
-            if (is_within_tolerance(get_center(), curr_trace->first_corner(), tolerance) ||
-                is_within_tolerance(get_center(), curr_trace->last_corner(), tolerance))
+            if (drill_center.equals(&curr_trace->first_corner()) || drill_center.equals(&curr_trace->last_corner()))
             {
                 result_set.insert(curr_item);
             }
         }
         else if (const auto* curr_drill_item = dynamic_cast<const DrillItem*>(curr_item))
         {
-            if (is_within_tolerance(get_center(), curr_drill_item->get_center(), tolerance))
+            if (drill_center == curr_drill_item->get_center())
             {
                 result_set.insert(curr_item);
             }
@@ -198,8 +292,16 @@ void DrillItem::set_padstack(Padstack* p_padstack)
     padstack_ = p_padstack;
     if (padstack_ != nullptr)
     {
-        from_layer_ = padstack_->get_from_layer();
-        to_layer_ = padstack_->get_to_layer();
+        if (is_placed_on_front() || padstack_->is_placed_absolute())
+        {
+            from_layer_ = padstack_->get_from_layer();
+            to_layer_ = padstack_->get_to_layer();
+        }
+        else
+        {
+            from_layer_ = padstack_->board_layer_count() - padstack_->get_to_layer() - 1;
+            to_layer_ = padstack_->board_layer_count() - padstack_->get_from_layer() - 1;
+        }
     }
 }
 
@@ -240,6 +342,29 @@ const geometry::planar::TileShape* Via::get_tree_shape_on_layer(const ShapeSearc
         return nullptr;
     }
     return get_tree_shape(*p_search_tree, layer_index);
+}
+
+bool Via::is_tail() const
+{
+    std::vector<Item*> contact_list = get_normal_contacts();
+    if (contact_list.size() <= 1)
+    {
+        return true;
+    }
+    auto it = contact_list.begin();
+    Item* current_contact_item = *it;
+    int first_contact_first_layer = current_contact_item->first_layer();
+    int first_contact_last_layer = current_contact_item->last_layer();
+    for (++it; it != contact_list.end(); ++it)
+    {
+        current_contact_item = *it;
+        if (current_contact_item->first_layer() != first_contact_first_layer
+            || current_contact_item->last_layer() != first_contact_last_layer)
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 } // namespace freerouting::board

@@ -31,7 +31,7 @@ namespace {
  * Java geometry::planar::TileShape.is_outside(geometry::planar::Point) accepts any point; the C++ port only
  * provides the geometry::planar::IntPoint overload.
  */
-geometry::planar::IntPoint to_int_point(const geometry::planar::Point& p_point)
+[[maybe_unused]] geometry::planar::IntPoint to_int_point(const geometry::planar::Point& p_point)
 {
     if (const auto* int_point = dynamic_cast<const geometry::planar::IntPoint*>(&p_point))
     {
@@ -548,9 +548,6 @@ bool PullTightAlgo::smoothen_end_corners_at_trace_1(PolylineTrace* p_trace)
             const int curr_cl_class = curr_trace->get_clearance_class();
             const FixedState curr_fixed_state = curr_trace->get_fixed_state();
             board_->remove_item(curr_trace);
-            // Evict stale tree entries as well (see split_at_line); the second
-            // remove_item below is then a guarded no-op for the tree.
-            board_->get_search_tree_manager()->remove(curr_trace);
             PolylineTrace* adj_ins_trace = board_->insert_trace_without_cleaning(
                 std::make_shared<geometry::planar::Polyline>(*adjusted_polyline), trace_layer,
                 curr_half_width_, curr_trace->get_net_nos(), curr_cl_class, curr_fixed_state);
@@ -586,7 +583,7 @@ bool PullTightAlgo::split_traces_at_keep_point()
         return false;
     }
     ItemSelectionFilter filter(ItemSelectionFilter::SelectableChoices::TRACES);
-    std::set<Item*> picked_items =
+    ItemSet picked_items =
         board_->pick_items(*keep_point_, keep_point_layer_, &filter);
     for (Item* curr_item : picked_items)
     {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "board/ItemSet.h"
 #include <memory>
 #include <set>
 #include <string>
@@ -11,6 +12,7 @@
 #include "rules/BoardRules.h"
 
 namespace freerouting::geometry::planar {
+class IntBox;
 class Point;
 class Polyline;
 } // namespace freerouting::geometry::planar
@@ -36,10 +38,39 @@ public:
     const rules::BoardRules& get_rules() const { return *rules_; }
 
     /**
+     * Returns a mutable reference to the rules of this board. Java exposes the
+     * rules as a public final field, so board algorithms may temporarily
+     * change rule values (e.g. RoutingBoard.insertForcedTracePolyline disables
+     * the pin edge to turn distance through the connection inserter).
+     */
+    rules::BoardRules& mutable_rules() { return *rules_; }
+
+    /**
+     * Returns the bounding box of the board. The default implementation
+     * returns IntBox::EMPTY for boards which do not track a board outline;
+     * RoutingBoard overrides it with its stored board box. Mirrors
+     * Java Board.get_bounding_box().
+     */
+    virtual geometry::planar::IntBox get_bounding_box() const;
+
+    /**
+     * The items of the board (Java BasicBoard.itemList). The board base class
+     * keeps no item list; RoutingBoard overrides this.
+     */
+    virtual std::vector<Item*> get_items() const { return {}; }
+
+    /**
      * Returns a new unique item id for items created on this board.
      * Mirrors the id_no_generator used by Java Item().
      */
     int generate_item_id() { return ++last_item_id_; }
+
+    /**
+     * Returns the biggest item id generated so far. Mirrors Java
+     * Communication.idGenerator.maxGeneratedId(), which the forced-trace
+     * insertion uses for its diagnostics.
+     */
+    int get_max_generated_id() const { return last_item_id_; }
 
     /**
      * Mirrors BoardComponents.get_flip_style_rotate_first() in Java: when true,
@@ -75,7 +106,7 @@ public:
      * only items of types selected by the filter are picked.
      * Mirrors Java BasicBoard.pick_items().
      */
-    std::set<Item*> pick_items(const geometry::planar::Point& p_location, int p_layer,
+    ItemSet pick_items(const geometry::planar::Point& p_location, int p_layer,
                                const ItemSelectionFilter* p_filter) const;
 
     /**
@@ -106,6 +137,33 @@ public:
         FixedState p_fixed_state);
 
     /**
+     * Inserts a trace into the board and normalizes it afterwards.
+     * Mirrors Java BasicBoard.insertTrace(Polyline, int, int, int[], int, FixedState).
+     */
+    void insert_trace(const std::shared_ptr<geometry::planar::Polyline>& p_polyline,
+                      int p_layer,
+                      int p_half_width,
+                      const std::vector<int>& p_net_no_arr,
+                      int p_clearance_class,
+                      FixedState p_fixed_state);
+
+    /**
+     * Checks, if a polyline trace with the input parameters can be inserted
+     * without clearance violations. Mirrors Java BasicBoard.checkPolylineTrace().
+     */
+    bool check_polyline_trace(const geometry::planar::Polyline& p_polyline,
+                              int p_layer,
+                              int p_pen_half_width,
+                              const std::vector<int>& p_net_no_arr,
+                              int p_clearance_class) const;
+
+    /** Returns the biggest half width of all traces on the board. */
+    int get_max_trace_half_width() const { return max_trace_half_width_; }
+
+    /** Returns the smallest half width of all traces on the board. */
+    int get_min_trace_half_width() const { return min_trace_half_width_; }
+
+    /**
      * Looks for traces of net p_net_no on layer p_layer containing p_location
      * and splits them. Returns false if no trace was split.
      * Mirrors Java BasicBoard.split_traces().
@@ -128,6 +186,12 @@ private:
     std::unique_ptr<SearchTreeManager> search_tree_manager_;
     bool flip_style_rotate_first_ = false;
     int last_item_id_ = 0;
+
+    /** The biggest half width of all traces on the board. */
+    int max_trace_half_width_ = 1000;
+
+    /** The smallest half width of all traces on the board. */
+    int min_trace_half_width_ = 10000;
 };
 
 } // namespace freerouting::board

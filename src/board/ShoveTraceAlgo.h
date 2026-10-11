@@ -27,11 +27,27 @@ class RoutingBoard;
 class Item;
 class Pin;
 class CalcFromSide;
+class ShapeSearchTree;
 
 /**
- * Headless shove trace algorithm – mirrors Java ShoveTraceAlgo.java (593 lines).
- * Full spring_over / via shove paths are stubbed for headless; the core
- * TileShape shove via ShapeTraceEntries is ported.
+ * Headless shove trace algorithm.
+ *
+ * This class mirrors the Java class
+ * app.freerouting.board.optimize.TraceShover (875 lines). The Java baseline
+ * calls the same class ShoveTraceAlgo in an older revision; the method
+ * signatures below are the ones of the current java/app/freerouting/board/
+ * optimize/TraceShover.java.
+ *
+ * Ported so far: spring_over() and spring_over_obstacles() (the full Java
+ * port of Java TraceShover.springOver/springOverObstacles) plus the tie-pin
+ * obstacle filter getIgnoreItemsAtTiePins().
+ *
+ * Still stubbed (to be ported in a later increment):
+ *  - check(TileShape, ShapeEntrySide, Direction, ...): the via shove check,
+ *    the boundary-box check and the substitute-trace recursion
+ *  - insert(TileShape, ShapeEntrySide, ...): the board mutation (cutout of
+ *    the obstacle traces and insertion of the substitute traces)
+ *  - the static check(RoutingBoard, LineSegment, ...)
  */
 class ShoveTraceAlgo
 {
@@ -72,27 +88,73 @@ public:
                 int p_max_via_recursion_depth,
                 int p_max_spring_over_recursion_depth);
 
-    // Spring over obstacles – headless minimal (returns p_polyline if no obstacle, else nullptr)
-    geometry::planar::Polyline spring_over_obstacles(const geometry::planar::Polyline& p_polyline,
-                                                     int p_half_width,
-                                                     int p_layer,
-                                                     const std::vector<int>& p_net_no_arr,
-                                                     int p_cl_type,
-                                                     const std::set<Pin*>& p_contact_pins);
-
-private:
+    /**
+     * Returns the items which are contacts of same-net pins under p_trace_shape
+     * on p_layer and therefore have to be ignored as obstacles (tie pins).
+     * Port of Java TraceShover.getIgnoreItemsAtTiePins().
+     */
     std::vector<Item*> get_ignore_items_at_tie_pins(const geometry::planar::TileShape& p_trace_shape,
                                                     int p_layer,
                                                     const std::vector<int>& p_net_no_arr);
 
-    geometry::planar::Polyline spring_over(const geometry::planar::Polyline& p_polyline,
-                                           int p_half_width,
-                                           int p_layer,
-                                           const std::vector<int>& p_net_no_arr,
-                                           int p_cl_type,
-                                           bool p_over_connected_pins,
-                                           int p_recursion_depth,
-                                           const std::set<Pin*>* p_contact_pins);
+    /**
+     * Result of the private spring_over() helper. Java signals its two
+     * outcomes by returning either null (failure) or the input polyline object
+     * itself (no obstacle in the way); the C++ port uses the optional and this
+     * flag instead of object identity.
+     */
+    struct SpringOverResult
+    {
+        /** The new polyline, or std::nullopt if the spring over failed. */
+        std::optional<geometry::planar::Polyline> polyline;
+
+        /** False if the input polyline was returned unchanged (Java identity). */
+        bool changed = false;
+    };
+
+    /**
+     * Spring over obstacles – wraps the polyline around the obstacles in
+     * counterclock sense. Port of Java TraceShover.springOver().
+     */
+    SpringOverResult spring_over(const geometry::planar::Polyline& p_polyline,
+                                 int p_half_width,
+                                 int p_layer,
+                                 const std::vector<int>& p_net_no_arr,
+                                 int p_cl_type,
+                                 bool p_over_connected_pins,
+                                 int p_recursion_depth,
+                                 const std::set<Pin*>* p_contact_pins);
+
+    /**
+     * Wraps p_polyline around the obstacles of both turning directions and
+     * returns the shorter result. Returns std::nullopt, if neither direction
+     * could be found. Port of Java TraceShover.springOverObstacles().
+     *
+     * p_contact_pins == nullptr mirrors the Java null argument, which makes
+     * the spring over treat own net pins as non obstacles; an empty set makes
+     * every own net pin an obstacle instead.
+     */
+    std::optional<geometry::planar::Polyline> spring_over_obstacles(
+        const geometry::planar::Polyline& p_polyline,
+        int p_half_width,
+        int p_layer,
+        const std::vector<int>& p_net_no_arr,
+        int p_cl_type,
+        const std::set<Pin*>* p_contact_pins);
+
+private:
+    /**
+     * Returns the items in the search tree overlapping p_shape with clearance,
+     * as a plain vector (Java uses the returned collection directly).
+     */
+    static std::vector<Item*> to_item_vector(ShapeSearchTree* p_search_tree,
+                                            const geometry::planar::TileShape& p_shape,
+                                            int p_layer,
+                                            int p_cl_type);
+
+    /** Returns p_item_arr without the items contained in p_removed_arr. */
+    static std::vector<Item*> remove_items(const std::vector<Item*>& p_item_arr,
+                                          const std::vector<Item*>& p_removed_arr);
 
     RoutingBoard* board_ = nullptr;
 };

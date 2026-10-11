@@ -89,6 +89,14 @@ public:
 
     std::string to_string() const override;
 
+    /** The convex pieces of the absolute area. Java ObstacleArea.splitToConvex. */
+    const std::vector<std::unique_ptr<geometry::planar::TileShape>>& split_to_convex() const { return get_split_to_convex(); }
+
+protected:
+    /** Java ObstacleArea.calculateTreeShapes -> ShapeSearchTree.calculateTreeShapes(ObstacleArea). */
+    std::vector<std::shared_ptr<geometry::planar::TileShape>> calculate_tree_shapes(
+        const ShapeSearchTree& p_search_tree) const override;
+
 private:
     const std::vector<std::unique_ptr<geometry::planar::TileShape>>& get_split_to_convex() const;
 

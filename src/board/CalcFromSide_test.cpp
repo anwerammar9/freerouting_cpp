@@ -26,8 +26,8 @@ TEST(CalcFromSideTest, ValuesConstructor)
     const FloatPoint intersection(12.5, 17.25);
     const CalcFromSide cfs(3, intersection);
     EXPECT_EQ(cfs.no, 3);
-    EXPECT_DOUBLE_EQ(cfs.border_intersection.x, 12.5);
-    EXPECT_DOUBLE_EQ(cfs.border_intersection.y, 17.25);
+    EXPECT_DOUBLE_EQ(cfs.border_intersection->x, 12.5);
+    EXPECT_DOUBLE_EQ(cfs.border_intersection->y, 17.25);
 }
 
 TEST(CalcFromSideTest, PolylineEntersSquareFromLeft)
@@ -39,8 +39,8 @@ TEST(CalcFromSideTest, PolylineEntersSquareFromLeft)
                               IntPoint(200, 150)});
     const CalcFromSide cfs(polyline, 1, kSquare);
     EXPECT_EQ(cfs.no, 3);
-    EXPECT_DOUBLE_EQ(cfs.border_intersection.x, 0.0);
-    EXPECT_DOUBLE_EQ(cfs.border_intersection.y, 50.0);
+    EXPECT_DOUBLE_EQ(cfs.border_intersection->x, 0.0);
+    EXPECT_DOUBLE_EQ(cfs.border_intersection->y, 50.0);
 }
 
 TEST(CalcFromSideTest, PolylineLeavesSquareAtTop)
@@ -52,8 +52,8 @@ TEST(CalcFromSideTest, PolylineLeavesSquareAtTop)
                               IntPoint(200, 150)});
     const CalcFromSide cfs(polyline, 1, kSquare);
     EXPECT_EQ(cfs.no, 2);
-    EXPECT_DOUBLE_EQ(cfs.border_intersection.x, 50.0);
-    EXPECT_DOUBLE_EQ(cfs.border_intersection.y, 100.0);
+    EXPECT_DOUBLE_EQ(cfs.border_intersection->x, 50.0);
+    EXPECT_DOUBLE_EQ(cfs.border_intersection->y, 100.0);
 }
 
 TEST(CalcFromSideTest, PolylineStartsInsideSquare)
@@ -65,16 +65,16 @@ TEST(CalcFromSideTest, PolylineStartsInsideSquare)
                               IntPoint(90, 40)});
     const CalcFromSide cfs(polyline, 1, kSquare);
     EXPECT_EQ(cfs.no, 0);
-    EXPECT_DOUBLE_EQ(cfs.border_intersection.x, 40.0);
-    EXPECT_DOUBLE_EQ(cfs.border_intersection.y, 0.0);
+    EXPECT_DOUBLE_EQ(cfs.border_intersection->x, 40.0);
+    EXPECT_DOUBLE_EQ(cfs.border_intersection->y, 0.0);
 }
 
 TEST(CalcFromSideTest, FromPointBelowSquare)
 {
     const CalcFromSide cfs(IntPoint(50, -50), kSquare);
     EXPECT_EQ(cfs.no, 0);
-    EXPECT_DOUBLE_EQ(cfs.border_intersection.x, 50.0);
-    EXPECT_DOUBLE_EQ(cfs.border_intersection.y, 0.0);
+    EXPECT_DOUBLE_EQ(cfs.border_intersection->x, 50.0);
+    EXPECT_DOUBLE_EQ(cfs.border_intersection->y, 0.0);
 }
 
 TEST(CalcFromSideTest, FromPointAtCenter)
@@ -83,16 +83,16 @@ TEST(CalcFromSideTest, FromPointAtCenter)
     // the left border first, so edge 3 is selected.
     const CalcFromSide cfs(IntPoint(50, 50), kSquare);
     EXPECT_EQ(cfs.no, 3);
-    EXPECT_DOUBLE_EQ(cfs.border_intersection.x, 0.0);
-    EXPECT_DOUBLE_EQ(cfs.border_intersection.y, 50.0);
+    EXPECT_DOUBLE_EQ(cfs.border_intersection->x, 0.0);
+    EXPECT_DOUBLE_EQ(cfs.border_intersection->y, 50.0);
 }
 
 TEST(CalcFromSideTest, FromPointLeftOfSquare)
 {
     const CalcFromSide cfs(IntPoint(-10, 50), kSquare);
     EXPECT_EQ(cfs.no, 3);
-    EXPECT_DOUBLE_EQ(cfs.border_intersection.x, 0.0);
-    EXPECT_DOUBLE_EQ(cfs.border_intersection.y, 50.0);
+    EXPECT_DOUBLE_EQ(cfs.border_intersection->x, 0.0);
+    EXPECT_DOUBLE_EQ(cfs.border_intersection->y, 50.0);
 }
 
 TEST(CalcFromSideTest, LineSegmentHorizontalCrossing)
@@ -100,12 +100,12 @@ TEST(CalcFromSideTest, LineSegmentHorizontalCrossing)
     const LineSegment cross = LineSegment::from_endpoints(IntPoint(-50, 50), IntPoint(150, 50));
     const CalcFromSide cfs_left(cross, kSquare, true);
     EXPECT_EQ(cfs_left.no, 1);
-    EXPECT_DOUBLE_EQ(cfs_left.border_intersection.x, 100.0);
-    EXPECT_DOUBLE_EQ(cfs_left.border_intersection.y, 50.0);
+    EXPECT_DOUBLE_EQ(cfs_left.border_intersection->x, 100.0);
+    EXPECT_DOUBLE_EQ(cfs_left.border_intersection->y, 50.0);
     const CalcFromSide cfs_right(cross, kSquare, false);
     EXPECT_EQ(cfs_right.no, 1);
-    EXPECT_DOUBLE_EQ(cfs_right.border_intersection.x, 100.0);
-    EXPECT_DOUBLE_EQ(cfs_right.border_intersection.y, 50.0);
+    EXPECT_DOUBLE_EQ(cfs_right.border_intersection->x, 100.0);
+    EXPECT_DOUBLE_EQ(cfs_right.border_intersection->y, 50.0);
 }
 
 TEST(CalcFromSideTest, LineSegmentVerticalCrossing)
@@ -113,12 +113,12 @@ TEST(CalcFromSideTest, LineSegmentVerticalCrossing)
     const LineSegment cross = LineSegment::from_endpoints(IntPoint(25, -50), IntPoint(75, 150));
     const CalcFromSide cfs_left(cross, kSquare, true);
     EXPECT_EQ(cfs_left.no, 2);
-    EXPECT_DOUBLE_EQ(cfs_left.border_intersection.x, 50.0);
-    EXPECT_DOUBLE_EQ(cfs_left.border_intersection.y, 100.0);
+    EXPECT_DOUBLE_EQ(cfs_left.border_intersection->x, 50.0);
+    EXPECT_DOUBLE_EQ(cfs_left.border_intersection->y, 100.0);
     const CalcFromSide cfs_right(cross, kSquare, false);
     EXPECT_EQ(cfs_right.no, 2);
-    EXPECT_DOUBLE_EQ(cfs_right.border_intersection.x, 50.0);
-    EXPECT_DOUBLE_EQ(cfs_right.border_intersection.y, 100.0);
+    EXPECT_DOUBLE_EQ(cfs_right.border_intersection->x, 50.0);
+    EXPECT_DOUBLE_EQ(cfs_right.border_intersection->y, 100.0);
 }
 
 TEST(CalcFromSideTest, OctagonShoveDirectionAsymmetry)
@@ -131,10 +131,10 @@ TEST(CalcFromSideTest, OctagonShoveDirectionAsymmetry)
     const LineSegment cross = LineSegment::from_endpoints(IntPoint(-50, 50), IntPoint(150, 50));
     const CalcFromSide cfs_left(cross, octagon, true);
     EXPECT_EQ(cfs_left.no, 0);
-    EXPECT_DOUBLE_EQ(cfs_left.border_intersection.x, 50.0);
-    EXPECT_DOUBLE_EQ(cfs_left.border_intersection.y, 0.0);
+    EXPECT_DOUBLE_EQ(cfs_left.border_intersection->x, 50.0);
+    EXPECT_DOUBLE_EQ(cfs_left.border_intersection->y, 0.0);
     const CalcFromSide cfs_right(cross, octagon, false);
     EXPECT_EQ(cfs_right.no, 4);
-    EXPECT_DOUBLE_EQ(cfs_right.border_intersection.x, 50.0);
-    EXPECT_DOUBLE_EQ(cfs_right.border_intersection.y, 100.0);
+    EXPECT_DOUBLE_EQ(cfs_right.border_intersection->x, 50.0);
+    EXPECT_DOUBLE_EQ(cfs_right.border_intersection->y, 100.0);
 }

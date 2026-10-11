@@ -20,6 +20,7 @@ public:
 class TestListener : public fr::autoroute::events::BoardSnapshotEventListener {
 public:
     void on_board_snapshot_event(const fr::autoroute::events::BoardSnapshotEvent& p_event) override {
+        (void)p_event;
         event_count_++;
     }
     int get_event_count() const { return event_count_; }

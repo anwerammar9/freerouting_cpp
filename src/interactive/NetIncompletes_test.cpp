@@ -6,6 +6,7 @@
 #include "board/ConductionArea.h"
 #include "board/Layer.h"
 #include "board/Padstack.h"
+#include "board/Pin.h"
 #include "board/PolylineTrace.h"
 #include "board/RoutingBoard.h"
 #include "board/SearchTreeManager.h"
@@ -74,6 +75,36 @@ board::Via* insert_via(board::RoutingBoard* p_board,
 }
 
 /**
+ * Inserts a single-layer SMD pin. Unconnected pins are not "tails" in Java
+ * (Item.isTail() defaults to false and is only overridden by Via/Trace), so
+ * they survive the NetIncompletes filter and appear in the ratsnest.
+ */
+board::Pin* insert_smd_pin(board::RoutingBoard* p_board,
+                           const geometry::planar::IntPoint& p_center,
+                           const std::vector<int>& p_nets, int p_pad_half_width)
+{
+    auto* pin = new board::Pin(7, 1, p_nets, 1, p_board->generate_item_id(),
+                               board::FixedState::NOT_FIXED, p_board);
+    pin->set_center(p_center);
+    auto* padstack = new board::Padstack("p1");
+    padstack->set_from_layer(0);
+    padstack->set_to_layer(0);
+    padstack->add_shape(0, new geometry::planar::PolygonShape(
+        std::vector<geometry::planar::IntPoint>{
+            {static_cast<int64_t>(-p_pad_half_width), static_cast<int64_t>(-p_pad_half_width)},
+            {static_cast<int64_t>(p_pad_half_width), static_cast<int64_t>(-p_pad_half_width)},
+            {static_cast<int64_t>(p_pad_half_width), static_cast<int64_t>(p_pad_half_width)},
+            {static_cast<int64_t>(-p_pad_half_width), static_cast<int64_t>(p_pad_half_width)}}));
+    pin->set_padstack(padstack);
+    pin->set_bounding_box(geometry::planar::IntBox(
+        p_center.x - p_pad_half_width, p_center.y - p_pad_half_width,
+        p_center.x + p_pad_half_width, p_center.y + p_pad_half_width));
+    p_board->get_search_tree_manager()->insert(pin);
+    p_board->add_item(pin);
+    return pin;
+}
+
+/**
  * Creates a board with a net class assigned to net 1 whose minimum and
  * maximum trace lengths are configured before the board is finalised.
  * This avoids mutating through the const BoardRules accessor.
@@ -132,12 +163,12 @@ TEST(NetIncompletesTest, ConnectedNetHasNoIncompletes)
 TEST(NetIncompletesTest, TwoIsolatedPinsProduceOneAirLine)
 {
     auto board = make_routing_board();
-    board::Via* via1 = insert_via(board.get(), geometry::planar::IntPoint(200, 200), {1}, 50);
-    board::Via* via2 = insert_via(board.get(), geometry::planar::IntPoint(6000, 5000), {1}, 50);
-    ASSERT_NE(via1, nullptr);
-    ASSERT_NE(via2, nullptr);
+    board::Pin* pin1 = insert_smd_pin(board.get(), geometry::planar::IntPoint(200, 200), {1}, 50);
+    board::Pin* pin2 = insert_smd_pin(board.get(), geometry::planar::IntPoint(6000, 5000), {1}, 50);
+    ASSERT_NE(pin1, nullptr);
+    ASSERT_NE(pin2, nullptr);
 
-    std::vector<board::Item*> net_items = {via1, via2};
+    std::vector<board::Item*> net_items = {pin1, pin2};
     NetIncompletes ni(1, net_items, board.get());
 
     EXPECT_EQ(ni.count(), 1);
@@ -146,10 +177,10 @@ TEST(NetIncompletesTest, TwoIsolatedPinsProduceOneAirLine)
     const auto& airline = ni.incompletes().front();
     EXPECT_EQ(airline->net, board->get_rules().get_nets().get(1));
     // The airline should connect the two distinct items (order may vary).
-    std::set<board::Item*> airline_items = {airline->from_item, airline->to_item};
+    board::ItemSet airline_items = {airline->from_item, airline->to_item};
     EXPECT_EQ(airline_items.size(), 2u);
-    EXPECT_TRUE(airline_items.count(via1) > 0);
-    EXPECT_TRUE(airline_items.count(via2) > 0);
+    EXPECT_TRUE(airline_items.count(pin1) > 0);
+    EXPECT_TRUE(airline_items.count(pin2) > 0);
     // The corners should match the two via centers (one corner per center).
     geometry::planar::FloatPoint center1(200, 200);
     geometry::planar::FloatPoint center2(6000, 5000);
@@ -186,18 +217,18 @@ TEST(NetIncompletesTest, DanglingTraceIsFiltered)
 TEST(NetIncompletesTest, LengthViolationNegativeWhenTooShort)
 {
     auto [board, net_class] = make_board_with_length_limits(100000.0, 0.0);
-    board::Via* via1 = insert_via(board.get(), geometry::planar::IntPoint(1000, 1000), {1}, 50);
-    board::Via* via2 = insert_via(board.get(), geometry::planar::IntPoint(8000, 8000), {1}, 50);
+    board::Pin* pin1 = insert_smd_pin(board.get(), geometry::planar::IntPoint(1000, 1000), {1}, 50);
+    board::Pin* pin2 = insert_smd_pin(board.get(), geometry::planar::IntPoint(8000, 8000), {1}, 50);
     board::PolylineTrace* trace = insert_trace(
         board.get(),
         {geometry::planar::IntPoint(1000, 1000),
          geometry::planar::IntPoint(8000, 8000)},
         {1});
-    ASSERT_NE(via1, nullptr);
-    ASSERT_NE(via2, nullptr);
+    ASSERT_NE(pin1, nullptr);
+    ASSERT_NE(pin2, nullptr);
     ASSERT_NE(trace, nullptr);
 
-    std::vector<board::Item*> net_items = {via1, via2, trace};
+    std::vector<board::Item*> net_items = {pin1, pin2, trace};
     NetIncompletes ni(1, net_items, board.get());
 
     // Connected set → 0 incompletes. Trace length≈ 9899 < min 100000.
@@ -212,18 +243,18 @@ TEST(NetIncompletesTest, LengthViolationNegativeWhenTooShort)
 TEST(NetIncompletesTest, LengthViolationPositiveWhenTooLong)
 {
     auto [board, net_class] = make_board_with_length_limits(0.0, 5000.0);
-    board::Via* via1 = insert_via(board.get(), geometry::planar::IntPoint(1000, 1000), {1}, 50);
-    board::Via* via2 = insert_via(board.get(), geometry::planar::IntPoint(8000, 8000), {1}, 50);
+    board::Pin* pin1 = insert_smd_pin(board.get(), geometry::planar::IntPoint(1000, 1000), {1}, 50);
+    board::Pin* pin2 = insert_smd_pin(board.get(), geometry::planar::IntPoint(8000, 8000), {1}, 50);
     board::PolylineTrace* trace = insert_trace(
         board.get(),
         {geometry::planar::IntPoint(1000, 1000),
          geometry::planar::IntPoint(8000, 8000)},
         {1});
-    ASSERT_NE(via1, nullptr);
-    ASSERT_NE(via2, nullptr);
+    ASSERT_NE(pin1, nullptr);
+    ASSERT_NE(pin2, nullptr);
     ASSERT_NE(trace, nullptr);
 
-    std::vector<board::Item*> net_items = {via1, via2, trace};
+    std::vector<board::Item*> net_items = {pin1, pin2, trace};
     NetIncompletes ni(1, net_items, board.get());
 
     // Connected set → 0 incompletes. Trace length ≈ 9899 > max 5000.
@@ -246,18 +277,18 @@ TEST(NetIncompletesTest, LengthViolationPositiveWhenTooLong)
 TEST(NetIncompletesTest, NoViolationWhenLengthsOk)
 {
     auto [board, net_class] = make_board_with_length_limits(5000.0, 20000.0);
-    board::Via* via1 = insert_via(board.get(), geometry::planar::IntPoint(1000, 1000), {1}, 50);
-    board::Via* via2 = insert_via(board.get(), geometry::planar::IntPoint(8000, 8000), {1}, 50);
+    board::Pin* pin1 = insert_smd_pin(board.get(), geometry::planar::IntPoint(1000, 1000), {1}, 50);
+    board::Pin* pin2 = insert_smd_pin(board.get(), geometry::planar::IntPoint(8000, 8000), {1}, 50);
     board::PolylineTrace* trace = insert_trace(
         board.get(),
         {geometry::planar::IntPoint(1000, 1000),
          geometry::planar::IntPoint(8000, 8000)},
         {1});
-    ASSERT_NE(via1, nullptr);
-    ASSERT_NE(via2, nullptr);
+    ASSERT_NE(pin1, nullptr);
+    ASSERT_NE(pin2, nullptr);
     ASSERT_NE(trace, nullptr);
 
-    std::vector<board::Item*> net_items = {via1, via2, trace};
+    std::vector<board::Item*> net_items = {pin1, pin2, trace};
     NetIncompletes ni(1, net_items, board.get());
 
     EXPECT_EQ(ni.count(), 0);
@@ -266,17 +297,17 @@ TEST(NetIncompletesTest, NoViolationWhenLengthsOk)
     EXPECT_FALSE(ni.calc_length_violation());
 }
 
-TEST(NetIncompletesTest, ThreeIsolatedViasProduceTwoAirlines)
+TEST(NetIncompletesTest, ThreeIsolatedPinsProduceTwoAirlines)
 {
     auto board = make_routing_board();
-    board::Via* v1 = insert_via(board.get(), geometry::planar::IntPoint(200, 200), {1}, 50);
-    board::Via* v2 = insert_via(board.get(), geometry::planar::IntPoint(6000, 200), {1}, 50);
-    board::Via* v3 = insert_via(board.get(), geometry::planar::IntPoint(3000, 8000), {1}, 50);
-    ASSERT_NE(v1, nullptr);
-    ASSERT_NE(v2, nullptr);
-    ASSERT_NE(v3, nullptr);
+    board::Pin* pin1 = insert_smd_pin(board.get(), geometry::planar::IntPoint(200, 200), {1}, 50);
+    board::Pin* pin2 = insert_smd_pin(board.get(), geometry::planar::IntPoint(6000, 200), {1}, 50);
+    board::Pin* pin3 = insert_smd_pin(board.get(), geometry::planar::IntPoint(3000, 8000), {1}, 50);
+    ASSERT_NE(pin1, nullptr);
+    ASSERT_NE(pin2, nullptr);
+    ASSERT_NE(pin3, nullptr);
 
-    std::vector<board::Item*> net_items = {v1, v2, v3};
+    std::vector<board::Item*> net_items = {pin1, pin2, pin3};
     NetIncompletes ni(1, net_items, board.get());
 
     // 3 isolated groups → 2 airlines (MST).
@@ -288,10 +319,10 @@ TEST(NetIncompletesTest, ThreeIsolatedViasProduceTwoAirlines)
 TEST(NetIncompletesTest, SingleItemHasNoAirLines)
 {
     auto board = make_routing_board();
-    board::Via* via1 = insert_via(board.get(), geometry::planar::IntPoint(200, 200), {1}, 50);
-    ASSERT_NE(via1, nullptr);
+    board::Pin* pin1 = insert_smd_pin(board.get(), geometry::planar::IntPoint(200, 200), {1}, 50);
+    ASSERT_NE(pin1, nullptr);
 
-    std::vector<board::Item*> net_items = {via1};
+    std::vector<board::Item*> net_items = {pin1};
     NetIncompletes ni(1, net_items, board.get());
 
     EXPECT_EQ(ni.count(), 0);

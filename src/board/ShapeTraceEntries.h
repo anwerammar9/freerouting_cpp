@@ -8,6 +8,7 @@
 #include "geometry/planar/TileShape.h"
 #include "geometry/planar/Polyline.h"
 #include "geometry/planar/Point.h"
+#include "board/CalcFromSide.h"
 
 namespace freerouting::board
 {
@@ -16,14 +17,15 @@ class RoutingBoard;
 class PolylineTrace;
 class Via;
 class Item;
-class CalcFromSide;
 
 /**
  * Auxiliary class used by the shove functions (headless).
- * Mirrors Java ShapeTraceEntries.java (726 lines). GUI/server methods
- * (cutout_trace, cutout_traces with board.item_list reuse) are stubbed for
- * headless; the core shove bookkeeping (store_items, next_substitute_trace_piece,
- * stack levels, entrance points) is fully ported.
+ * Mirrors Java ShapeTraceEntries.java (806 lines). Ported: store_items,
+ * next_substitute_trace_piece, stack levels, entrance points, cutout_trace
+ * and cutout_traces. The GUI/server methods of the Java class are not
+ * ported, and the Java search tree entry reuse after a cutout
+ * (SearchTreeManager.reuseEntriesAfterCutout) is skipped, because it only
+ * saves allocations - the inserted pieces get freshly calculated entries.
  */
 class ShapeTraceEntries
 {
@@ -50,12 +52,27 @@ public:
 
     void cutout_traces(const std::vector<Item*>& p_item_list);
 
-    // Static helper used by board trace cutout (headless stub – warns if called)
+    // Cuts the traces of p_item_list out of the stored shape. Port of Java
+    // ShapeTraceEntries.cutoutTrace().
     static void cutout_trace(PolylineTrace* p_trace,
                              const geometry::planar::TileShape& p_shape,
                              int p_cl_class);
 
 private:
+    // Optimized function handling the performance critical standard cutout
+    // case. Port of Java ShapeTraceEntries.fastCutoutTrace().
+    static void fast_cutout_trace(PolylineTrace* p_trace,
+                                  const geometry::planar::Polyline& p_start_piece,
+                                  const geometry::planar::Polyline& p_end_piece);
+
+    // Unlinks p_trace from the item list and from the search tree.
+    static void remove_trace_from_board(RoutingBoard* p_board, PolylineTrace* p_trace);
+
+    // Compares two polylines line by line (Java compares the cutout pieces
+    // with the input polyline by object identity).
+    static bool polyline_equals(const geometry::planar::Polyline& p_first,
+                                const geometry::planar::Polyline& p_second);
+
     struct EntryPoint
     {
         PolylineTrace* trace = nullptr;
@@ -69,6 +86,10 @@ private:
     bool store_trace(PolylineTrace* p_trace);
     void search_from_side();
     void resort();
+    // Rotates the entry list, so that p_new_anchor becomes the list anchor
+    // and the edge numbers of the entries before it are shifted by
+    // p_edge_count. Port of Java rotateEntryListAroundAnchor().
+    void rotate_entry_list_around_anchor(EntryPoint* p_new_anchor, int p_edge_count);
     bool calculate_stack_levels();
     EntryPoint* pop_piece_internal();
     void insert_entry_point(PolylineTrace* p_trace, int p_trace_line_no, int p_edge_no,
@@ -81,7 +102,7 @@ private:
     std::vector<int> own_net_nos_;
     int cl_class_ = 0;
     RoutingBoard* board_ = nullptr;
-    std::unique_ptr<CalcFromSide> from_side_;
+    std::optional<CalcFromSide> from_side_;
     EntryPoint* list_anchor_ = nullptr;
     std::vector<std::unique_ptr<EntryPoint>> owned_entries_;
     int trace_piece_count_ = 0;
