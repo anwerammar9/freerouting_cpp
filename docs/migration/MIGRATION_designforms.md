@@ -296,3 +296,19 @@
   EOF) and `Network_test.cpp` +6 (class creates/assigns a board net class, `kicad_default` mapping, clearance class
   built from the class, class-pair mixed clearance, `use_via` creates a via rule, `use_layer` restricts active
   trace layers). ctest 979/979, `run_tests` PASSED.
+
+- **2026-10-11 (T122)**: DSN/SES write halves. `WriteScopeParameter` (Java `parser/WriteScopeParameter.java`) is a
+  non-owning holder (board/settings pointers) that builds the reserved-char `IdentifierType` (`(`, `)`, space, `;`,
+  `-`, `_`) with the configured quote. `Shape` gains pure-virtual `write_scope`/`write_scope_int` plus a non-virtual
+  `write_hole_scope` (`window` wrapper, Java `Rectangle.writeHoleScope` pattern); `Rectangle`, `Circle`, `Polygon`,
+  `PolygonPath`, `PolylinePath` implement them, and `Resolution::write_scope` writes `(resolution <unit> <n>)`.
+  `CoordinateTransform` (Java `io/CoordinateTransform.java`) gained the numeric `board_to_dsn`/`_rel` overloads
+  (`FloatPoint`, point array, `IntBox`, `Vector`, `Line[]`), `dsn_to_board[_rel]`, and the shape conversions in a new
+  `CoordinateTransform.cpp`: `IntBox`→`Rectangle`, `PolylineShape`→`Polygon` (via `corner_approx_arr`),
+  `Circle`→`Circle`. C++ deviation: `TileShape` is not a `Shape`, so board `IntBox`/octagon/simplex arrive wrapped in
+  `geometry::planar::ConvexTileShape` — the transform unwraps it (IntBox→Rectangle, else corners→Polygon) to match
+  Java where `IntBox`/`IntOctagon`/`Simplex` are `PolylineShape`s. Java quirk kept: `PolygonPath`/`PolylinePath` leave
+  the width unrounded in the int variant, and `boardToDsnRel` still uses the non-rel diameter for circles.
+  Tests: `ShapeWrite_test.cpp` (golden token-equal strings captured from the JDK-25 jar + write→read→equal
+  round-trips), `WriteScopeParameter_test.cpp`, `CoordinateTransform_test.cpp` (golden values/strings). ctest
+  1005/1005, `run_tests` PASSED. Layer/Rule write parts are deferred to the SesWriter/DsnWriter tasks (T201/T202).

@@ -1,9 +1,22 @@
 #include "designforms/specctra/parser/Resolution.h"
 
+#include "board/Communication.h"
+#include "board/Unit.h"
+#include "datastructures/IndentFileWriter.h"
 #include "designforms/specctra/parser/ReadScopeParameter.h"
 #include "logger/FRLogger.h"
 
 namespace freerouting::designforms::specctra::parser {
+
+void Resolution::write_scope(
+    datastructures::IndentFileWriter& p_file, const board::Communication& p_board_communication)
+{
+    p_file.new_line();
+    p_file << "(resolution ";
+    p_file << board::UnitHelper::to_string(p_board_communication.get_unit());
+    p_file << " " << p_board_communication.get_resolution();
+    p_file << ")";
+}
 
 bool Resolution::read_scope(ReadScopeParameter& p_par) const
 {

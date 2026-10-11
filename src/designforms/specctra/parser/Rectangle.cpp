@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "datastructures/JavaFormat.h"
 #include "designforms/specctra/parser/CoordinateTransform.h"
 #include "geometry/planar/IntBox.h"
 
@@ -41,6 +42,33 @@ std::unique_ptr<fp::Shape> Rectangle::transform_to_board(const CoordinateTransfo
     const fp::FloatPoint upper_right =
         p_transform.dsn_to_board(std::max(coor[0], coor[2]), std::max(coor[1], coor[3]));
     return as_board_shape(std::make_unique<fp::IntBox>(lower_left.round(), upper_right.round()));
+}
+
+void Rectangle::write_scope(
+    datastructures::IndentFileWriter& p_file, const datastructures::IdentifierType& p_identifier) const
+{
+    p_file.new_line();
+    p_file << "(rect ";
+    p_identifier.write(this->layer->name, p_file.stream());
+    for (double coordinate : coor)
+    {
+        p_file << " " << datastructures::java_double_to_string(coordinate);
+    }
+    p_file << ")";
+}
+
+void Rectangle::write_scope_int(
+    datastructures::IndentFileWriter& p_file, const datastructures::IdentifierType& p_identifier) const
+{
+    p_file.new_line();
+    p_file << "(rect ";
+    p_identifier.write(this->layer->name, p_file.stream());
+    for (double coordinate : coor)
+    {
+        const int current_coordinate = static_cast<int>(java_round(coordinate));
+        p_file << " " << current_coordinate;
+    }
+    p_file << ")";
 }
 
 } // namespace freerouting::designforms::specctra::parser

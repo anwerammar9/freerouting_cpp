@@ -2,6 +2,7 @@
 
 #include <cmath>
 
+#include "datastructures/JavaFormat.h"
 #include "designforms/specctra/parser/CoordinateTransform.h"
 #include "designforms/specctra/parser/Rectangle.h"
 #include "geometry/planar/Shape.h"
@@ -34,6 +35,33 @@ std::unique_ptr<Rectangle> Circle::bounding_box() const
     // Java parity: the diameter coor[0] is used like a radius here.
     return std::make_unique<Rectangle>(
         layer, std::array<double, 4>{ coor[1] - coor[0], coor[2] - coor[0], coor[1] + coor[0], coor[2] + coor[0] });
+}
+
+void Circle::write_scope(
+    datastructures::IndentFileWriter& p_file, const datastructures::IdentifierType& p_identifier) const
+{
+    p_file.new_line();
+    p_file << "(circle ";
+    p_identifier.write(this->layer->name, p_file.stream());
+    for (double coordinate : coor)
+    {
+        p_file << " " << datastructures::java_double_to_string(coordinate);
+    }
+    p_file << ")";
+}
+
+void Circle::write_scope_int(
+    datastructures::IndentFileWriter& p_file, const datastructures::IdentifierType& p_identifier) const
+{
+    p_file.new_line();
+    p_file << "(circle ";
+    p_identifier.write(this->layer->name, p_file.stream());
+    for (double coordinate : coor)
+    {
+        const int current_coordinate = static_cast<int>(java_round(coordinate));
+        p_file << " " << current_coordinate;
+    }
+    p_file << ")";
 }
 
 } // namespace freerouting::designforms::specctra::parser

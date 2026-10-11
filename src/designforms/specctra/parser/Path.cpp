@@ -4,6 +4,7 @@
 #include <climits>
 #include <cmath>
 
+#include "datastructures/JavaFormat.h"
 #include "designforms/specctra/parser/CoordinateTransform.h"
 #include "designforms/specctra/parser/Rectangle.h"
 #include "geometry/planar/IntOctagon.h"
@@ -16,6 +17,9 @@ namespace freerouting::designforms::specctra::parser {
 namespace fp = geometry::planar;
 
 namespace {
+
+/** Java (int) Math.round(double): floor(value + 0.5) truncated to int. */
+int java_round(double p_value) { return static_cast<int>(std::floor(p_value + 0.5)); }
 
 /** Java FloatPoint.boundingOctagon(FloatPoint[]) (an unnormalized IntOctagon). */
 fp::IntOctagon bounding_octagon(const std::vector<fp::FloatPoint>& p_points)
@@ -120,6 +124,80 @@ std::unique_ptr<Rectangle> PolylinePath::bounding_box() const
 {
     logger::FRLogger::instance().warn("PolylinePath.boundingBox not implemented");
     return nullptr;
+}
+
+void PolygonPath::write_scope(
+    datastructures::IndentFileWriter& p_file, const datastructures::IdentifierType& p_identifier) const
+{
+    p_file.start_scope();
+    p_file << "path ";
+    p_identifier.write(this->layer->name, p_file.stream());
+    p_file << " " << datastructures::java_double_to_string(this->width);
+    const std::size_t corner_count = coordinate_arr.size() / 2;
+    for (std::size_t i = 0; i < corner_count; ++i)
+    {
+        p_file.new_line();
+        p_file << datastructures::java_double_to_string(coordinate_arr[2 * i]) << " "
+               << datastructures::java_double_to_string(coordinate_arr[2 * i + 1]);
+    }
+    p_file.end_scope();
+}
+
+void PolygonPath::write_scope_int(
+    datastructures::IndentFileWriter& p_file, const datastructures::IdentifierType& p_identifier) const
+{
+    p_file.start_scope();
+    p_file << "path ";
+    p_identifier.write(this->layer->name, p_file.stream());
+    // Java parity: the width is written unrounded even in the integer variant.
+    p_file << " " << datastructures::java_double_to_string(this->width);
+    const std::size_t corner_count = coordinate_arr.size() / 2;
+    for (std::size_t i = 0; i < corner_count; ++i)
+    {
+        p_file.new_line();
+        p_file << static_cast<int>(java_round(coordinate_arr[2 * i])) << " "
+               << static_cast<int>(java_round(coordinate_arr[2 * i + 1]));
+    }
+    p_file.end_scope();
+}
+
+void PolylinePath::write_scope(
+    datastructures::IndentFileWriter& p_file, const datastructures::IdentifierType& p_identifier) const
+{
+    p_file.start_scope();
+    p_file << "polyline_path ";
+    p_identifier.write(this->layer->name, p_file.stream());
+    p_file << " " << datastructures::java_double_to_string(this->width);
+    const std::size_t line_count = coordinate_arr.size() / 4;
+    for (std::size_t i = 0; i < line_count; ++i)
+    {
+        p_file.new_line();
+        for (std::size_t j = 0; j < 4; ++j)
+        {
+            p_file << datastructures::java_double_to_string(coordinate_arr[4 * i + j]) << " ";
+        }
+    }
+    p_file.end_scope();
+}
+
+void PolylinePath::write_scope_int(
+    datastructures::IndentFileWriter& p_file, const datastructures::IdentifierType& p_identifier) const
+{
+    p_file.start_scope();
+    p_file << "polyline_path ";
+    p_identifier.write(this->layer->name, p_file.stream());
+    // Java parity: the width is written unrounded even in the integer variant.
+    p_file << " " << datastructures::java_double_to_string(this->width);
+    const std::size_t line_count = coordinate_arr.size() / 4;
+    for (std::size_t i = 0; i < line_count; ++i)
+    {
+        p_file.new_line();
+        for (std::size_t j = 0; j < 4; ++j)
+        {
+            p_file << static_cast<int>(java_round(coordinate_arr[4 * i + j])) << " ";
+        }
+    }
+    p_file.end_scope();
 }
 
 } // namespace freerouting::designforms::specctra::parser

@@ -157,6 +157,15 @@ std::unique_ptr<Shape> Shape::read_scope(IJFlexScanner& p_scanner, const LayerSt
     return read_scope_from_keyword(p_scanner, next_token, p_layer_structure);
 }
 
+void Shape::write_hole_scope(
+    datastructures::IndentFileWriter& p_file, const datastructures::IdentifierType& p_identifier) const
+{
+    p_file.start_scope();
+    p_file << "window";
+    this->write_scope(p_file, p_identifier);
+    p_file.end_scope();
+}
+
 std::unique_ptr<Shape> Shape::read_scope_from_keyword(
     IJFlexScanner& p_scanner, const Token& p_keyword, const LayerStructure* p_layer_structure)
 {

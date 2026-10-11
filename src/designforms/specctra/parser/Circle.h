@@ -15,6 +15,10 @@ public:
     std::unique_ptr<geometry::planar::Shape> transform_to_board(const CoordinateTransform& p_transform) const override;
     std::unique_ptr<geometry::planar::Shape> transform_to_board_rel(const CoordinateTransform& p_transform) const override;
     std::unique_ptr<Rectangle> bounding_box() const override;
+    void write_scope(datastructures::IndentFileWriter& p_file,
+        const datastructures::IdentifierType& p_identifier) const override;
+    void write_scope_int(datastructures::IndentFileWriter& p_file,
+        const datastructures::IdentifierType& p_identifier) const override;
 
     std::array<double, 3> coor;
 };

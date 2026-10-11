@@ -4,6 +4,7 @@
 #include <climits>
 #include <cmath>
 
+#include "datastructures/JavaFormat.h"
 #include "designforms/specctra/parser/CoordinateTransform.h"
 #include "designforms/specctra/parser/Rectangle.h"
 #include "geometry/planar/PolygonShape.h"
@@ -59,6 +60,40 @@ std::unique_ptr<Rectangle> Polygon::bounding_box() const
         }
     }
     return std::make_unique<Rectangle>(layer, bounds);
+}
+
+void Polygon::write_scope(
+    datastructures::IndentFileWriter& p_file, const datastructures::IdentifierType& p_identifier) const
+{
+    p_file.start_scope();
+    p_file << "polygon ";
+    p_identifier.write(this->layer->name, p_file.stream());
+    p_file << " 0";
+    const std::size_t corner_count = coor.size() / 2;
+    for (std::size_t i = 0; i < corner_count; ++i)
+    {
+        p_file.new_line();
+        p_file << datastructures::java_double_to_string(coor[2 * i]) << " "
+               << datastructures::java_double_to_string(coor[2 * i + 1]);
+    }
+    p_file.end_scope();
+}
+
+void Polygon::write_scope_int(
+    datastructures::IndentFileWriter& p_file, const datastructures::IdentifierType& p_identifier) const
+{
+    p_file.start_scope();
+    p_file << "polygon ";
+    p_identifier.write(this->layer->name, p_file.stream());
+    p_file << " 0";
+    const std::size_t corner_count = coor.size() / 2;
+    for (std::size_t i = 0; i < corner_count; ++i)
+    {
+        p_file.new_line();
+        p_file << static_cast<int>(java_round(coor[2 * i])) << " "
+               << static_cast<int>(java_round(coor[2 * i + 1]));
+    }
+    p_file.end_scope();
 }
 
 } // namespace freerouting::designforms::specctra::parser

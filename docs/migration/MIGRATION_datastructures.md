@@ -51,3 +51,10 @@
   degenerate edges for equal corners of different objects (listed first), result edges ordered by edge id like Java's
   `TreeSet<Edge>`. Java quirk kept: `splitAtInnerPoint` creates 3 unused edges that consume ids (ids order the result).
   Golden tests from the jar; NetIncompletes airlines therefore follow Java's edge order.
+
+- **2026-10-11 (T122)**: `JavaFormat` (`java_double_to_string`, `java_float_to_string`) reimplements Java
+  `Double.toString`/`Float.toString` — shortest round-tripping decimal via `std::to_chars`, plain notation for
+  magnitudes in `[1e-3, 1e7)` and `E`-scientific outside, always a fraction part for integral values, plus
+  NaN/Inf/`-0.0` handling. This is required for DSN/SES output to be token-equal to the Java writers (which use
+  `String.valueOf(double)`); `std::to_chars` alone differs. Tests in `JavaFormat_test.cpp` verify golden strings from
+  Java (JDK 25).

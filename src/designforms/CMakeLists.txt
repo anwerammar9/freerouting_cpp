@@ -16,6 +16,7 @@ add_library(freerouting_designforms STATIC
     specctra/parser/Circle.cpp
     specctra/parser/Circuit.cpp
     specctra/parser/Component.cpp
+    specctra/parser/CoordinateTransform.cpp
     specctra/parser/DsnFile.cpp
     specctra/parser/Keyword.cpp
     specctra/parser/Layer.cpp
@@ -38,6 +39,7 @@ add_library(freerouting_designforms STATIC
     specctra/parser/ScopeKeyword.cpp
     specctra/parser/SpecctraDsnStreamReader.cpp
     specctra/parser/Structure.cpp
+    specctra/parser/WriteScopeParameter.cpp
 )
 
 target_link_libraries(freerouting_designforms PUBLIC

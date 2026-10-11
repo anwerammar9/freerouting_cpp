@@ -241,6 +241,9 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/Wiring_test.cpp
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/SpecctraDsnStreamReader_test.cpp
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/ParserShape_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/ShapeWrite_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/WriteScopeParameter_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/CoordinateTransform_test.cpp
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/Parser_test.cpp
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/Circuit_test.cpp
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/Structure_test.cpp
@@ -354,6 +357,19 @@ if(BUILD_TESTS)
         GTest::gtest_main
     )
     gtest_discover_tests(IdentifierType_test)
+
+    add_executable(JavaFormat_test
+        ${CMAKE_SOURCE_DIR}/src/datastructures/JavaFormat_test.cpp
+    )
+    target_include_directories(JavaFormat_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/src
+    )
+    target_link_libraries(JavaFormat_test PRIVATE
+        freerouting_datastructures
+        GTest::gtest_main
+    )
+    gtest_discover_tests(JavaFormat_test)
 
     add_executable(IndentFileWriter_test
         ${CMAKE_SOURCE_DIR}/src/datastructures/IndentFileWriter_test.cpp

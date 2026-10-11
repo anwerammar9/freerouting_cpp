@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+#include "datastructures/IdentifierType.h"
+#include "datastructures/IndentFileWriter.h"
 #include "designforms/specctra/parser/IJFlexScanner.h"
 #include "designforms/specctra/parser/Layer.h"
 #include "geometry/planar/PolylineShape.h"
@@ -36,6 +38,19 @@ public:
         const CoordinateTransform& p_transform) const = 0;
     /** The smallest axis parallel rectangle containing this shape, or nullptr. Java boundingBox. */
     virtual std::unique_ptr<Rectangle> bounding_box() const = 0;
+
+    /** Writes a shape scope to a Specctra dsn file. Java Shape.writeScope. */
+    virtual void write_scope(datastructures::IndentFileWriter& p_file,
+        const datastructures::IdentifierType& p_identifier) const = 0;
+    /**
+     * Writes a shape scope to a Specctra session file. In a session file all
+     * coordinates must be integer. Java Shape.writeScopeInt.
+     */
+    virtual void write_scope_int(datastructures::IndentFileWriter& p_file,
+        const datastructures::IdentifierType& p_identifier) const = 0;
+    /** Writes this shape as a (window ...) scope. Java Shape.writeHoleScope. */
+    void write_hole_scope(datastructures::IndentFileWriter& p_file,
+        const datastructures::IdentifierType& p_identifier) const;
 
     /**
      * Reads a shape scope. If p_layer_structure is nullptr, only the layers

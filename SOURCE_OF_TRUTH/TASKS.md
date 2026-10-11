@@ -412,12 +412,18 @@ net classes, keepouts) equal Java's. T110 adds the count dump used as acceptance
 
 ## Phase 2 — SES writer parity (Java SesWriter 552 + write paths; C++ SessionWriter 88)
 
-- [ ] T122 | deps: T106 | WriteScopeParameter + shape/resolution write halves (T106 was marked done without them)
+- [x] T122 | deps: T106 | WriteScopeParameter + shape/resolution write halves (T106 was marked done without them)
   - spec: SOURCE_OF_TRUTH/plans/M2_ses_io.md (section T122)
   - java: parser/WriteScopeParameter.java (38), `writeScope` of Shape/Rectangle/Circle/Polygon/Path/PolygonPath/
     PolylinePath/Resolution (and Layer/Rule write parts that SesWriter and DsnWriter both call)
   - cpp: src/designforms/specctra/parser/{WriteScopeParameter,...}
   - done when: each shape round-trips (write -> read -> equal) in a gtest; output text equals Java for the same shape.
+  - result: Ported WriteScopeParameter, Shape/Rectangle/Circle/Polygon/Path/PolygonPath/PolylinePath
+    writeScope+writeScopeInt+writeHoleScope, Resolution.writeScope and the board<->DSN
+    CoordinateTransform value/shape conversions (new CoordinateTransform.cpp). Added
+    datastructures/JavaFormat (Java Double/Float.toString). 28 gtests pass (golden strings
+    captured from Java JDK 25 + write->read->equal round-trips); ctest 1005/1005, run_tests green.
+    Layer/Rule write parts deferred to T201/T202 (SesWriter/DsnWriter callers).
 - [ ] T201 | deps: T117,T122,T125 | SesWriter part 1: session header, base_design, placement, was_is
   - spec: SOURCE_OF_TRUTH/plans/M2_ses_io.md (section T201)
   - java: io/specctra/SesWriter.java (552, first half)

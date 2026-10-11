@@ -7,6 +7,7 @@ add_library(freerouting_datastructures STATIC
     TimeLimit.cpp
     IdentifierType.cpp
     IndentFileWriter.cpp
+    JavaFormat.cpp
     FileFilter.cpp
     IdentificationNumberGenerator.cpp
     PlanarDelaunayTriangulation.cpp
