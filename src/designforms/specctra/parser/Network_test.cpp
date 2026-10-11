@@ -153,8 +153,7 @@ TEST(NetworkTest, NetScopeWithoutStructureFails)
     EXPECT_EQ(nullptr, par.get_board());
 }
 
-TEST(NetworkTest, ViaInfoAndViaRuleAreReadAndInserted)
-{
+TEST(NetworkTest, ViaInfoAndViaRuleAreReadAndInserted){
     // structure declares the via padstack list, network the via info and the via rule.
     SpecctraDsnStreamReader scanner(
         "(resolution um 10)"
@@ -258,6 +257,130 @@ TEST(NetworkTest, ViaRuleWithoutViaInfosFallsBackToTheDefaultRule)
     EXPECT_EQ(nullptr, board.mutable_rules().get_via_rule("r1"));
     // createDefaultViaRule returns early with no via infos, so no rule exists at all.
     EXPECT_EQ(nullptr, board.mutable_rules().get_default_via_rule());
+}
+
+TEST(NetworkTest, ClassCreatesANetClassAndAssignsItToTheNet)
+{
+    // resolution um 10: dsn 0.5 -> board 5, half width round(5/2) = 3.
+    SpecctraDsnStreamReader scanner(
+        std::string(kStructure) + "(network (net A (pins U1-1)) (class PWR A (rule (width 0.5))))", true);
+    ReadScopeParameter par(scanner);
+    ASSERT_TRUE(Keyword::PCB_SCOPE->read_scope(par));
+    ASSERT_NE(nullptr, par.get_board());
+    board::RoutingBoard& board = *par.get_board();
+
+    rules::Net* net = board.get_rules().get_nets().get("A", 1);
+    ASSERT_NE(nullptr, net);
+    ASSERT_NE(nullptr, net->get_net_class());
+    EXPECT_EQ("PWR", net->get_net_class()->get_name());
+    EXPECT_EQ(3, net->get_net_class()->get_trace_half_width(0));
+    // default + PWR
+    EXPECT_EQ(2, board.get_rules().get_net_classes().count());
+}
+
+TEST(NetworkTest, KiCadDefaultClassNameMapsToTheDefaultNetClass)
+{
+    SpecctraDsnStreamReader scanner(
+        std::string(kStructure) + "(network (net A (pins U1-1)) (class kicad_default A (rule (width 0.5))))", true);
+    ReadScopeParameter par(scanner);
+    ASSERT_TRUE(Keyword::PCB_SCOPE->read_scope(par));
+    ASSERT_NE(nullptr, par.get_board());
+    board::RoutingBoard& board = *par.get_board();
+
+    rules::Net* net = board.get_rules().get_nets().get("A", 1);
+    ASSERT_NE(nullptr, net);
+    EXPECT_EQ(board.get_rules().get_default_net_class(), net->get_net_class());
+    // No new class was appended.
+    EXPECT_EQ(1, board.get_rules().get_net_classes().count());
+}
+
+TEST(NetworkTest, ClearanceRuleCreatesAClearanceClass)
+{
+    // resolution um 10: dsn 0.4 -> board 4.
+    SpecctraDsnStreamReader scanner(
+        std::string(kStructure) + "(network (net A (pins U1-1)) (class PWR A (rule (clearance 0.4))))", true);
+    ReadScopeParameter par(scanner);
+    ASSERT_TRUE(Keyword::PCB_SCOPE->read_scope(par));
+    ASSERT_NE(nullptr, par.get_board());
+    board::RoutingBoard& board = *par.get_board();
+
+    rules::ClearanceMatrix& matrix = board.mutable_rules().get_clearance_matrix();
+    const int class_no = matrix.get_no("PWR");
+    ASSERT_GE(class_no, 0);
+    rules::Net* net = board.get_rules().get_nets().get("A", 1);
+    ASSERT_NE(nullptr, net);
+    ASSERT_NE(nullptr, net->get_net_class());
+    EXPECT_EQ(class_no, net->get_net_class()->get_trace_clearance_class());
+    EXPECT_EQ(4, matrix.get_value(class_no, class_no, 0));
+}
+
+TEST(NetworkTest, ClassPairClearanceRuleSetsMixedClearance)
+{
+    // resolution um 10: dsn 0.6 -> board 6.
+    SpecctraDsnStreamReader scanner(
+        std::string(kStructure)
+            + "(network (net A (pins U1-1)) (net B (pins U2-1))"
+              " (class PWR A (rule (clearance 0.4))) (class SIG B (rule (width 0.5)))"
+              " (class_class (classes PWR SIG) (rule (clearance 0.6))))",
+        true);
+    ReadScopeParameter par(scanner);
+    ASSERT_TRUE(Keyword::PCB_SCOPE->read_scope(par));
+    ASSERT_NE(nullptr, par.get_board());
+    board::RoutingBoard& board = *par.get_board();
+
+    rules::ClearanceMatrix& matrix = board.mutable_rules().get_clearance_matrix();
+    const int pwr_no = matrix.get_no("PWR");
+    const int sig_no = matrix.get_no("SIG");
+    ASSERT_GE(pwr_no, 0);
+    ASSERT_GE(sig_no, 0);
+    EXPECT_EQ(6, matrix.get_value(pwr_no, sig_no, 0));
+    EXPECT_EQ(6, matrix.get_value(sig_no, pwr_no, 0));
+}
+
+TEST(NetworkTest, ClassUseViaCreatesAViaRule)
+{
+    SpecctraDsnStreamReader scanner(
+        "(resolution um 10)"
+        "(structure (layer F.Cu (type signal)) (layer B.Cu (type signal))"
+        " (boundary (rect pcb 0 0 100000 100000)))"
+        "(library (padstack MyVia (shape (circle signal 600))))"
+        "(network (net A (pins U1-1)) (class PWR A (rule (clearance 0.4)) (circuit (use_via MyVia))))",
+        true);
+    ReadScopeParameter par(scanner);
+    ASSERT_TRUE(Keyword::PCB_SCOPE->read_scope(par));
+    ASSERT_NE(nullptr, par.get_board());
+    board::RoutingBoard& board = *par.get_board();
+
+    ASSERT_EQ(1, board.library().via_padstack_count());
+    rules::ViaRule* pwr_rule = board.mutable_rules().get_via_rule("PWR");
+    ASSERT_NE(nullptr, pwr_rule);
+    ASSERT_EQ(1, pwr_rule->via_count());
+    EXPECT_EQ("MyVia-PWR", pwr_rule->get_via(0)->get_name());
+    rules::Net* net = board.get_rules().get_nets().get("A", 1);
+    ASSERT_NE(nullptr, net);
+    ASSERT_NE(nullptr, net->get_net_class());
+    EXPECT_EQ(pwr_rule, net->get_net_class()->get_via_rule());
+}
+
+TEST(NetworkTest, ClassUseLayerRestrictsTheActiveTraceLayers)
+{
+    SpecctraDsnStreamReader scanner(
+        std::string(kStructure)
+            + "(network (net A (pins U1-1)) (class SIG A (rule (width 0.5)) (circuit (use_layer F.Cu))))",
+        true);
+    ReadScopeParameter par(scanner);
+    ASSERT_TRUE(Keyword::PCB_SCOPE->read_scope(par));
+    ASSERT_NE(nullptr, par.get_board());
+    board::RoutingBoard& board = *par.get_board();
+
+    rules::Net* net = board.get_rules().get_nets().get("A", 1);
+    ASSERT_NE(nullptr, net);
+    ASSERT_NE(nullptr, net->get_net_class());
+    const rules::NetClass* net_class = net->get_net_class();
+    EXPECT_TRUE(net_class->is_active_routing_layer(0));
+    EXPECT_FALSE(net_class->is_active_routing_layer(1));
+    EXPECT_EQ(3, net_class->get_trace_half_width(0));
+    EXPECT_EQ(0, net_class->get_trace_half_width(1));
 }
 
 } // namespace

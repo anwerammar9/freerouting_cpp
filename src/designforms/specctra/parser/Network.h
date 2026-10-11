@@ -7,6 +7,8 @@
 #include <vector>
 
 #include "designforms/specctra/parser/Net.h"
+#include "designforms/specctra/parser/NetClass.h"
+#include "designforms/specctra/parser/Rule.h"
 #include "designforms/specctra/parser/ScopeKeyword.h"
 
 namespace freerouting::board {
@@ -14,6 +16,7 @@ class RoutingBoard;
 } // namespace freerouting::board
 
 namespace freerouting::rules {
+class ClearanceMatrix;
 class NetClass;
 class ViaInfo;
 } // namespace freerouting::rules
@@ -71,6 +74,45 @@ public:
 
     /** Java Network.addViaRule: replaces an existing rule with the same name. */
     static bool add_via_rule(const std::vector<std::string>& p_name_list, board::RoutingBoard& p_board);
+
+    /** Java Network.insertNetClasses: add all read classes to the board rules. */
+    static void insert_net_classes(const std::vector<NetClass>& p_net_classes, ReadScopeParameter& p_par);
+
+    /** Java Network.insertNetClass: create the board net class and insert its rules. */
+    static void insert_net_class(const NetClass& p_net_class, const LayerStructure& p_layer_structure,
+        board::RoutingBoard& p_board, const CoordinateTransform& p_coordinate_transform, bool p_via_at_smd_allowed);
+
+    /** Java Network.insertClassPairs: insert the clearance rules of the class pairs. */
+    static void insert_class_pairs(const std::vector<NetClass::ClassClass>& p_class_classes, ReadScopeParameter& p_par);
+
+private:
+    /** Java Network.insertClassPairInfo. */
+    static void insert_class_pair_info(const NetClass::ClassClass& p_class_class, rules::NetClass* p_first_class,
+        rules::NetClass* p_second_class, board::RoutingBoard& p_board, const CoordinateTransform& p_coordinate_transform);
+
+    /** Java Network.addMixedClearanceRule. */
+    static void add_mixed_clearance_rule(rules::ClearanceMatrix& p_clearance_matrix, rules::NetClass* p_first_class,
+        rules::NetClass* p_second_class, const ClearanceRule& p_clearance_rule, int p_layer_index,
+        const CoordinateTransform& p_coordinate_transform);
+
+    /** Java Network.addClearanceRule: insert a clearance rule of a net class. */
+    static void add_clearance_rule(rules::ClearanceMatrix& p_clearance_matrix, rules::NetClass* p_net_class,
+        const ClearanceRule& p_clearance_rule, int p_layer_index, const CoordinateTransform& p_coordinate_transform);
+
+    /** Java Network.createDefaultClearanceClasses (the via/smd/pin/area classes). */
+    static void create_default_clearance_classes(rules::NetClass* p_net_class, rules::ClearanceMatrix& p_clearance_matrix);
+
+    /** Java Network.getClearanceClass: the class "<net class>-<item class>", created on demand. */
+    static int get_clearance_class(rules::ClearanceMatrix& p_clearance_matrix, rules::NetClass* p_net_class,
+        const std::string& p_item_class_name);
+
+    /** Java Network.createViaRule: a via rule from the use_via names of a net class. */
+    static void create_via_rule(const std::vector<std::string>& p_use_via, rules::NetClass* p_net_class,
+        board::RoutingBoard& p_board, bool p_attach_allowed);
+
+    /** Java Network.createActiveTraceLayers. */
+    static void create_active_trace_layers(const std::vector<std::string>& p_use_layer,
+        const LayerStructure& p_layer_structure, rules::NetClass* p_net_class);
 };
 
 } // namespace freerouting::designforms::specctra::parser

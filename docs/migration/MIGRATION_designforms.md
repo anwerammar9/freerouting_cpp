@@ -229,8 +229,7 @@
 ## T113 Network part 1 (2026-10-11)
 
 - `parser::Network` (Java `parser/Network.java` read part): `read_scope` loops the `(network …)` scope with the
-  `(via …)`, `(via_rule …)`, `(class …)`, `(class_class …)` branches still `skip_scope` stubs (T114a/T114b fill
-  them), `read_net_scope` (name via `nextString()`, optional integer subnet number, `pins`/`order`/`fromto`/`rule`/
+  `(via …)`, `(via_rule …)`, `(class …)`, `(class_class …)` branches (filled by T114a/T114b), `read_net_scope` (name via `nextString()`, optional integer subnet number, `pins`/`order`/`fromto`/`rule`/
   `layer_rule` branches, one subnet per `fromto`, ordered 2-pin subnets for `order`, net-level width rule creating or
   finding a net class), `read_net_pins` and `create_ordered_subnets`. `Keyword::NETWORK_SCOPE` is the real `Network`
   instance.
@@ -268,3 +267,32 @@
 - `Network_test.cpp`: +4 tests (via info + via rule inserted; no via info → default via infos from via padstacks;
   missing via padstack dropped with a warning; via rule naming an unknown via falls back to the default rule).
   Network_test 13, ctest 966/966, `run_tests` PASSED.
+
+## T114b Network part 2b — net classes and class pairs (2026-10-11)
+
+- New `parser::NetClass` (`src/designforms/specctra/parser/NetClass.{h,cpp,_test.cpp}`) mirrors Java
+  `parser/NetClass.java` (197 lines): fields for clearance class, width/via rules, active layers/switches, length,
+  layer rules and the nested `ClassClass` (class names + clearance-class name). `read_scope` follows the Java
+  token loop exactly (pre-loop `next_token()`, `open_bracket` tracking, `rules_missing` path for unused-class
+  width rules); `read_class_class_scope` reads `(class_class (classes …) (rule …))` and `NULL_OBJECT` ends the loop.
+- `parser::Network` gains `insert_net_classes`/`insert_net_class`, `insert_class_pairs`/`insert_class_pair_info`,
+  `add_mixed_clearance_rule`, `add_clearance_rule`, `create_default_clearance_classes`, `get_clearance_class`,
+  `create_via_rule` and `create_active_trace_layers` (Java `Network.java` 423–831). The `(class …)`/`(class_class …)`
+  branches of `read_scope` now call the readers and, after the via-padstack block, run the `use_via` →
+  `via_padstack_names` append (the T114a-deferred loop), then `insert_via_infos`, `insert_via_rules`,
+  `insert_net_classes`, `insert_class_pairs` in Java order.
+- Java quirks preserved: the net-class `use_via` names are appended to the single `via_padstack_names` collection
+  (Java aliases `params.viaPadstackNames`), the `"-"` class-clearance separator (`DsnFile::kClassClearanceSeparator`)
+  is used both for `(class_class)` pair parsing and for building clearance-class names, and `equals_ignore_case` /
+  `java_round` match Java semantics. KiCad default-name mapping (`is_kicad_default_net_class_name` /
+  `resolve_net_class`) is ported inline in `Network.cpp` (Java `io/KiCadNetClassNames.java`).
+- C++ shape difference (behaviour-preserving): the `use_via` class names are cleaned of the `\.\d+` suffix (same as
+  the structure via list) before the append.
+- Known Java quirk carried over: a `(class NAME nets)` scope with **no** sub-scope leaves the class's `)` as the
+  reader's look-back token, so it consumes the following scope. This matches the Java token loop; real DSN classes
+  always carry a `(circuit …)`/`(rule …)` sub-scope. Tests therefore give every class a sub-scope.
+- Tests: `NetClass_test.cpp` (7 cases: name/nets/width, clearance class + via rule + switches, circuit
+  `use_via`/`use_layer`/length, layer rules + skipped unknown scope, EOF, `ClassClass` names + clearance, `ClassClass`
+  EOF) and `Network_test.cpp` +6 (class creates/assigns a board net class, `kicad_default` mapping, clearance class
+  built from the class, class-pair mixed clearance, `use_via` creates a via rule, `use_layer` restricts active
+  trace layers). ctest 979/979, `run_tests` PASSED.
