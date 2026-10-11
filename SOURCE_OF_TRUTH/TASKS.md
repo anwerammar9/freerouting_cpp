@@ -195,7 +195,8 @@ real boards like Java as soon as possible.
 - [ ] T404 | deps: T403 | AutoroutePassRunner part 2 (ripup escalation, pass result) + AutorouteRuntimeMetrics + AutorouteUnroutedReport
   - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T404)
   - java: AutoroutePassRunner.java second half, AutorouteRuntimeMetrics.java (66), AutorouteUnroutedReport.java (80)
-- [ ] T420 | deps: - | Board deep copy + state hash (history, batch loop and optimizer all need it)
+- [!] T420 | deps: - | Board deep copy + state hash (history, batch loop and optimizer all need it)
+  - blocked: gate failed after 3 attempts on 20261011-151340 (logs: .migration-logs/20261011-151340-T420-try*.log)
   - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T420)
   - java: board/facade/RoutingBoardUndoFacade.deepCopy (serialization) + BoardSnapshotManager.getHash (MD5)
   - cpp: src/board/RoutingBoard.{h,cpp}
