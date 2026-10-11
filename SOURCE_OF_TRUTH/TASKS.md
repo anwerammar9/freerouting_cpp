@@ -182,7 +182,8 @@ real boards like Java as soon as possible.
 
 ## Phase 4 — Autoroute pipeline (Java autoroute/pipeline ≈ 5.4k lines; C++ BatchAutorouter 352)
 
-- [ ] T401 | deps: - | AutorouteAirlineCalculator
+- [!] T401 | deps: - | AutorouteAirlineCalculator
+  - blocked: gate failed after 3 attempts on 20261011-151319 (logs: .migration-logs/20261011-151319-T401-try*.log)
   - spec: SOURCE_OF_TRUTH/plans/TrackC_pipeline.md (section T401)
   - java: autoroute/pipeline/AutorouteAirlineCalculator.java (214)
 - [ ] T402 | deps: T401 | AutorouteConnectionRouter
