@@ -358,9 +358,16 @@ net classes, keepouts) equal Java's. T110 adds the count dump used as acceptance
     Implemented read-only (no public mutators); net class sees Circuit data via ReadScopeParameter.plane_list.
     Keyword.cpp: k_PARSER_SCOPE is now the real Parser instance. Registered in
     src/designforms/CMakeLists.txt + tests/CMakeLists.txt; 15 new gtests; ctest 953/953 green.
-- [ ] T113 | deps: T112 | Network part 1: net scopes (readNetScope, readNetPins, ordered subnets) + Network::read_scope skeleton
+- [x] T113 | deps: T112 | Network part 1: net scopes (readNetScope, readNetPins, ordered subnets) + Network::read_scope skeleton
   - spec: SOURCE_OF_TRUTH/plans/M1_dsn_reader.md (section T113)
   - java: parser/Net.java (129), NetList.java (56), Network.java (net read part)
+  - result: The T113 code landed in 311ba5c but its test was never registered, so the task stayed open. Finished it:
+    `parser::Network` (`read_scope` loop with via/via-rule/class/class-class branches still `skip_scope` stubs for
+    T114a/T114b, `read_net_scope`, `read_net_pins` → `optional<vector<Net::Pin>>` for Java's boolean+out-param,
+    `create_ordered_subnets`), `Keyword::NETWORK_SCOPE` real instance, `Network.cpp` in `src/designforms/CMakeLists.txt`.
+    Added `Network_test.cpp` to `tests/CMakeLists.txt` (DESIGNFORMS_TEST_SOURCES — it was missing, so the 9 tests never ran).
+    Parity verified incl. `+5V` kept raw by `nextString()` (raw-buffer read, unlike the illegal-char-skipping identifier
+    tokenizer of gotcha 37). Network_test 9, ctest 962/962, run_tests PASSED.
 - [ ] T114a | deps: T113,T125 | Network part 2a: via infos, via rules, via padstacks
   - spec: SOURCE_OF_TRUTH/plans/M1_dsn_reader.md (section T114a)
   - java: parser/Network.java readViaInfo/readViaRule/insertViaInfos/createDefaultViaInfos/insertViaRules/addViaRule (255-422) + readScope via-padstack block (1273-1318)

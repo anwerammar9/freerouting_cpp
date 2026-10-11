@@ -246,6 +246,7 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/Structure_test.cpp
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/AutorouteSettings_test.cpp
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/NetList_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/Network_test.cpp
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/Library_test.cpp
         ${CMAKE_SOURCE_DIR}/src/designforms/specctra/parser/ParserComponent_test.cpp
     )

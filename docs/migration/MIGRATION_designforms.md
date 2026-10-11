@@ -225,3 +225,22 @@
   structure scope when host_cad==allegro") is the existing Plane.cpp behavior, verified end-to-end by
   `ParserTest.HostCadAllegroSkipsPlaneWindows` / `NonAllegroHostCadReadsPlaneWindows` (plane rects must be on a
   real DSN layer like F.Cu — the special `signal` layer has `no<0` and Java rejects it too).
+
+## T113 Network part 1 (2026-10-11)
+
+- `parser::Network` (Java `parser/Network.java` read part): `read_scope` loops the `(network …)` scope with the
+  `(via …)`, `(via_rule …)`, `(class …)`, `(class_class …)` branches still `skip_scope` stubs (T114a/T114b fill
+  them), `read_net_scope` (name via `nextString()`, optional integer subnet number, `pins`/`order`/`fromto`/`rule`/
+  `layer_rule` branches, one subnet per `fromto`, ordered 2-pin subnets for `order`, net-level width rule creating or
+  finding a net class), `read_net_pins` and `create_ordered_subnets`. `Keyword::NETWORK_SCOPE` is the real `Network`
+  instance.
+- C++ shape differences (behaviour-preserving): `read_net_pins` returns `std::optional<std::vector<Net::Pin>>`
+  (Java returns `boolean` and appends to an out-collection); the `fromto`/single-subnet collections are `std::set`
+  so the dedup/sort matches Java `TreeSet<>(pinList)` in `Net.setPins`.
+- `+5V` parity: `read_net_scope` uses `scanner.next_string()`, which reads the raw char buffer and keeps `+`
+  (only `next_token()`'s identifier tokenizer skips illegal chars per gotcha 37), so the net is stored as `+5V`.
+- The `Network_test.cpp` companion (9 tests: ordered subnets, pins, explicit subnet number, per-`fromto` subnets,
+  `order`, empty net scope, width-rule net class, `+5V`, missing structure) existed from commit 311ba5c but was
+  **not registered** in `tests/CMakeLists.txt` — added to `DESIGNFORMS_TEST_SOURCES`; ctest 962/962.
+- Deferred: the via/class post-processing (via padstacks, `insertViaInfos`, `insertViaRules`, `insertNetClasses`,
+  `insertClassPairs`) and `insertComponents`/`insertLogicalParts` (T114a/T114b/T115).
